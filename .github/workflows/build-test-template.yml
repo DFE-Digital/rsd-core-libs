@@ -1,0 +1,99 @@
+name: .NET Build and Test Template
+
+on:
+  workflow_call:
+    inputs:
+      project_name:
+        required: true
+        type: string
+        description: "The name of the project"
+      project_path:
+        required: true
+        type: string
+        description: "The relative path to the project directory"
+      run_tests:
+        required: false
+        type: boolean
+        default: true
+        description: "Flag to run or skip tests"
+    secrets:
+      SONAR_TOKEN:
+        required: true
+env:
+  DOTNET_VERSION: '8.0.x'
+  EF_VERSION: '6.0.5'
+  JAVA_VERSION: '17'
+  CONNECTION_STRING: 'Server=localhost,1433;Database=sip;TrustServerCertificate=True;User Id=sa;Password=StrongPassword905'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+      contents: read
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Setup JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'microsoft'
+        java-version: ${{ env.JAVA_VERSION }}
+
+    - name: Cache SonarCloud packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.sonar/cache
+        key: ${{ runner.os }}-sonar
+        restore-keys: ${{ runner.os }}-sonar
+
+    - name: Install SonarCloud scanners
+      run: dotnet tool install --global dotnet-sonarscanner
+
+    - name: Install EF for tests
+      run: dotnet tool install --global dotnet-ef --version ${{ env.EF_VERSION }}
+
+    - name: Install dotnet reportgenerator
+      run: dotnet tool install --global dotnet-reportgenerator-globaltool
+
+    - name: Add nuget package source
+      run: dotnet nuget add source --username USERNAME --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/DFE-Digital/index.json"
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ inputs.project_path }}
+
+    - name: Set Test Project Path
+      run: |
+        test_project_path="${{ inputs.project_path }}"
+        test_project_path="${test_project_path/src\//src\/Tests\/}.Tests"
+        echo "test_project_path=$test_project_path" >> $GITHUB_ENV
+
+    - name: Build, Test and Analyze
+      env:
+        CI: true
+      run: |
+        echo "run_tests is set to: ${{ inputs.run_tests }}"    
+        if [ "${{ inputs.run_tests }}" == "true" ]; then
+          dotnet-sonarscanner begin /k:"DFE-Digital_rsd-core-libs" /o:"dfe-digital" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.coverageReportPaths=CoverageReport/SonarQube.xml;
+        else
+          dotnet-sonarscanner begin /k:"DFE-Digital_rsd-core-libs" /o:"dfe-digital" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io";
+        fi
+        dotnet build --no-restore -p:CI=${CI} ${{ inputs.project_path }}
+
+    - name: Run Tests
+      if: ${{ inputs.run_tests }}
+      run: dotnet test --verbosity normal --collect:"XPlat Code Coverage" ${{ env.test_project_path }}
+
+    - name: Generate Code Coverage Report
+      if: ${{ inputs.run_tests }}
+      run: reportgenerator -reports:./**/coverage.cobertura.xml -targetdir:./CoverageReport -reporttypes:SonarQube
+
+    - name: Complete Sonar Scan
+      run: dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
