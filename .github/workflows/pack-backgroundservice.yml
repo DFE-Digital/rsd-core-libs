@@ -1,0 +1,15 @@
+name: Pack DfE.CoreLibs.BackgroundService
+
+on:
+  workflow_run:
+    workflows: ["Build DfE.CoreLibs.BackgroundService"]
+    types:
+      - completed
+
+jobs:
+  build-and-package:
+    uses: ./.github/workflows/nuget-package-template.yml
+    with:
+      project_name: DfE.CoreLibs.BackgroundService
+      project_path: src/DfE.CoreLibs.BackgroundService
+      nuget_package_name: DfE.CoreLibs.BackgroundService

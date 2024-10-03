@@ -1,0 +1,15 @@
+name: Pack DfE.CoreLibs.Caching
+
+on:
+  workflow_run:
+    workflows: ["Build DfE.CoreLibs.Caching"]
+    types:
+      - completed
+
+jobs:
+  build-and-package:
+    uses: ./.github/workflows/nuget-package-template.yml
+    with:
+      project_name: DfE.CoreLibs.Caching
+      project_path: src/DfE.CoreLibs.Caching
+      nuget_package_name: DfE.CoreLibs.Caching

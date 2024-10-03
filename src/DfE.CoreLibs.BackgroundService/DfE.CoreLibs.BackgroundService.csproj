@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+	  <PackageReadmeFile>readme.md</PackageReadmeFile>
+	  <Title>DfE.CoreLibs.BackgroundService</Title>
+	  <Description>This package provides a robust framework for implementing long-running background tasks in .NET applications. It simplifies the development of background services by offering reusable components that streamline task scheduling, execution, and error handling. Ideal for any project requiring background processing, it ensures reliability and scalability across different environments.</Description>
+	  <Authors>DFE-Digital</Authors>
+  </PropertyGroup>
+
+	<Target Name="CheckReadmeExists" BeforeTargets="Pack">
+		<Message Text="Checking if $(MSBuildThisFileDirectory)readme.md exists..." Importance="high" />
+		<Error Text="The readme.md file is missing in $(MSBuildThisFileDirectory)" Condition="!Exists('$(MSBuildThisFileDirectory)readme.md')" />
+	</Target>
+
+	<ItemGroup>
+		<None Include="readme.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR" Version="12.4.1" />
+    <PackageReference Include="MediatR.Contracts" Version="2.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0" />
+    <PackageReference Include="System.Text.Json" Version="8.0.4" />
+  </ItemGroup>
+
+	<ItemGroup>
+		<None Update="readme.md">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+
+
+</Project>

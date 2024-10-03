@@ -1,0 +1,15 @@
+name: Pack DfE.CoreLibs.Testing
+
+on:
+  workflow_run:
+    workflows: ["Build DfE.CoreLibs.Testing"]
+    types:
+      - completed
+
+jobs:
+  build-and-package:
+    uses: ./.github/workflows/nuget-package-template.yml
+    with:
+      project_name: DfE.CoreLibs.Testing
+      project_path: src/DfE.CoreLibs.Testing
+      nuget_package_name: DfE.CoreLibs.Testing

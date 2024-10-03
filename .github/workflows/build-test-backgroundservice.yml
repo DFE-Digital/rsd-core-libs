@@ -1,0 +1,19 @@
+name: Build DfE.CoreLibs.BackgroundService
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/DfE.CoreLibs.BackgroundService/**'
+
+jobs:
+  build-and-test:
+    uses: ./.github/workflows/build-test-template.yml
+    with:
+      project_name: DfE.CoreLibs.BackgroundService
+      project_path: src/DfE.CoreLibs.BackgroundService
+      sonar_project_key: DFE-Digital_corelibs-backgroundService
+    secrets:
+      GITHUB__TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SONAR__TOKEN: ${{ secrets.SONAR_TOKEN }}
