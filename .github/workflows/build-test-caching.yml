@@ -1,0 +1,22 @@
+name: Build DfE.CoreLibs.Caching
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/DfE.CoreLibs.Caching/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/DfE.CoreLibs.Caching/**' 
+
+jobs:
+  build-and-test:
+    uses: ./.github/workflows/build-test-template.yml
+    with:
+      project_name: DfE.CoreLibs.Caching
+      project_path: src/DfE.CoreLibs.Caching
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
