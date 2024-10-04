@@ -6,6 +6,11 @@ on:
       - main
     paths:
       - 'src/DfE.CoreLibs.Utilities/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/DfE.CoreLibs.Utilities/**'
 
 jobs:
   build-and-test:

@@ -5,6 +5,10 @@ on:
     workflows: ["Build DfE.CoreLibs.Utilities"]
     types:
       - completed
+    branches:
+      - main
+    events:
+      - push
 
 jobs:
   build-and-package:
