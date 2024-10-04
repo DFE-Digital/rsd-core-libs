@@ -70,7 +70,10 @@ jobs:
       run: dotnet restore ${{ inputs.project_path }}
 
     - name: Set Test Project Path
-      run: echo "test_project_path=${{ inputs.project_path/src\//src\/Tests\/}}.Tests" >> $GITHUB_ENV
+      run: |
+        test_project_path="${{ inputs.project_path }}"
+        test_project_path="${test_project_path/src\//src\/Tests\/}.Tests"
+        echo "test_project_path=$test_project_path" >> $GITHUB_ENV
 
     - name: Build, Test and Analyze
       env:
