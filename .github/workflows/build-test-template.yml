@@ -89,7 +89,7 @@ jobs:
 
     - name: Run Tests
       if: ${{ inputs.run_tests }}
-      run: dotnet test --no-build --verbosity normal --collect:"XPlat Code Coverage" ${{ env.test_project_path }}
+      run: dotnet test --verbosity normal --collect:"XPlat Code Coverage" ${{ env.test_project_path }}
 
     - name: Generate Code Coverage Report
       if: ${{ inputs.run_tests }}
