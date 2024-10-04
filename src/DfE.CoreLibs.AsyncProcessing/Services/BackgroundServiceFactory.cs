@@ -1,8 +1,8 @@
 ﻿using System.Collections.Concurrent;
-using DfE.CoreLibs.BackgroundService.Interfaces;
+using DfE.CoreLibs.AsyncProcessing.Interfaces;
 using MediatR;
 
-namespace DfE.CoreLibs.BackgroundService.Services
+namespace DfE.CoreLibs.AsyncProcessing.Services
 {
     public class BackgroundServiceFactory(IMediator mediator) : Microsoft.Extensions.Hosting.BackgroundService, IBackgroundServiceFactory
     {

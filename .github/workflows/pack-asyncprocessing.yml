@@ -1,0 +1,15 @@
+name: Pack DfE.CoreLibs.AsyncProcessing
+
+on:
+  workflow_run:
+    workflows: ["Build DfE.CoreLibs.AsyncProcessing"]
+    types:
+      - completed
+
+jobs:
+  build-and-package:
+    uses: ./.github/workflows/nuget-package-template.yml
+    with:
+      project_name: DfE.CoreLibs.AsyncProcessing
+      project_path: src/DfE.CoreLibs.AsyncProcessing
+      nuget_package_name: DfE.CoreLibs.AsyncProcessing

@@ -1,5 +1,5 @@
-﻿using DfE.CoreLibs.BackgroundService.Interfaces;
-using DfE.CoreLibs.BackgroundService.Services;
+﻿using DfE.CoreLibs.AsyncProcessing.Interfaces;
+using DfE.CoreLibs.AsyncProcessing.Services;
 
 namespace Microsoft.Extensions.DependencyInjection
 {

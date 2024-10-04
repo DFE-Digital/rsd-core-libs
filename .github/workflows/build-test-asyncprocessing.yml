@@ -1,0 +1,16 @@
+name: Build DfE.CoreLibs.AsyncProcessing
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/DfE.CoreLibs.AsyncProcessing/**'
+
+jobs:
+  build-and-test:
+    uses: ./.github/workflows/build-test-template.yml
+    with:
+      project_name: DfE.CoreLibs.AsyncProcessing
+      project_path: src/DfE.CoreLibs.AsyncProcessing
+      sonar_project_key: DFE-Digital_corelibs-asyncprocessing

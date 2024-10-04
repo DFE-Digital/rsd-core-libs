@@ -1,4 +1,4 @@
-﻿namespace DfE.CoreLibs.BackgroundService.Interfaces
+﻿namespace DfE.CoreLibs.AsyncProcessing.Interfaces
 {
     public interface IBackgroundServiceFactory
     {

@@ -1,0 +1,16 @@
+name: Build DfE.CoreLibs.Http
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/DfE.CoreLibs.Http/**'
+
+jobs:
+  build-and-test:
+    uses: ./.github/workflows/build-test-template.yml
+    with:
+      project_name: DfE.CoreLibs.Http
+      project_path: src/DfE.CoreLibs.Http
+      sonar_project_key: DFE-Digital_corelibs-http
