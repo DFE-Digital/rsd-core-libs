@@ -79,7 +79,7 @@ jobs:
       run: |
         echo "run_tests is set to: ${{ inputs.run_tests }}"    
         if [ "${{ inputs.run_tests }}" == "true" ]; then
-          dotnet-sonarscanner begin /k:"${{ inputs.sonar_project_key }}" /o:"dfe-digital" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.coverageReportPaths=CoverageReport/SonarQube.xml;
+          dotnet-sonarscanner begin /k:"DFE-Digital_rsd-core-libs" /o:"dfe-digital" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.coverageReportPaths=CoverageReport/SonarQube.xml;
         else
           dotnet-sonarscanner begin /k:"${{ inputs.sonar_project_key }}" /o:"dfe-digital" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io";
         fi

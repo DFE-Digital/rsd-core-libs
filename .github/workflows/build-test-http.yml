@@ -13,6 +13,5 @@ jobs:
     with:
       project_name: DfE.CoreLibs.Http
       project_path: src/DfE.CoreLibs.Http
-      sonar_project_key: DFE-Digital_corelibs-http
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
