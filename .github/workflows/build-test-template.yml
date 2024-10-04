@@ -69,6 +69,9 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore ${{ inputs.project_path }}
 
+    - name: Set Test Project Path
+      run: echo "test_project_path=${{ inputs.project_path/src\//src\/Tests\/}}.Tests" >> $GITHUB_ENV
+
     - name: Build, Test and Analyze
       env:
         CI: true
@@ -83,7 +86,7 @@ jobs:
 
     - name: Run Tests
       if: ${{ inputs.run_tests }}
-      run: dotnet test --no-build --verbosity normal --collect:"XPlat Code Coverage" ${{ inputs.project_path }}
+      run: dotnet test --no-build --verbosity normal --collect:"XPlat Code Coverage" ${{ env.test_project_path }}
 
     - name: Generate Code Coverage Report
       if: ${{ inputs.run_tests }}
