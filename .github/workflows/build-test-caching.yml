@@ -14,3 +14,6 @@ jobs:
       project_name: DfE.CoreLibs.Caching
       project_path: src/DfE.CoreLibs.Caching
       sonar_project_key: DFE-Digital_corelibs-caching
+    secrets:
+      GITHUB__TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SONAR__TOKEN: ${{ secrets.SONAR_TOKEN }}
