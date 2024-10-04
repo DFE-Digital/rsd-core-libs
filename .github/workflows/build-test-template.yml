@@ -11,10 +11,6 @@ on:
         required: true
         type: string
         description: "The relative path to the project directory"
-      sonar_project_key:
-        required: true
-        type: string
-        description: "SonarCloud project key"
       run_tests:
         required: false
         type: boolean
