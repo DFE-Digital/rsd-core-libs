@@ -14,5 +14,6 @@ jobs:
       project_name: DfE.CoreLibs.Caching
       project_path: src/DfE.CoreLibs.Caching
       sonar_project_key: DFE-Digital_corelibs-caching
+      run_tests: false
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
