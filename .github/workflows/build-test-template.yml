@@ -86,11 +86,11 @@ jobs:
         dotnet build --no-restore -p:CI=${CI} ${{ inputs.project_path }}
 
     - name: Run Tests
-      if: ${{ inputs.run_tests }} == true
+      if: ${{ inputs.run_tests }}
       run: dotnet test --no-build --verbosity normal --collect:"XPlat Code Coverage" ${{ inputs.project_path }}
 
     - name: Generate Code Coverage Report
-      if: ${{ inputs.run_tests }} == true
+      if: ${{ inputs.run_tests }}
       run: reportgenerator -reports:./**/coverage.cobertura.xml -targetdir:./CoverageReport -reporttypes:SonarQube
 
     - name: Complete Sonar Scan
