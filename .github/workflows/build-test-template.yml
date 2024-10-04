@@ -77,7 +77,7 @@ jobs:
         if [ "${{ inputs.run_tests }}" == "true" ]; then
           dotnet-sonarscanner begin /k:"DFE-Digital_rsd-core-libs" /o:"dfe-digital" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.coverageReportPaths=CoverageReport/SonarQube.xml;
         else
-          dotnet-sonarscanner begin /k:"${{ inputs.sonar_project_key }}" /o:"dfe-digital" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io";
+          dotnet-sonarscanner begin /k:"DFE-Digital_rsd-core-libs" /o:"dfe-digital" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io";
         fi
         dotnet build --no-restore -p:CI=${CI} ${{ inputs.project_path }}
 
