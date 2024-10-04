@@ -14,3 +14,5 @@ jobs:
       project_name: DfE.CoreLibs.Testing
       project_path: src/DfE.CoreLibs.Testing
       sonar_project_key: DFE-Digital_corelibs-testing
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

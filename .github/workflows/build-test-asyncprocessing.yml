@@ -14,3 +14,5 @@ jobs:
       project_name: DfE.CoreLibs.AsyncProcessing
       project_path: src/DfE.CoreLibs.AsyncProcessing
       sonar_project_key: DFE-Digital_corelibs-asyncprocessing
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
