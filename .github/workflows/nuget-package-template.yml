@@ -115,8 +115,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ env.NEW_VERSION }}
-        release_name: Release ${{ env.NEW_VERSION }}
+        tag_name: ${{ inputs.nuget_package_name }}-${{ env.NEW_VERSION }}
+        release_name: Release ${{ env.NEW_VERSION }} for ${{ inputs.nuget_package_name }}
         body: ${{ env.RELEASE_DESCRIPTION }}
         draft: false
         prerelease: false
