@@ -12,6 +12,7 @@ dotnet add package DfE.CoreLibs.Caching
 
 ## Usage
 
+
 **Usage in Handlers**
 
 1.  **Service Registration:** You use `ICacheService` in your handlers to store and retrieve data from memory to avoid unnecessary processing and database queries. Here's how you register the caching service:
