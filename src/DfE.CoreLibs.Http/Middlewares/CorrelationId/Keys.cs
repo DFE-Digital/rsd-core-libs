@@ -1,4 +1,8 @@
-﻿namespace DfE.CoreLibs.Http.Middlewares.CorrelationId;
+﻿using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("DfE.CoreLibs.Http.Tests")]
+
+namespace DfE.CoreLibs.Http.Middlewares.CorrelationId;
 
 /// <summary>
 /// The keys used by the correlation id middleware.

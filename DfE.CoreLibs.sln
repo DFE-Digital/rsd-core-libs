@@ -17,7 +17,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.CoreLibs.AsyncProcessin
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{3F89DCAD-8EC7-41ED-A08F-A9EFAE263EB4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DfE.CoreLibs.Utilities.Tests", "src\Tests\DfE.CoreLibs.Utilities.Tests\DfE.CoreLibs.Utilities.Tests.csproj", "{07AE8F19-9566-4F0C-92E6-0A2BF122DCC9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.CoreLibs.Utilities.Tests", "src\Tests\DfE.CoreLibs.Utilities.Tests\DfE.CoreLibs.Utilities.Tests.csproj", "{07AE8F19-9566-4F0C-92E6-0A2BF122DCC9}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.CoreLibs.Http.Tests", "src\Tests\DfE.CoreLibs.Http.Tests\DfE.CoreLibs.Http.Tests.csproj", "{69529D73-DD34-43A2-9D06-F3783F68F05C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -53,12 +55,17 @@ Global
 		{07AE8F19-9566-4F0C-92E6-0A2BF122DCC9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{07AE8F19-9566-4F0C-92E6-0A2BF122DCC9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{07AE8F19-9566-4F0C-92E6-0A2BF122DCC9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{69529D73-DD34-43A2-9D06-F3783F68F05C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{69529D73-DD34-43A2-9D06-F3783F68F05C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{69529D73-DD34-43A2-9D06-F3783F68F05C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{69529D73-DD34-43A2-9D06-F3783F68F05C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{07AE8F19-9566-4F0C-92E6-0A2BF122DCC9} = {3F89DCAD-8EC7-41ED-A08F-A9EFAE263EB4}
+		{69529D73-DD34-43A2-9D06-F3783F68F05C} = {3F89DCAD-8EC7-41ED-A08F-A9EFAE263EB4}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {01D11FBC-6C66-43E4-8F1F-46B105EDD95C}
