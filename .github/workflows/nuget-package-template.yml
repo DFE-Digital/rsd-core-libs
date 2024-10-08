@@ -60,7 +60,10 @@ jobs:
       env:
        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release create "${{ inputs.nuget_package_name }}-${{ env.NEW_VERSION:-"1.0.0" }}" \
+        # Define tag name and use a default if NEW_VERSION is not set
+        TAG_NAME="${{ inputs.nuget_package_name }}-${{ env.NEW_VERSION || '1.0.0' }}"
+
+        gh release create "$TAG_NAME" \
         --title "Release ${{ env.NEW_VERSION }} for ${{ inputs.nuget_package_name }}" \
         --notes "${{ env.RELEASE_DESCRIPTION }}" \
         --draft=false \
