@@ -1,9 +1,9 @@
-using System.Diagnostics.CodeAnalysis;
 using DfE.CoreLibs.Caching.Interfaces;
 using DfE.CoreLibs.Caching.Settings;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.CoreLibs.Caching.Services
 {
@@ -12,9 +12,10 @@ namespace DfE.CoreLibs.Caching.Services
         IMemoryCache memoryCache,
         ILogger<MemoryCacheService> logger,
         IOptions<CacheSettings> cacheSettings)
-        : ICacheService
+        : ICacheService<IMemoryCacheType>
     {
-        private readonly CacheSettings _cacheSettings = cacheSettings.Value;
+        private readonly MemoryCacheSettings _cacheSettings = cacheSettings.Value.Memory;
+        public Type CacheType => typeof(IMemoryCacheType);
 
         public async Task<T> GetOrAddAsync<T>(string cacheKey, Func<Task<T>> fetchFunction, string methodName)
         {

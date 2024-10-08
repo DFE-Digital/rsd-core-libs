@@ -100,3 +100,23 @@ jobs:
         dotnet build -c Release
         dotnet pack -c Release -p:PackageVersion=${{ env.NEW_VERSION }} --output .
         dotnet nuget push "*.nupkg" --api-key ${{ secrets.GITHUB_TOKEN }} --source https://nuget.pkg.github.com/DFE-Digital/index.json
+
+    - name: Get Release Description
+      id: extract_description
+      run: |
+        DESCRIPTION=$(git log -1 --pretty=format:"%s" | grep -oP '\(#description:.*\)' | sed 's/#description: //')
+        if [[ -z "$DESCRIPTION" ]]; then
+          DESCRIPTION="No release notes provided."
+        fi
+        echo "RELEASE_DESCRIPTION=$DESCRIPTION" >> $GITHUB_ENV
+
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ env.NEW_VERSION }}
+        release_name: Release ${{ env.NEW_VERSION }}
+        body: ${{ env.RELEASE_DESCRIPTION }}
+        draft: false
+        prerelease: false

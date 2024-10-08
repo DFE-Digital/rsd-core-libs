@@ -11,7 +11,7 @@ namespace Microsoft.Extensions.DependencyInjection
             this IServiceCollection services, IConfiguration config)
         {
             services.Configure<CacheSettings>(config.GetSection("CacheSettings"));
-            services.AddSingleton<ICacheService, MemoryCacheService>();
+            services.AddSingleton<ICacheService<IMemoryCacheType>, MemoryCacheService>();
 
             return services;
         }
