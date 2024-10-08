@@ -22,7 +22,6 @@ dotnet add package DfE.CoreLibs.Caching
                 services.AddServiceCaching(config);
         }
     ```
-    
 
 2.  **Usage in Handlers:** Here's an example of how caching is used in one of your query handlers:
 
