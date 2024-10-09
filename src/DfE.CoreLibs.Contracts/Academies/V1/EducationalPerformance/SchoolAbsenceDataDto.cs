@@ -1,8 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace DfE.CoreLibs.Contracts.Academies.V1.EducationalPerformance
 {
     /// <summary>
     /// Absence Data Response 
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class SchoolAbsenceDataDto
     {
         /// <summary>

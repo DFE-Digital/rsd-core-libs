@@ -1,6 +1,9 @@
-﻿namespace DfE.CoreLibs.Contracts.Academies.V4;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace DfE.CoreLibs.Contracts.Academies.V4;
 
 [Serializable]
+[ExcludeFromCodeCoverage]
 public class AddressDto
 {
     public string Street { get; set; }

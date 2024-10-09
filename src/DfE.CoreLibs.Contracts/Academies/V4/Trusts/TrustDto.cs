@@ -1,8 +1,10 @@
 ﻿using DfE.CoreLibs.Contracts.Academies.V4.Establishments;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.CoreLibs.Contracts.Academies.V4.Trusts;
 
 [Serializable]
+[ExcludeFromCodeCoverage]
 public class TrustDto
 {
     public string Name { get; set; }

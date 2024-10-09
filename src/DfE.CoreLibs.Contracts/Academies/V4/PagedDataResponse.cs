@@ -1,6 +1,9 @@
-﻿namespace DfE.CoreLibs.Contracts.Academies.V4;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace DfE.CoreLibs.Contracts.Academies.V4;
 
 [Serializable]
+[ExcludeFromCodeCoverage]
 public class PagedDataResponse<TResponse> where TResponse : class
 {
 
@@ -20,6 +23,7 @@ public class PagedDataResponse<TResponse> where TResponse : class
 }
 
 [Serializable]
+[ExcludeFromCodeCoverage]
 public class PagingResponse
 {
     public int Page { get; set; }

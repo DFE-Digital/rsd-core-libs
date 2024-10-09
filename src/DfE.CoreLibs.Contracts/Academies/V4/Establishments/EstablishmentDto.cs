@@ -1,6 +1,9 @@
-﻿namespace DfE.CoreLibs.Contracts.Academies.V4.Establishments;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace DfE.CoreLibs.Contracts.Academies.V4.Establishments;
 
 [Serializable]
+[ExcludeFromCodeCoverage]
 public class EstablishmentDto
 {
 
