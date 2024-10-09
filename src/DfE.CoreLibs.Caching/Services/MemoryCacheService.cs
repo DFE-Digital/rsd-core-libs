@@ -3,11 +3,9 @@ using DfE.CoreLibs.Caching.Settings;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.CoreLibs.Caching.Services
 {
-    [ExcludeFromCodeCoverage]
     public class MemoryCacheService(
         IMemoryCache memoryCache,
         ILogger<MemoryCacheService> logger,

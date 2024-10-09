@@ -30,7 +30,7 @@ dotnet add package DfE.CoreLibs.Caching
     public class GetPrincipalBySchoolQueryHandler(
         ISchoolRepository schoolRepository,
         IMapper mapper,
-        ICacheService cacheService)
+        ICacheService<IMemoryCacheType> cacheService)
         : IRequestHandler<GetPrincipalBySchoolQuery, Principal?>
     {
         public async Task<Principal?> Handle(GetPrincipalBySchoolQuery request, CancellationToken cancellationToken)
@@ -64,12 +64,13 @@ In this example, the cache duration for `GetPrincipalBySchoolQueryHandler` is re
 Here is the configuration for cache durations in the `appsettings.json` file:
 
     ```csharp
-    "CacheSettings": {
-        "DefaultDurationInSeconds": 60,
-        "Durations": {
-          "GetPrincipalBySchoolQueryHandler": 86400
+      "CacheSettings": {
+        "Memory": {
+          "DefaultDurationInSeconds": 60,
+          "Durations": {
+            "GetPrincipalBySchoolQueryHandler": 86400
+          }
         }
-    }
     ```
 
 This setup ensures that the `GetPrincipalBySchoolQueryHandler` cache duration is set to 24 hours (86400 seconds), while other handlers will use the default duration of 60 seconds if no specific duration is configured.
