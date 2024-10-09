@@ -1,7 +1,9 @@
 using AutoFixture;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.CoreLibs.Testing.AutoFixture.Customizations
 {
+    [ExcludeFromCodeCoverage]
     public class OmitCircularReferenceCustomization : ICustomization
     {
         public void Customize(IFixture fixture)

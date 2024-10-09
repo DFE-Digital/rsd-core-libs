@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DfE.CoreLibs.Testing.Helpers
 {
+    [ExcludeFromCodeCoverage]
     public static class DbContextHelper<TContext> where TContext : DbContext
     {
         public static TContext CreateDbContext(IServiceCollection services, Action<TContext>? seedTestData = null)

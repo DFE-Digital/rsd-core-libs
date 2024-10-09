@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 
 namespace DfE.CoreLibs.Testing.Mocks.WebApplicationFactory
 {
+    [ExcludeFromCodeCoverage]
     public class CustomWebApplicationFactory<TProgram> : WebApplicationFactory<TProgram>
         where TProgram : class
     {

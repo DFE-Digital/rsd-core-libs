@@ -1,7 +1,9 @@
 using AutoFixture;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.CoreLibs.Testing.Helpers
 {
+    [ExcludeFromCodeCoverage]
     public static class FixtureFactoryHelper
     {
         public static IFixture ConfigureFixtureFactory(Type[] customizations)

@@ -1,8 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using AutoFixture;
 using AutoMapper;
 
 namespace DfE.CoreLibs.Testing.AutoFixture.Customizations
 {
+    [ExcludeFromCodeCoverage]
     public class AutoMapperCustomization<TProfile> : ICustomization where TProfile : Profile
     {
         public void Customize(IFixture fixture)

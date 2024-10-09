@@ -1,9 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
 using AutoFixture.Xunit2;
 using DfE.CoreLibs.Testing.AutoFixture.Customizations;
 using DfE.CoreLibs.Testing.Helpers;
 
 namespace DfE.CoreLibs.Testing.AutoFixture.Attributes
 {
+    [ExcludeFromCodeCoverage]
     [AttributeUsage(AttributeTargets.Method)]
     public class CustomAutoDataAttribute(params Type[] customizations)
         : AutoDataAttribute(() => FixtureFactoryHelper.ConfigureFixtureFactory(CombineCustomizations(customizations)))

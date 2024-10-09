@@ -4,10 +4,12 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 
 namespace DfE.CoreLibs.Testing.Mocks.WebApplicationFactory
 {
+    [ExcludeFromCodeCoverage]
     public class CustomWebApplicationDbContextFactory<TProgram, TDbContext> : WebApplicationFactory<TProgram>
         where TProgram : class where TDbContext : DbContext
     {
