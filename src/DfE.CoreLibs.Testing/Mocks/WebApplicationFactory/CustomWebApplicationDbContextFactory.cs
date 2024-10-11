@@ -27,6 +27,21 @@ namespace DfE.CoreLibs.Testing.Mocks.WebApplicationFactory
                     var dbContextType = entry.Key;
                     var seedAction = entry.Value;
 
+                    var dbContextDescriptor = services.SingleOrDefault(
+                        d => d.ServiceType == typeof(DbContextOptions<>).MakeGenericType(dbContextType));
+                    if (dbContextDescriptor != null)
+                    {
+                        services.Remove(dbContextDescriptor);
+                    }
+
+                    var dbConnectionDescriptor = services.SingleOrDefault(
+                        d => d.ServiceType == typeof(DbConnection));
+                    if (dbConnectionDescriptor != null)
+                    {
+                        services.Remove(dbConnectionDescriptor);
+                    }
+
+
                     var createDbContextMethod = typeof(DbContextHelper).GetMethod(nameof(DbContextHelper.CreateDbContext))
                         ?.MakeGenericMethod(dbContextType);
 
