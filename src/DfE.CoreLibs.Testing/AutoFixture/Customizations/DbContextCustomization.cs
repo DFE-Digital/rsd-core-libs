@@ -16,8 +16,14 @@ namespace DfE.CoreLibs.Testing.AutoFixture.Customizations
             fixture.Customize<TContext>(composer => composer.FromFactory(() =>
             {
                 var services = new ServiceCollection();
-                var dbContext = DbContextHelper<TContext>.CreateDbContext(services);
+
+                DbContextHelper.CreateDbContext<TContext>(services);
+
+                var serviceProvider = services.BuildServiceProvider();
+                var dbContext = serviceProvider.GetRequiredService<TContext>();
+
                 fixture.Inject(dbContext);
+
                 return dbContext;
             }).OmitAutoProperties());
         }

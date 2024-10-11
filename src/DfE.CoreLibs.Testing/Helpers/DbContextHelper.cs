@@ -8,9 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 namespace DfE.CoreLibs.Testing.Helpers
 {
     [ExcludeFromCodeCoverage]
-    public static class DbContextHelper<TContext> where TContext : DbContext
+    public static class DbContextHelper
     {
-        public static TContext CreateDbContext(IServiceCollection services, Action<TContext>? seedTestData = null)
+        public static void CreateDbContext<TContext>(IServiceCollection services, Action<TContext>? seedTestData = null) where TContext : DbContext
         {
             var connectionString = GetConnectionStringFromConfig();
 
@@ -22,8 +22,7 @@ namespace DfE.CoreLibs.Testing.Helpers
                 services.AddSingleton<DbConnection>(_ => connection);
                 services.AddDbContext<TContext>((sp, options) =>
                 {
-                    var conn = sp.GetRequiredService<DbConnection>();
-                    options.UseSqlite(conn);
+                    options.UseSqlite(sp.GetRequiredService<DbConnection>());
                 });
             }
             else
@@ -40,8 +39,6 @@ namespace DfE.CoreLibs.Testing.Helpers
             dbContext.Database.EnsureCreated();
 
             seedTestData?.Invoke(dbContext);
-
-            return dbContext;
         }
 
         private static string? GetConnectionStringFromConfig()

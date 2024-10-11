@@ -10,11 +10,11 @@ using System.Security.Claims;
 namespace DfE.CoreLibs.Testing.Mocks.WebApplicationFactory
 {
     [ExcludeFromCodeCoverage]
-    public class CustomWebApplicationDbContextFactory<TProgram, TDbContext> : WebApplicationFactory<TProgram>
-        where TProgram : class where TDbContext : DbContext
+    public class CustomWebApplicationDbContextFactory<TProgram> : WebApplicationFactory<TProgram>
+        where TProgram : class
     {
         public List<Claim>? TestClaims { get; set; } = [];
-        public Action<TDbContext>? SeedData { get; set; }
+        public Dictionary<Type, Action<DbContext>>? SeedData { get; set; }
         public Action<IServiceCollection>? ExternalServicesConfiguration { get; set; }
         public Action<HttpClient>? ExternalHttpClientConfiguration { get; set; }
 
@@ -22,15 +22,16 @@ namespace DfE.CoreLibs.Testing.Mocks.WebApplicationFactory
         {
             builder.ConfigureServices(services =>
             {
-                var dbContextDescriptor = services.SingleOrDefault(
-                    d => d.ServiceType == typeof(DbContextOptions<TDbContext>));
-                services.Remove(dbContextDescriptor!);
+                foreach (var entry in SeedData ?? [])
+                {
+                    var dbContextType = entry.Key;
+                    var seedAction = entry.Value;
 
-                var dbConnectionDescriptor = services.SingleOrDefault(
-                    d => d.ServiceType == typeof(DbConnection));
-                services.Remove(dbConnectionDescriptor!);
+                    var createDbContextMethod = typeof(DbContextHelper).GetMethod(nameof(DbContextHelper.CreateDbContext))
+                        ?.MakeGenericMethod(dbContextType);
 
-                DbContextHelper<TDbContext>.CreateDbContext(services, SeedData);
+                    createDbContextMethod?.Invoke(null, new object[] { services, seedAction });
+                }
 
                 ExternalServicesConfiguration?.Invoke(services);
 
@@ -47,7 +48,7 @@ namespace DfE.CoreLibs.Testing.Mocks.WebApplicationFactory
             base.ConfigureClient(client);
         }
 
-        public TDbContext GetDbContext()
+        public TDbContext GetDbContext<TDbContext>() where TDbContext : DbContext
         {
             var scopeFactory = Services.GetRequiredService<IServiceScopeFactory>();
             var scope = scopeFactory.CreateScope();
