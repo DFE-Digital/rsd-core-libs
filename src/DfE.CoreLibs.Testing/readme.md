@@ -12,7 +12,6 @@ dotnet add package DfE.CoreLibs.Testing
 
 ## Usage
 
-
 ### Usage of Customization Attributes
 
 In your tests, you can use `CustomAutoData` to easily inject customizations like `AutoMapperCustomization`, this Customization scans your assembly for profiles and registers them automatically.
