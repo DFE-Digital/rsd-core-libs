@@ -16,13 +16,18 @@ namespace DfE.CoreLibs.Testing.Helpers
 
             if (string.IsNullOrEmpty(connectionString) || connectionString.Contains("DataSource=:memory:"))
             {
-                var connection = new SqliteConnection(connectionString ?? "DataSource=:memory:");
+                // Sqlite doesn't seem to allow multiple dbContexts added to the same connection
+                // We are creating a separate in-memory database for each dbContext
+                // Please feel free to update if you have a better/ more efficient solution
+                var connection = new SqliteConnection("DataSource=:memory:");
+
                 connection.Open();
 
-                services.AddSingleton<DbConnection>(_ => connection);
+                services.AddSingleton(connection);
+
                 services.AddDbContext<TContext>((sp, options) =>
                 {
-                    options.UseSqlite(sp.GetRequiredService<DbConnection>());
+                    options.UseSqlite(connection);
                 });
             }
             else
@@ -34,8 +39,9 @@ namespace DfE.CoreLibs.Testing.Helpers
             }
 
             var serviceProvider = services.BuildServiceProvider();
-            var dbContext = serviceProvider.GetRequiredService<TContext>();
 
+            using var scope = serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<TContext>();
             dbContext.Database.EnsureCreated();
 
             seedTestData?.Invoke(dbContext);
