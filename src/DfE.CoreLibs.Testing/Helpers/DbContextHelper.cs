@@ -1,60 +1,53 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.DependencyInjection;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace DfE.CoreLibs.Testing.Helpers
 {
     [ExcludeFromCodeCoverage]
     public static class DbContextHelper
     {
-        public static void CreateDbContext<TContext>(IServiceCollection services, Action<TContext>? seedTestData = null) where TContext : DbContext
+        public static void CreateDbContext<TContext>(
+            IServiceCollection services,
+            DbConnection connection,
+            Action<TContext>? seedTestData = null) where TContext : DbContext
         {
-            var connectionString = GetConnectionStringFromConfig();
+            ConfigureDbContext<TContext>(services, connection);
+            InitializeDbContext(services, seedTestData);
+        }
 
-            if (string.IsNullOrEmpty(connectionString) || connectionString.Contains("DataSource=:memory:"))
+        public static void ConfigureDbContext<TContext>(
+            IServiceCollection services,
+            DbConnection connection) where TContext : DbContext
+        {
+            services.AddDbContext<TContext>((sp, options) =>
             {
-                // Sqlite doesn't seem to allow multiple dbContexts added to the same connection
-                // We are creating a separate in-memory database for each dbContext
-                // Please feel free to update if you have a better/ more efficient solution
-                var connection = new SqliteConnection("DataSource=:memory:");
+                options.UseSqlite(connection);
+            });
+        }
 
-                connection.Open();
+        private static void InitializeDbContext<TContext>(
+            IServiceCollection services,
+            Action<TContext>? seedTestData) where TContext : DbContext
+        {
+            var serviceProvider = services.BuildServiceProvider();
+            using var scope = serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<TContext>();
 
-                services.AddSingleton(connection);
-
-                services.AddDbContext<TContext>((sp, options) =>
-                {
-                    options.UseSqlite(connection);
-                });
+            var relationalDatabaseCreator = dbContext.Database.GetService<IRelationalDatabaseCreator>();
+            if (!dbContext.Database.CanConnect())
+            {
+                relationalDatabaseCreator.Create();
             }
             else
             {
-                services.AddDbContext<TContext>(options =>
-                {
-                    options.UseSqlServer(connectionString);
-                });
+                relationalDatabaseCreator.CreateTables();
             }
 
-            var serviceProvider = services.BuildServiceProvider();
-
-            using var scope = serviceProvider.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<TContext>();
-            dbContext.Database.EnsureCreated();
-
             seedTestData?.Invoke(dbContext);
-        }
-
-        private static string? GetConnectionStringFromConfig()
-        {
-            var configuration = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                .Build();
-
-            return configuration.GetConnectionString("DefaultConnection");
         }
     }
 }
