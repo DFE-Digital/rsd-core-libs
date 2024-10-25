@@ -82,6 +82,73 @@ You can create custom factory customizations and use them like the following exa
 
 This demonstrates how you can test your queries and database context interactions using a custom web application factory and test claims.
 
+
+### Authorization and Endpoint Security Testing Framework
+
+The **Endpoint Security Testing Framework** is a library designed to help you verify that all your API endpoints have the expected security configurations. 
+It ensures that each controller and action has the appropriate authorization attributes and that your application's security policies are consistently enforced.
+
+## Usage
+
+To utilize the framework, follow these steps:
+
+### 1\. Create the Security Configuration File
+
+Create a JSON file (e.g., `ExpectedSecurity.json`) that defines the expected security for each endpoint in your application. This file should include all controllers and actions.
+
+    ```json
+    {
+      "Endpoints": [
+        {
+          "Controller": "SchoolsController",
+          "Action": "GetPrincipalBySchoolAsync",
+          "ExpectedSecurity": "Authorize: Policy=API.Read"
+        },
+        {
+          "Controller": "SchoolsController",
+          "Action": "GetPrincipalsBySchoolsAsync",
+          "ExpectedSecurity": "Authorize: Policy=API.Read"
+        },
+        {
+          "Controller": "SchoolsController",
+          "Action": "CreateSchoolAsync",
+          "ExpectedSecurity": "Authorize: Policy=API.Write"
+        },
+        {
+          "Controller": "SchoolsController",
+          "Action": "CreateReportAsync",
+          "ExpectedSecurity": "AllowAnonymous"
+        }
+      ]
+    }
+    ```
+
+### 2\. Write the Test Class
+
+Create a test class in your test project that uses the framework to validate your endpoints.
+
+```csharp
+    public class EndpointSecurityTests
+    {
+        [Theory]
+        [MemberData(nameof(GetEndpointTestData))]
+        public void ValidateEndpointSecurity(string controllerName, string actionName, string expectedSecurity)
+        {
+            var securityTests = new AuthorizationTester();
+
+            securityTests.ValidateEndpoint(typeof(Program).Assembly, controllerName, actionName, expectedSecurity);
+        }
+
+        public static IEnumerable<object[]> GetEndpointTestData()
+        {
+            var configFilePath = "ExpectedSecurity.json";
+            return EndpointTestDataProvider.GetEndpointTestDataFromFile(typeof(Program).Assembly, configFilePath);
+        }
+    }
+```
+
+The above test will run a test per endpoint and ensures the expected security policy is applied to thje endpoint or the controller.
+
 For detailed examples, please refer to the [GitHub DDD-CA-Template repository](https://github.com/DFE-Digital/rsd-ddd-clean-architecture).
 
 * * *
