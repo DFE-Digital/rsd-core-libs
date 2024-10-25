@@ -42,6 +42,9 @@ jobs:
     - name: Install GitHub CLI
       run: sudo apt-get install -y gh
 
+    - name: Add nuget package source
+      run: dotnet nuget add source --username USERNAME --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/DFE-Digital/index.json"
+
     - name: Check for custom version in commit message or check the feed for the latest version and increment it
       id: check_custom_version
       run: |
