@@ -47,7 +47,6 @@ In your tests, you can use `CustomAutoData` to easily inject customizations like
         Assert.Equal(expectedMp.LastName, result.LastName);
     }
 ```
-    
 
 ### CustomWebApplicationDbContextFactory
 
