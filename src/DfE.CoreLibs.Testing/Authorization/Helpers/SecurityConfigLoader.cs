@@ -16,9 +16,15 @@ namespace DfE.CoreLibs.Testing.Authorization.Helpers
             var config = JsonConvert.DeserializeObject<SecurityConfig>(json);
 
             return config!.Endpoints.ToDictionary(
-                e => $"{e.Controller}.{e.Action}",
+                e => e.Controller == null ? e.Route! : $"{e.Controller}.{e.Action}",
                 e => e.ExpectedSecurity
             );
+        }
+
+        public class PageSecurityConfig
+        {
+            public bool GlobalProtectAllPages { get; set; }
+            public required List<EndpointSecurityConfig> Endpoints { get; set; }
         }
 
         public class SecurityConfig
@@ -28,8 +34,9 @@ namespace DfE.CoreLibs.Testing.Authorization.Helpers
 
         public class EndpointSecurityConfig
         {
-            public required string Controller { get; set; }
-            public required string Action { get; set; }
+            public string? Route { get; set; }
+            public string? Controller { get; set; }
+            public string? Action { get; set; }
             public required string ExpectedSecurity { get; set; }
         }
     }

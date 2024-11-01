@@ -1,7 +1,8 @@
-﻿using DfE.CoreLibs.Utilities.Helpers;
-using System.Reflection;
-using DfE.CoreLibs.Testing.Authorization.Exceptions;
+﻿using DfE.CoreLibs.Testing.Authorization.Exceptions;
+using DfE.CoreLibs.Utilities.Helpers;
+using Microsoft.AspNetCore.Routing;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 
 namespace DfE.CoreLibs.Testing.Authorization.Helpers
 {
@@ -18,8 +19,35 @@ namespace DfE.CoreLibs.Testing.Authorization.Helpers
         {
             var expectedSecurityConfig = SecurityConfigLoader.LoadFromJson(jsonContent);
 
-            return ParseExpectedSecurityData(assembly, expectedSecurityConfig);
+            return ParseExpectedEndpointSecurityData(assembly, expectedSecurityConfig);
+        }
 
+        /// <summary>
+        /// Loads page security test data from a JSON string.
+        /// </summary>
+        /// <param name="jsonContent">The JSON content as a string.</param>
+        /// <param name="endpoints">The list of available endpoints to validate global protection.</param>
+        /// <param name="globalAuthorizationEnabled">Indicate whether all pages are secured globally.</param>
+        /// <returns>An enumerable of object arrays containing test data.</returns>
+        public static IEnumerable<object[]> GetPageSecurityTestData(string jsonContent, IEnumerable<RouteEndpoint> endpoints, bool globalAuthorizationEnabled)
+        {
+            var expectedSecurityConfig = SecurityConfigLoader.LoadFromJson(jsonContent);
+
+            return ParseExpectedPageSecurityData(expectedSecurityConfig, endpoints, globalAuthorizationEnabled);
+
+        }
+
+        /// <summary>
+        /// Loads page security test data from a JSON file.
+        /// </summary>
+        /// <param name="configFilePath">The path to the JSON configuration file.</param>
+        /// <param name="endpoints">The list of available endpoints to validate global protection.</param>
+        /// <param name="globalAuthorizationEnabled">Indicate whether all pages are secured globally.</param>
+        /// <returns>An enumerable of object arrays containing test data.</returns>
+        public static IEnumerable<object[]> GetPageSecurityTestDataFromFile(string configFilePath, IEnumerable<RouteEndpoint> endpoints, bool globalAuthorizationEnabled)
+        {
+            var jsonContent = File.ReadAllText(configFilePath);
+            return GetPageSecurityTestData(jsonContent, endpoints, globalAuthorizationEnabled);
         }
 
         /// <summary>
@@ -42,10 +70,10 @@ namespace DfE.CoreLibs.Testing.Authorization.Helpers
         /// <returns>An enumerable of object arrays containing test data.</returns>
         public static IEnumerable<object[]> GetEndpointTestDataFromDictionary(Assembly assembly, Dictionary<string, string> expectedSecurityConfig)
         {
-            return ParseExpectedSecurityData(assembly, expectedSecurityConfig);
+            return ParseExpectedEndpointSecurityData(assembly, expectedSecurityConfig);
         }
 
-        private static IEnumerable<object[]> ParseExpectedSecurityData(Assembly assembly, Dictionary<string, string> expectedSecurityConfig)
+        private static IEnumerable<object[]> ParseExpectedEndpointSecurityData(Assembly assembly, Dictionary<string, string> expectedSecurityConfig)
         {
             var endpoints = ControllerHelper.GetAllControllerMethodsTuples(assembly);
 
@@ -81,5 +109,42 @@ namespace DfE.CoreLibs.Testing.Authorization.Helpers
                 throw new ExtraConfigurationException($"The following endpoints are defined in the configuration but do not exist in the assembly: {string.Join(", ", configEntries)}");
             }
         }
+
+        private static IEnumerable<object[]> ParseExpectedPageSecurityData(
+            Dictionary<string, string> expectedSecurityConfig,
+            IEnumerable<RouteEndpoint> endpoints,
+            bool globalAuthorizationEnabled)
+        {
+            var globalProtectionRoutes = endpoints != null
+                ? endpoints
+                    .Where(x => x.DisplayName != null)
+                    .Select(route => new object[] { "/" + route.DisplayName?.Trim('/'), "GlobalProtection" })
+                    .ToList()
+                : new List<object[]>();
+
+            if (!globalAuthorizationEnabled)
+            {
+                return expectedSecurityConfig
+                    .Where(entry => globalProtectionRoutes.Exists(route => route[0]?.ToString() == entry.Key))
+                    .Select(entry => new object[] { entry.Key, entry.Value });
+            }
+
+            foreach (var entry in expectedSecurityConfig)
+            {
+                var matchingRoute = globalProtectionRoutes
+                    .FirstOrDefault(route => route[0]?.ToString() == entry.Key);
+
+                if (matchingRoute != null)
+                {
+                    globalProtectionRoutes.Remove(matchingRoute);
+                }
+            }
+
+            var configuredSecurityRoutes = expectedSecurityConfig
+                .Select(entry => new object[] { entry.Key, entry.Value });
+
+            return globalProtectionRoutes.Concat(configuredSecurityRoutes);
+        }
+
     }
 }

@@ -21,9 +21,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.CoreLibs.Utilities.Test
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.CoreLibs.Http.Tests", "src\Tests\DfE.CoreLibs.Http.Tests\DfE.CoreLibs.Http.Tests.csproj", "{69529D73-DD34-43A2-9D06-F3783F68F05C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DfE.CoreLibs.Caching.Tests", "src\Tests\DfE.CoreLibs.Caching.Tests\DfE.CoreLibs.Caching.Tests.csproj", "{807147EB-9B76-42F6-B249-A0F0CF3C3462}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.CoreLibs.Caching.Tests", "src\Tests\DfE.CoreLibs.Caching.Tests\DfE.CoreLibs.Caching.Tests.csproj", "{807147EB-9B76-42F6-B249-A0F0CF3C3462}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DfE.CoreLibs.AsyncProcessing.Tests", "src\Tests\DfE.CoreLibs.AsyncProcessing.Tests\DfE.CoreLibs.AsyncProcessing.Tests.csproj", "{5ABF8802-0C35-42D3-B2BB-83BD7159124F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.CoreLibs.AsyncProcessing.Tests", "src\Tests\DfE.CoreLibs.AsyncProcessing.Tests\DfE.CoreLibs.AsyncProcessing.Tests.csproj", "{5ABF8802-0C35-42D3-B2BB-83BD7159124F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

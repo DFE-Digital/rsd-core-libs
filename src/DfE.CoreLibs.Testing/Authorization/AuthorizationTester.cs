@@ -1,22 +1,23 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
-using DfE.CoreLibs.Testing.Authorization.Exceptions;
-using DfE.CoreLibs.Testing.Authorization.Validators;
+﻿using DfE.CoreLibs.Testing.Authorization.Validators;
+using DfE.CoreLibs.Testing.Results;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 
 namespace DfE.CoreLibs.Testing.Authorization
 {
     [ExcludeFromCodeCoverage]
     public class AuthorizationTester(bool globalAuthorizationEnabled = false)
     {
-        public void ValidateEndpoint(Assembly assembly, string controllerName, string actionName, string expectedSecurity)
+        public ValidationResult ValidateEndpoint(Assembly assembly, string controllerName, string actionName, string expectedSecurity)
         {
             var key = $"{controllerName}.{actionName}";
             var security = new Dictionary<string, string>();
 
             if (string.IsNullOrEmpty(expectedSecurity))
             {
-                throw new MissingSecurityConfigurationException($"No security configuration found for endpoint '{key}'. Please define it in the configuration file.");
+                return ValidationResult.Failed($"No security configuration found for endpoint '{key}'.");
             }
             else
             {
@@ -27,7 +28,7 @@ namespace DfE.CoreLibs.Testing.Authorization
 
             if (controllerType == null)
             {
-                throw new Exception($"Controller '{controllerName}' not found.");
+                return ValidationResult.Failed($"Controller '{controllerName}' not found.");
             }
 
             var method = Array.Find(controllerType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly),
@@ -35,11 +36,25 @@ namespace DfE.CoreLibs.Testing.Authorization
 
             if (method == null)
             {
-                throw new Exception($"Action '{actionName}' not found in controller '{controllerName}'.");
+                return ValidationResult.Failed($"Action '{actionName}' not found in controller '{controllerName}'.");
             }
 
             var validator = new AuthorizationValidator(security, globalAuthorizationEnabled);
-            validator.ValidateSecurity(controllerType, method);
+            return validator.ValidateSecurity(controllerType, method);
+        }
+
+        /// <summary>
+        /// Validates the security configuration for a specific page route.
+        /// </summary>
+        public ValidationResult ValidatePageSecurity(string route, string expectedSecurity, IEnumerable<RouteEndpoint> endpoints)
+        {
+            var endpoint = endpoints
+                .FirstOrDefault(e => e.DisplayName!.Trim('/').Equals(route.Trim('/'), StringComparison.InvariantCultureIgnoreCase));
+
+            if (endpoint == null) ValidationResult.Failed($"Route '{route}' not found.");
+
+            var validator = new PageSecurityValidator(endpoint, globalAuthorizationEnabled);
+            return validator.ValidateSinglePageSecurity(route, expectedSecurity);
         }
     }
 }

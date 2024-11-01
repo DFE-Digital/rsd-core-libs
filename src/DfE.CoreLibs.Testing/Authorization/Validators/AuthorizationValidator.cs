@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using DfE.CoreLibs.Testing.Authorization.Helpers;
+using DfE.CoreLibs.Testing.Results;
 using Microsoft.AspNetCore.Authorization;
 
 namespace DfE.CoreLibs.Testing.Authorization.Validators
@@ -14,13 +16,13 @@ namespace DfE.CoreLibs.Testing.Authorization.Validators
         /// </summary>
         /// <param name="controller">The controller type.</param>
         /// <param name="method">The method info.</param>
-        public void ValidateSecurity(Type controller, MethodInfo method)
+        public ValidationResult ValidateSecurity(Type controller, MethodInfo method)
         {
             var key = $"{controller.Name}.{method.Name}";
 
             if (!security.TryGetValue(key, out var expectedSecurity))
             {
-                throw new Exception($"No security configuration found for {key}");
+                return ValidationResult.Failed($"No security configuration found for {key}");
             }
 
             var methodAuthorizeAttributes = method.GetCustomAttributes<AuthorizeAttribute>().ToList();
@@ -36,11 +38,11 @@ namespace DfE.CoreLibs.Testing.Authorization.Validators
             {
                 if (globalAuthorizationEnabled && expectedSecurity != "AllowAnonymous")
                 {
-                    return;
+                    return ValidationResult.Success();
                 }
                 else if (expectedSecurity != "AllowAnonymous")
                 {
-                    throw new Exception($"Expected {key} to be protected but no Authorize attribute was found.");
+                    return ValidationResult.Failed($"Expected {key} to be protected, but no Authorize attribute was found.");
                 }
             }
 
@@ -48,89 +50,35 @@ namespace DfE.CoreLibs.Testing.Authorization.Validators
             {
                 if (!effectiveAllowAnonymousAttributes.Any())
                 {
-                    throw new Exception($"Expected {key} to allow anonymous access but it is protected.");
+                    return ValidationResult.Failed($"Expected {key} to allow anonymous access but it is protected.");
                 }
-                return;
+                return ValidationResult.Success();
             }
 
             if (expectedSecurity.StartsWith("Authorize"))
             {
                 if (!effectiveAuthorizeAttributes.Any())
                 {
-                    throw new Exception($"Expected {key} to have Authorize attribute.");
+                    return ValidationResult.Failed($"Expected {key} to have Authorize attribute.");
                 }
 
                 if (expectedSecurity == "Authorize")
                 {
-                    return;
+                    return ValidationResult.Success();
                 }
 
-                var requirements = ParseExpectedSecurity(expectedSecurity);
-
-                ValidateAuthorizeAttributes(effectiveAuthorizeAttributes, key, requirements);
-            }
-        }
-
-        private List<ExpectedRequirement> ParseExpectedSecurity(string expectedSecurity)
-        {
-            var requirements = new List<ExpectedRequirement>();
-
-            if (expectedSecurity.Length > "Authorize:".Length)
-            {
-                var parts = expectedSecurity.Substring("Authorize:".Length).Split(';', StringSplitOptions.RemoveEmptyEntries);
-
-                foreach (var part in parts)
+                var requirements = ValidatorHelper.ParseExpectedSecurity(expectedSecurity);
+                try
                 {
-                    var keyValue = part.Split('=', StringSplitOptions.RemoveEmptyEntries);
-                    if (keyValue.Length == 2)
-                    {
-                        requirements.Add(new ExpectedRequirement
-                        {
-                            Type = keyValue[0].Trim(),
-                            Values = keyValue[1].Split(',', StringSplitOptions.RemoveEmptyEntries).Select(v => v.Trim()).ToList()
-                        });
-                    }
+                    ValidatorHelper.ValidateAuthorizeAttributes(effectiveAuthorizeAttributes, key, requirements);
                 }
-            }
-
-            return requirements;
-        }
-
-        private static void ValidateAuthorizeAttributes(List<AuthorizeAttribute> authorizeAttributes, string key, List<ExpectedRequirement> requirements)
-        {
-            foreach (var requirement in requirements)
-            {
-                switch (requirement.Type)
+                catch (Exception ex)
                 {
-                    case "Policy":
-                        foreach (var expectedPolicy in requirement.Values!)
-                        {
-                            if (!authorizeAttributes.Exists(attr => attr.Policy?.Split(',').Contains(expectedPolicy) == true))
-                            {
-                                throw new Exception($"Expected {key} to have Policy '{expectedPolicy}' but it was not found.");
-                            }
-                        }
-                        break;
-                    case "Roles":
-                        foreach (var expectedRole in requirement.Values!)
-                        {
-                            if (!authorizeAttributes.Exists(attr => attr.Roles?.Split(',').Contains(expectedRole) == true))
-                            {
-                                throw new Exception($"Expected {key} to have Role '{expectedRole}' but it was not found.");
-                            }
-                        }
-                        break;
-
-                    default:
-                        throw new Exception($"Unknown authorization requirement type '{requirement.Type}' in expected security.");
+                    return ValidationResult.Failed(ex.Message);
                 }
             }
-        }
 
-        private class ExpectedRequirement
-        {
-            public string? Type { get; init; }
-            public List<string>? Values { get; init; }
+            return ValidationResult.Success();
         }
     }
 
