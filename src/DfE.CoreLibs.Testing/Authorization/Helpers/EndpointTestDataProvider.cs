@@ -47,6 +47,7 @@ namespace DfE.CoreLibs.Testing.Authorization.Helpers
         public static IEnumerable<object[]> GetPageSecurityTestDataFromFile(string configFilePath, IEnumerable<RouteEndpoint> endpoints, bool globalAuthorizationEnabled)
         {
             var jsonContent = File.ReadAllText(configFilePath);
+
             return GetPageSecurityTestData(jsonContent, endpoints, globalAuthorizationEnabled);
         }
 
