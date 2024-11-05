@@ -133,7 +133,7 @@ namespace DfE.CoreLibs.Testing.Authorization.Helpers
             foreach (var entry in expectedSecurityConfig)
             {
                 var matchingRoute = globalProtectionRoutes
-                    .FirstOrDefault(route => route[0]?.ToString() == entry.Key);
+                    .FirstOrDefault(route => route[0].ToString()!.Equals(entry.Key, StringComparison.OrdinalIgnoreCase));
 
                 if (matchingRoute != null)
                 {
