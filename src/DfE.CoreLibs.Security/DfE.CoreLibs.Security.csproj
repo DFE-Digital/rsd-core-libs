@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<PackageReadmeFile>readme.md</PackageReadmeFile>
+		<Title>DfE.CoreLibs.Security</Title>
+		<Description>A library providing flexible foundation for managing security in .NET projects, including role-based and claim-based policies, custom requirements, and dynamic claims. It enables consistent, configurable security across applications.
+		</Description>
+		<Authors>DFE-Digital</Authors>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="readme.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.Authorization" Version="8.0.10" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+		<PackageReference Include="Microsoft.Identity.Web" Version="3.3.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="readme.md">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+</Project>
