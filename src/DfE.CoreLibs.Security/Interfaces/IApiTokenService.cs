@@ -10,6 +10,6 @@
         /// </summary>
         /// <returns>A JWT access token string for accessing the API.</returns>
         /// <exception cref="UnauthorizedAccessException">Thrown if the user does not have any roles or if no valid scopes are found for the user's roles.</exception>
-        Task<string> GetApiOboTokenAsync();
+        Task<string> GetApiOboTokenAsync(string? authenticationScheme = null);
     }
 }

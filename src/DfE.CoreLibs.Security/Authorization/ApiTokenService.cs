@@ -27,7 +27,7 @@ namespace DfE.CoreLibs.Security.Authorization
         }
 
         /// <inheritdoc />
-        public async Task<string> GetApiOboTokenAsync()
+        public async Task<string> GetApiOboTokenAsync(string? authenticationScheme = null)
         {
             var userRoles = _httpContextAccessor.HttpContext?.User.FindAll(ClaimTypes.Role).Select(c => c.Value);
             if (userRoles == null || !userRoles.Any())
@@ -50,18 +50,18 @@ namespace DfE.CoreLibs.Security.Authorization
             // Map roles to scopes based on configuration, or use default scope if no roles match
             var apiScopes = userRoles.SelectMany(role => scopeMappings.ContainsKey(role) ? scopeMappings[role] : new List<string>())
                                      .Distinct()
-                                     .Select(scope => $"api://{apiClientId}/{scope}") // Prepend the API client ID
+                                     .Select(scope => $"api://{apiClientId}/{scope}")
                                      .ToArray();
 
             if (!apiScopes.Any())
             {
-                // Use the default API scope if no specific scopes were found
                 var defaultScope = _configuration["ApiSettings:DefaultScope"];
                 apiScopes = new[] { $"api://{apiClientId}/{defaultScope}" };
             }
 
             // Acquire the access token with the determined API scopes
-            var apiToken = await _tokenAcquisition.GetAccessTokenForUserAsync(apiScopes);
+            var apiToken = await _tokenAcquisition.GetAccessTokenForUserAsync(apiScopes, user: _httpContextAccessor.HttpContext?.User, authenticationScheme: authenticationScheme);
+
             return apiToken;
         }
     }

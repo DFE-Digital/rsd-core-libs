@@ -1,4 +1,6 @@
-﻿using DfE.CoreLibs.Security.Configurations;
+﻿using System.Diagnostics;
+using System.Security.Claims;
+using DfE.CoreLibs.Security.Configurations;
 using DfE.CoreLibs.Security.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -18,15 +20,18 @@ namespace DfE.CoreLibs.Security.Authorization
         /// </summary>
         /// <param name="services">The service collection to add authorization services to.</param>
         /// <param name="configuration">The configuration object containing policy definitions.</param>
-        /// <param name="policyCustomizations">The the customizations such as Requirements which can be added to the policy after it is created.</param>
+        /// <param name="apiAuthenticationScheme">The authentication scheme.</param>
+        /// <param name="policyCustomizations">The customizations such as Requirements which can be added to the policy after it is created.</param>
         /// <returns>The modified service collection.</returns>
         public static IServiceCollection AddApplicationAuthorization(
             this IServiceCollection services,
             IConfiguration configuration,
+            string? apiAuthenticationScheme = null,
             Dictionary<string, Action<AuthorizationPolicyBuilder>>? policyCustomizations = null)
         {
             services.AddAuthorization(options =>
             {
+                // Load policies from configuration
                 var policies = configuration.GetSection("Authorization:Policies").Get<List<PolicyDefinition>>();
 
                 foreach (var policyConfig in policies ?? [])
@@ -35,23 +40,64 @@ namespace DfE.CoreLibs.Security.Authorization
                     {
                         policyBuilder.RequireAuthenticatedUser();
 
-                        if (policyConfig.Roles.Any())
+                        // Specify the authentication scheme for the API
+                        if (apiAuthenticationScheme != null) 
+                            policyBuilder.AuthenticationSchemes.Add(apiAuthenticationScheme);
+
+                        if (string.Equals(policyConfig.Operator, "AND", StringComparison.OrdinalIgnoreCase))
                         {
-                            if (string.Equals(policyConfig.Operator, "AND", StringComparison.OrdinalIgnoreCase))
+                            // "AND" logic: User must have either all roles or all scopes
+                            policyBuilder.RequireAssertion(context =>
                             {
-                                // Use AND logic: require each role individually
-                                foreach (var role in policyConfig.Roles)
+                                var user = context.User;
+                                var userScopes = GetUserScopes(user).ToArray();
+
+                                if (userScopes.Any())
                                 {
-                                    policyBuilder.RequireRole(role);
+                                    // User has scopes, check if they have all required scopes
+                                    var requiredScopes = policyConfig.Scopes ?? new List<string>();
+
+                                    // Require all scopes (AND logic)
+                                    return requiredScopes.All(scope => userScopes.Contains(scope));
                                 }
-                            }
-                            else
+                                else
+                                {
+                                    // User does not have scopes, check if they have all required roles
+                                    var requiredRoles = policyConfig.Roles ?? [];
+
+                                    // Require all roles (AND logic)
+                                    return requiredRoles.All(role => user.IsInRole(role));
+                                }
+                            });
+                        }
+                        else // "OR" logic
+                        {
+                            // "OR" logic: user needs at least one role or one scope
+                            policyBuilder.RequireAssertion(context =>
                             {
-                                // Use OR logic: require any of the roles
-                                policyBuilder.RequireRole(policyConfig.Roles.ToArray());
-                            }
+                                var user = context.User;
+                                var userScopes = GetUserScopes(user).ToArray();
+
+                                var hasAnyScope = false;
+                                var hasAnyRole = false;
+
+                                if (userScopes.Any())
+                                {
+                                    // User has scopes, check for any matching scope
+                                    hasAnyScope = (policyConfig.Scopes ?? new List<string>())
+                                        .Exists(scope => userScopes.Contains(scope));
+                                }
+
+                                // Check for any matching role
+                                hasAnyRole = (policyConfig.Roles ?? [])
+                                    .Exists(role => user.IsInRole(role));
+
+                                // Succeed if the user has any matching role or scope
+                                return hasAnyRole || hasAnyScope;
+                            });
                         }
 
+                        // Add any required claims for this policy
                         if (policyConfig.Claims != null && policyConfig.Claims.Any())
                         {
                             foreach (var claim in policyConfig.Claims)
@@ -62,18 +108,17 @@ namespace DfE.CoreLibs.Security.Authorization
                     });
                 }
 
+                // Apply customizations if provided
                 if (policyCustomizations != null)
                 {
                     foreach (var (policyName, customization) in policyCustomizations)
                     {
                         if (options.GetPolicy(policyName) is not null)
                         {
-                            // If the policy already exists, modify it
                             UpdateExistingPolicy(options, policyName, customization);
                         }
                         else
                         {
-                            // If the policy does not exist, create a new one
                             options.AddPolicy(policyName, customization);
                         }
                     }
@@ -84,6 +129,7 @@ namespace DfE.CoreLibs.Security.Authorization
 
             return services;
         }
+
 
         /// <summary>
         /// Registers a custom claim provider to retrieve claims dynamically.
@@ -117,6 +163,31 @@ namespace DfE.CoreLibs.Security.Authorization
 
             // Replace the policy with the updated one
             options.AddPolicy(policyName, existingPolicyBuilder.Build());
+        }
+
+
+        private static IEnumerable<string> GetUserScopes(ClaimsPrincipal user)
+        {
+            var scopes = new List<string>();
+
+            // Define all possible claim types for scopes
+            var scopeClaimTypes = new[]
+            {
+                "scp",
+                "scope",
+                "http://schemas.microsoft.com/identity/claims/scope"
+            };
+
+            foreach (var claimType in scopeClaimTypes)
+            {
+                var scopeClaims = user.FindAll(claimType);
+                foreach (var claim in scopeClaims)
+                {
+                    scopes.AddRange(claim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+                }
+            }
+
+            return scopes.Distinct(StringComparer.OrdinalIgnoreCase);
         }
 
     }
