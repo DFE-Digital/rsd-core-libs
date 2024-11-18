@@ -26,8 +26,8 @@ namespace DfE.CoreLibs.Security.Authorization
         public static IServiceCollection AddApplicationAuthorization(
             this IServiceCollection services,
             IConfiguration configuration,
-            string? apiAuthenticationScheme = null,
-            Dictionary<string, Action<AuthorizationPolicyBuilder>>? policyCustomizations = null)
+            Dictionary<string, Action<AuthorizationPolicyBuilder>>? policyCustomizations = null,
+            string? apiAuthenticationScheme = null)
         {
             services.AddAuthorization(options =>
             {
