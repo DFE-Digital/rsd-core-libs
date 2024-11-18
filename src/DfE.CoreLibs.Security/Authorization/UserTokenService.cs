@@ -1,26 +1,21 @@
-﻿using DfE.CoreLibs.Security.Interfaces;
-using Microsoft.AspNetCore.Http;
+﻿using DfE.CoreLibs.Security.Configurations;
+using DfE.CoreLibs.Security.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Microsoft.Identity.Web;
-using System.Security.Claims;
-using DfE.CoreLibs.Security.Configurations;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
+using Microsoft.Extensions.Options;
 
 namespace DfE.CoreLibs.Security.Authorization
 {
     /// <inheritdoc />
-    public class TokenService : ITokenService
+    public class UserTokenService : IUserTokenService
     {
-        private readonly ITokenAcquisition _tokenAcquisition;
-        private readonly IHttpContextAccessor _httpContextAccessor;
-        private readonly IConfiguration _configuration;
         private readonly TokenSettings _tokenSettings;
         private readonly IMemoryCache _cache;
-        private readonly ILogger<TokenService> _logger;
+        private readonly ILogger<UserTokenService> _logger;
 
         /// <summary>
         /// Defines the buffer time (in seconds) before the token's actual expiration
@@ -29,58 +24,16 @@ namespace DfE.CoreLibs.Security.Authorization
         private const int CacheExpirationBufferSeconds = 30;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="TokenService"/> class.
+        /// Initializes a new instance of the <see cref="UserTokenService"/> class.
         /// </summary>
-        /// <param name="tokenAcquisition">The token acquisition service for acquiring tokens.</param>
-        /// <param name="httpContextAccessor">Accessor for the current HTTP context, used to retrieve the user's claims.</param>
-        /// <param name="configuration">Configuration used to retrieve role-to-scope mappings.</param>
-        public TokenService(ITokenAcquisition tokenAcquisition, IHttpContextAccessor httpContextAccessor, IConfiguration configuration, TokenSettings tokenSettings, IMemoryCache cache, ILogger<TokenService> logger)
+        /// <param name="tokenSettings">Settings related to token generation, such as secret key, issuer, audience, and token lifetime.</param>
+        /// <param name="cache">Memory cache used to store and retrieve cached tokens.</param>
+        /// <param name="logger">Logger instance for logging informational and error messages.</param>
+        public UserTokenService(IOptions<TokenSettings> tokenSettings, IMemoryCache cache, ILogger<UserTokenService> logger)
         {
-            _tokenAcquisition = tokenAcquisition;
-            _httpContextAccessor = httpContextAccessor;
-            _configuration = configuration;
-            _tokenSettings = tokenSettings;
+            _tokenSettings = tokenSettings.Value;
             _cache = cache;
             _logger = logger;
-        }
-
-        /// <inheritdoc />
-        public async Task<string> GetApiOboTokenAsync(string? authenticationScheme = null)
-        {
-            var userRoles = _httpContextAccessor.HttpContext?.User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToArray();
-            if (userRoles == null || !userRoles.Any())
-            {
-                throw new UnauthorizedAccessException("User does not have any roles assigned.");
-            }
-
-            var apiClientId = _configuration["Authorization:ApiSettings:ApiClientId"];
-            if (string.IsNullOrWhiteSpace(apiClientId))
-            {
-                throw new InvalidOperationException("API client ID is missing from configuration.");
-            }
-
-            var scopeMappings = _configuration.GetSection("Authorization:ScopeMappings").Get<Dictionary<string, List<string>>>();
-            if (scopeMappings == null)
-            {
-                throw new InvalidOperationException("ScopeMappings section is missing from configuration.");
-            }
-
-            // Map roles to scopes based on configuration, or use default scope if no roles match
-            var apiScopes = userRoles.SelectMany(role => scopeMappings.ContainsKey(role) ? scopeMappings[role] : new List<string>())
-                                     .Distinct()
-                                     .Select(scope => $"api://{apiClientId}/{scope}")
-                                     .ToArray();
-
-            if (!apiScopes.Any())
-            {
-                var defaultScope = _configuration["ApiSettings:DefaultScope"];
-                apiScopes = new[] { $"api://{apiClientId}/{defaultScope}" };
-            }
-
-            // Acquire the access token with the determined API scopes
-            var apiToken = await _tokenAcquisition.GetAccessTokenForUserAsync(apiScopes, user: _httpContextAccessor.HttpContext?.User, authenticationScheme: authenticationScheme);
-
-            return apiToken;
         }
 
         /// <inheritdoc />

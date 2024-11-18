@@ -1,6 +1,4 @@
-﻿using DfE.DomainDrivenDesignTemplate.Infrastructure.Security.Configurations;
-
-namespace DfE.CoreLibs.Security.Configurations
+﻿namespace DfE.CoreLibs.Security.Configurations
 {
     /// <summary>
     /// Represents a policy definition, including roles, claims, and custom requirements.

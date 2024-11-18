@@ -1,4 +1,4 @@
-﻿namespace DfE.DomainDrivenDesignTemplate.Infrastructure.Security.Configurations
+﻿namespace DfE.CoreLibs.Security.Configurations
 {
     public class ClaimDefinition
     {
