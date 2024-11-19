@@ -1,11 +1,10 @@
-﻿using System.Diagnostics;
-using System.Security.Claims;
-using DfE.CoreLibs.Security.Configurations;
+﻿using DfE.CoreLibs.Security.Configurations;
 using DfE.CoreLibs.Security.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System.Security.Claims;
 
 namespace DfE.CoreLibs.Security.Authorization
 {
@@ -51,7 +50,7 @@ namespace DfE.CoreLibs.Security.Authorization
                             {
                                 var user = context.User;
                                 var userScopes = GetUserScopes(user).ToArray();
-
+#pragma warning disable S6603
                                 if (userScopes.Any())
                                 {
                                     // User has scopes, check if they have all required scopes
@@ -68,6 +67,7 @@ namespace DfE.CoreLibs.Security.Authorization
                                     // Require all roles (AND logic)
                                     return requiredRoles.All(role => user.IsInRole(role));
                                 }
+#pragma warning restore S6603
                             });
                         }
                         else // "OR" logic
