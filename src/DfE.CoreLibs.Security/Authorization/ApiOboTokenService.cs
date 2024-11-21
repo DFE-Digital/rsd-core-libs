@@ -2,71 +2,102 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using System.Security.Claims;
+using DfE.CoreLibs.Security.Configurations;
 
 namespace DfE.CoreLibs.Security.Authorization
 {
-    /// <summary>
-    /// Provides functionality for acquiring API On-Behalf-Of (OBO) tokens for authenticated users.
-    /// </summary>
-    public class ApiOboTokenService : IApiOboTokenService
-    {
-        private readonly ITokenAcquisition _tokenAcquisition;
-        private readonly IHttpContextAccessor _httpContextAccessor;
-        private readonly IConfiguration _configuration;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ApiOboTokenService"/> class.
-        /// </summary>
-        /// <param name="tokenAcquisition">The token acquisition service for acquiring tokens.</param>
-        /// <param name="httpContextAccessor">Accessor for the current HTTP context, used to retrieve the user's claims.</param>
-        /// <param name="configuration">Configuration used to retrieve role-to-scope mappings.</param>
-        public ApiOboTokenService(
-            ITokenAcquisition tokenAcquisition,
-            IHttpContextAccessor httpContextAccessor,
-            IConfiguration configuration)
-        {
-            _tokenAcquisition = tokenAcquisition;
-            _httpContextAccessor = httpContextAccessor;
-            _configuration = configuration;
-        }
+    /// <summary>
+    /// Provides functionality for acquiring API On-Behalf-Of (OBO) tokens for authenticated users with caching.
+    /// </summary>
+    public class ApiOboTokenService(
+        ITokenAcquisition tokenAcquisition,
+        IHttpContextAccessor httpContextAccessor,
+        IConfiguration configuration,
+        IMemoryCache memoryCache,
+        IOptions<TokenSettings> tokenSettingsOptions)
+        : IApiOboTokenService
+    {
+        private readonly TokenSettings _tokenSettings = tokenSettingsOptions.Value;
 
         /// <inheritdoc />
         public async Task<string> GetApiOboTokenAsync(string? authenticationScheme = null)
         {
-            var userRoles = _httpContextAccessor.HttpContext?.User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToArray();
+            var user = httpContextAccessor.HttpContext?.User;
+            if (user == null)
+            {
+                throw new UnauthorizedAccessException("User is not authenticated.");
+            }
+
+            var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                throw new InvalidOperationException("User ID is missing.");
+            }
+
+            // Retrieve user roles
+            var userRoles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToArray();
             if (userRoles == null || !userRoles.Any())
             {
                 throw new UnauthorizedAccessException("User does not have any roles assigned.");
             }
 
-            var apiClientId = _configuration["Authorization:ApiSettings:ApiClientId"];
+            // Retrieve API client ID from configuration
+            var apiClientId = configuration["Authorization:ApiSettings:ApiClientId"];
             if (string.IsNullOrWhiteSpace(apiClientId))
             {
                 throw new InvalidOperationException("API client ID is missing from configuration.");
             }
 
-            var scopeMappings = _configuration.GetSection("Authorization:ScopeMappings").Get<Dictionary<string, List<string>>>();
+            // Retrieve scope mappings from configuration
+            var scopeMappings = configuration.GetSection("Authorization:ScopeMappings").Get<Dictionary<string, List<string>>>();
             if (scopeMappings == null)
             {
                 throw new InvalidOperationException("ScopeMappings section is missing from configuration.");
             }
 
-            // Map roles to scopes based on configuration, or use default scope if no roles match
-            var apiScopes = userRoles.SelectMany(role => scopeMappings.ContainsKey(role) ? scopeMappings[role] : new List<string>())
+            // Map roles to scopes based on configuration
+            var apiScopes = userRoles
+                .SelectMany(role => scopeMappings.TryGetValue(role, out var mapping) ? mapping : new List<string>())
                 .Distinct()
-                .Select(scope => $"api://{apiClientId}/{scope}")
-                .ToArray();
+                .ToList();
 
             if (!apiScopes.Any())
             {
-                var defaultScope = _configuration["ApiSettings:DefaultScope"];
-                apiScopes = new[] { $"api://{apiClientId}/{defaultScope}" };
+                var defaultScope = configuration["Authorization:ApiSettings:DefaultScope"];
+                apiScopes = [defaultScope!];
             }
 
-            // Acquire the access token with the determined API scopes
-            var apiToken = await _tokenAcquisition.GetAccessTokenForUserAsync(apiScopes, user: _httpContextAccessor.HttpContext?.User, authenticationScheme: authenticationScheme);
+            // Sort scopes to ensure consistent cache key generation
+            apiScopes.Sort(StringComparer.OrdinalIgnoreCase);
+            var scopesString = string.Join(",", apiScopes);
+
+            // Generate a unique cache key based on user ID and scopes
+            var cacheKey = $"ApiOboToken_{userId}_{scopesString}";
+
+            if (memoryCache.TryGetValue<string>(cacheKey, out var cachedToken))
+            {
+                return cachedToken!;
+            }
+
+            // Acquire a new token
+            var formattedScopes = apiScopes.Select(scope => $"api://{apiClientId}/{scope}").ToArray();
+
+            var apiToken = await tokenAcquisition.GetAccessTokenForUserAsync(
+                formattedScopes,
+                user: user,
+                authenticationScheme: authenticationScheme);
+
+            // Calculate absolute expiration time: Now + Expiration - Buffer
+            var absoluteExpiration = DateTimeOffset.UtcNow
+                .AddMinutes(_tokenSettings.TokenLifetimeMinutes)
+                .Subtract(TimeSpan.FromSeconds(_tokenSettings.BufferInSeconds));
+
+            // Cache the token with absolute expiration
+            memoryCache.Set(cacheKey, apiToken, absoluteExpiration);
 
             return apiToken;
         }
