@@ -21,6 +21,8 @@ namespace DfE.CoreLibs.Testing.Mocks.WebApplicationFactory
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            builder.UseEnvironment("Test");
+
             builder.ConfigureServices(services =>
             {
                 RemoveDbContextAndConnectionServices(services);
@@ -42,7 +44,6 @@ namespace DfE.CoreLibs.Testing.Mocks.WebApplicationFactory
                 services.AddSingleton<IEnumerable<Claim>>(sp => TestClaims ?? new());
             });
 
-            builder.UseEnvironment("Development");
         }
 
         protected override void ConfigureClient(HttpClient client)
