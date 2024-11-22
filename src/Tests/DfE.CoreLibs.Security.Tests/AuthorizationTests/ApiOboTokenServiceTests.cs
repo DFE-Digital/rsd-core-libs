@@ -2,21 +2,13 @@
 using DfE.CoreLibs.Security.Configurations;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
-using NSubstitute;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Claims;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
-using Microsoft.AspNetCore.Authentication;
-using Castle.Core.Configuration;
-using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
-using System.Diagnostics;
 using Moq;
+using NSubstitute;
+using System.Security.Claims;
+using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 
 namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
 {
@@ -27,7 +19,6 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
         private readonly IConfiguration _configuration;
         private readonly IMemoryCache _memoryCacheMock;
         private readonly IOptions<TokenSettings> _tokenSettingsMock;
-        private readonly TokenSettings _tokenSettings;
         private readonly ClaimsPrincipal _testUser;
 
         public ApiOboTokenServiceTests()
@@ -42,9 +33,9 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
                 .Build();
 
             // Configure TokenSettings from appsettings
-            _tokenSettings = _configuration.GetSection("Authorization:TokenSettings").Get<TokenSettings>();
+            var tokenSettings = _configuration.GetSection("Authorization:TokenSettings").Get<TokenSettings>();
             _tokenSettingsMock = Substitute.For<IOptions<TokenSettings>>();
-            _tokenSettingsMock.Value.Returns(_tokenSettings);
+            _tokenSettingsMock.Value.Returns(tokenSettings);
 
             // Setup test user
             _testUser = new ClaimsPrincipal(new ClaimsIdentity(new[]
@@ -58,7 +49,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
         public async Task GetApiOboTokenAsync_UserNotAuthenticated_ThrowsUnauthorizedAccessException()
         {
             // Arrange
-            _httpContextAccessorMock.HttpContext.Returns((HttpContext)null);
+            _httpContextAccessorMock.HttpContext.Returns((HttpContext)null!);
 
             var service = new ApiOboTokenService(
                 _tokenAcquisitionMock,
@@ -103,7 +94,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             IConfiguration _configurationMock = Substitute.For<IConfiguration>();
 
             _httpContextAccessorMock.HttpContext.Returns(new DefaultHttpContext { User = _testUser });
-            _configurationMock["Authorization:ApiSettings:ApiClientId"].Returns((string)null);
+            _configurationMock["Authorization:ApiSettings:ApiClientId"].Returns((string)null!);
 
             var service = new ApiOboTokenService(
                 _tokenAcquisitionMock,
@@ -127,7 +118,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             var cacheKey = "ApiOboToken_test-user-id,Scope1";
 
             // Simulate retrieving a cached token
-            _memoryCacheMock.TryGetValue(cacheKey, out Arg.Any<object>())
+            _memoryCacheMock.TryGetValue(cacheKey, out Arg.Any<object>()!)
                 .Returns(call =>
                 {
                     call[1] = "cached-token";
@@ -167,9 +158,9 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             var cacheKey = "ApiOboToken_test-user-id_Scope1";
 
             // Setup TryGetValue to simulate a cache miss
-            object cachedValue = null;
+            object cachedValue = null!;
             memoryCacheMock
-                .Setup(mc => mc.TryGetValue(It.Is<string>(key => key == cacheKey), out cachedValue))
+                .Setup(mc => mc.TryGetValue(It.Is<string>(key => key == cacheKey), out cachedValue!))
                 .Returns(false);
 
             // Mock CreateEntry for caching behavior
@@ -317,9 +308,11 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
                 }))
             });
 
+            var defaultScopes = new[] { "api://test-api-client-id/default-scope" };
+
             _tokenAcquisitionMock
                 .GetAccessTokenForUserAsync(
-                    Arg.Is<IEnumerable<string>>(scopes => scopes.SequenceEqual(new[] { "api://test-api-client-id/default-scope" })),
+                    Arg.Is<IEnumerable<string>>(scopes => scopes.SequenceEqual(defaultScopes)),
                     Arg.Is<string>(scheme => scheme == null),
                     Arg.Is<string>(_ => true),
                     Arg.Is<string>(_ => true),
@@ -333,7 +326,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             // Assert
             Assert.Equal("mock-token", token);
             await _tokenAcquisitionMock.Received(1).GetAccessTokenForUserAsync(
-                Arg.Is<IEnumerable<string>>(scopes => scopes.SequenceEqual(new[] { "api://test-api-client-id/default-scope" })),
+                Arg.Is<IEnumerable<string>>(scopes => scopes.SequenceEqual(defaultScopes)),
                 Arg.Any<string>(),
                 Arg.Any<string>(),
                 Arg.Any<string>(),
@@ -349,7 +342,6 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             _httpContextAccessorMock.HttpContext.Returns(new DefaultHttpContext { User = _testUser });
 
             var formattedScopes = new[] { "api://test-api-client-id/Scope1" };
-            var cacheKey = "ApiOboToken_test-user-id_Scope1";
 
             // Simulate no cached token
             _memoryCacheMock.TryGetValue(Arg.Any<string>(), out Arg.Any<object>()!)

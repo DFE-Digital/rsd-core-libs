@@ -40,7 +40,9 @@ namespace DfE.CoreLibs.Security.Authorization
 
             // Retrieve user roles
             var userRoles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToArray();
+#pragma warning disable S2589
             if (userRoles == null || !userRoles.Any())
+#pragma warning restore S2589
             {
                 throw new UnauthorizedAccessException("User does not have any roles assigned.");
             }

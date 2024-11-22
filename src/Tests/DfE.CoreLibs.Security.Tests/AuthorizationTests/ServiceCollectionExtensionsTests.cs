@@ -109,7 +109,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             _services.AddLogging();
 
             var invalidConfiguration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string>())
+                .AddInMemoryCollection(new Dictionary<string, string>()!)
                 .Build();
 
             var authenticationBuilder = new AuthenticationBuilder(_services);

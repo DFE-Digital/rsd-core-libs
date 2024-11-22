@@ -15,8 +15,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
         private readonly IMemoryCache _memoryCacheMock;
         private readonly ILogger<UserTokenService> _loggerMock;
         private readonly IOptions<TokenSettings> _tokenSettingsMock;
-        private readonly TokenSettings _tokenSettings;
-        private readonly IConfiguration _configuration;
+        private readonly TokenSettings? _tokenSettings;
         private readonly ClaimsPrincipal _testUser;
 
         public UserTokenServiceTests()
@@ -24,14 +23,12 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             _memoryCacheMock = Substitute.For<IMemoryCache>();
             _loggerMock = Substitute.For<ILogger<UserTokenService>>();
 
-            // Load configuration from appsettings.json
-            _configuration = new ConfigurationBuilder()
-                .SetBasePath(AppContext.BaseDirectory) // Ensure the path to the test directory
+            IConfiguration configuration = new ConfigurationBuilder()
+                .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
                 .Build();
 
-            // Configure TokenSettings from appsettings
-            _tokenSettings = _configuration.GetSection("Authorization:TokenSettings").Get<TokenSettings>();
+            _tokenSettings = configuration.GetSection("Authorization:TokenSettings").Get<TokenSettings>();
             _tokenSettingsMock = Substitute.For<IOptions<TokenSettings>>();
             _tokenSettingsMock.Value.Returns(_tokenSettings);
 
@@ -107,7 +104,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             var service = new UserTokenService(_tokenSettingsMock, _memoryCacheMock, _loggerMock);
 
             // Act & Assert
-            var exception = await Assert.ThrowsAsync<ArgumentNullException>(() => service.GetUserTokenAsync(null));
+            var exception = await Assert.ThrowsAsync<ArgumentNullException>(() => service.GetUserTokenAsync(null!));
             Assert.Equal("user", exception.ParamName);
         }
 
@@ -139,8 +136,8 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             Assert.NotNull(token);
             var handler = new JwtSecurityTokenHandler();
             var jwtToken = handler.ReadJwtToken(token);
-            Assert.Equal(_tokenSettings.Issuer, jwtToken.Issuer);
-            Assert.Equal(_tokenSettings.Audience, jwtToken.Audiences.First());
+            Assert.Equal(_tokenSettings?.Issuer, jwtToken.Issuer);
+            Assert.Equal(_tokenSettings?.Audience, jwtToken.Audiences.First());
             Assert.Contains(jwtToken.Claims, c => c.Type == ClaimTypes.Name && c.Value == "TestUser");
             Assert.Contains(jwtToken.Claims, c => c.Type == ClaimTypes.Role && c.Value == "Admin");
         }

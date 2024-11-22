@@ -53,13 +53,6 @@ namespace DfE.CoreLibs.Security.Authorization.Events
                 // Reject the principal to sign out the user
                 context.RejectPrincipal();
             }
-            catch (Exception ex)
-            {
-                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<RejectSessionCookieWhenAccountNotInCacheEvents>>();
-                logger.LogError(ex, "An unexpected error occurred in ValidatePrincipal.");
-
-                throw;
-            }
         }
 
         /// <summary>
