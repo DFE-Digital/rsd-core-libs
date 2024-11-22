@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authentication.Cookies;
+﻿using System.Diagnostics.CodeAnalysis;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Identity.Client;
@@ -10,6 +11,7 @@ namespace DfE.CoreLibs.Security.Authorization.Events
     /// Custom cookie authentication events that reject the session cookie when the user's account is not found in the token cache.
     /// This ensures that the user is signed out if their authentication session is no longer valid.
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class RejectSessionCookieWhenAccountNotInCacheEvents : CookieAuthenticationEvents
     {
         /// <summary>
