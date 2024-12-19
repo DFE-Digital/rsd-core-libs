@@ -9,26 +9,9 @@ on:
 jobs:
   build-and-package:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
-    steps:
-    - name: Check out repository
-      uses: actions/checkout@v4
-
-    - name: Set Pre-Release Suffix (if Pull Request)
-      id: set_suffix
-      run: |
-        if [[ "${{ github.event.workflow_run.event }}" == "pull_request" ]]; then
-          echo "This is a pull request. Setting suffix to '-beta'."
-          echo "CUSTOM_SUFFIX=-beta" >> $GITHUB_ENV
-        else
-          echo "This is not a pull request. No suffix needed."
-          echo "CUSTOM_SUFFIX=" >> $GITHUB_ENV
-        fi
-    - name: Call NuGet Package Template
-      uses: ./.github/workflows/nuget-package-template.yml
-      with:
-        project_name: DfE.CoreLibs.Utilities
-        project_path: src/DfE.CoreLibs.Utilities
-        nuget_package_name: DfE.CoreLibs.Utilities
-      env:
-        CUSTOM_SUFFIX: ${{ env.CUSTOM_SUFFIX }}
+    uses: ./.github/workflows/nuget-package-template.yml
+    with:
+      project_name: DfE.CoreLibs.Utilities
+      project_path: src/DfE.CoreLibs.Utilities
+      nuget_package_name: DfE.CoreLibs.Utilities
+      custom_suffix: ${{ github.event.workflow_run.event == 'pull_request' && '-beta' || '' }}

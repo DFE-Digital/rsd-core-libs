@@ -15,6 +15,10 @@ on:
         required: true
         type: string
         description: "The name of the NuGet package"
+      custom_suffix:
+        required: false
+        type: string
+        default: ""
 
 env:
   DOTNET_VERSION: '8.0.x'
@@ -97,7 +101,12 @@ jobs:
             echo "Incrementing to new version: $NEW_VERSION"
           fi
 
+          NEW_VERSION="${NEW_VERSION}${{ inputs.custom_suffix }}"
+
+          echo "Final version with suffix (if applicable): $NEW_VERSION"
+
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
         fi
 
     - name: Build, pack and publish
