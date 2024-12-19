@@ -20,7 +20,7 @@ jobs:
         else
           echo "This is not a pull request. No suffix needed."
           echo "CUSTOM_SUFFIX=" >> $GITHUB_ENV
-
+        fi
     - name: Call NuGet Package Template
       uses: ./.github/workflows/nuget-package-template.yml
       with:
