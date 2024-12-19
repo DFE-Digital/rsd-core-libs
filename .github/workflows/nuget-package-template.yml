@@ -89,24 +89,28 @@ jobs:
           # Fetch the latest version and increment it for the specific package
           PACKAGE_ID="${{ inputs.nuget_package_name }}"
           FEED_URL="https://nuget.pkg.github.com/DFE-Digital/query?q=$PACKAGE_ID"
-          LATEST_VERSION=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$FEED_URL" | jq -r '.data[0].version')
+          ALL_VERSIONS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$FEED_URL" | jq -r '.data[].version')
 
-          if [[ -z "$LATEST_VERSION" || "$LATEST_VERSION" == "null" ]]; then
-            echo "No existing version found in the feed. Defaulting to version 1.0.0"
-            NEW_VERSION="1.0.0${{ env.CUSTOM_SUFFIX }}"
+          if [[ -z "$ALL_VERSIONS" || "$ALL_VERSIONS" == "null" ]]; then
+            echo "No existing versions found in the feed. Defaulting to version 1.0.0"
+            NEW_VERSION="1.0.0${{ inputs.custom_suffix }}"
           else
-            echo "Latest version is $LATEST_VERSION"
+            # Extract the latest version without considering suffixes
+            echo "All versions retrieved: $ALL_VERSIONS"
+            LATEST_VERSION=$(echo "$ALL_VERSIONS" | sed -E 's/-.*//' | sort -V | tail -n 1)
+
+            echo "Latest base version is: $LATEST_VERSION"
+
+            # Increment the patch version
             IFS='.' read -r -a VERSION_PARTS <<< "$LATEST_VERSION"
-            NEW_VERSION="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.$((VERSION_PARTS[2] + 1))${{ env.CUSTOM_SUFFIX }}"
+            NEW_VERSION="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.$((VERSION_PARTS[2] + 1))${{ inputs.custom_suffix }}"
             echo "Incrementing to new version: $NEW_VERSION"
           fi
 
-          NEW_VERSION="${NEW_VERSION}${{ inputs.custom_suffix }}"
-
           echo "Final version with suffix (if applicable): $NEW_VERSION"
 
+          # Save the new version
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-
         fi
 
     - name: Build, pack and publish
