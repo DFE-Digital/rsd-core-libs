@@ -8,7 +8,3 @@ This package includes a set of utilities and extension methods.
 1) Install the package.
 2) Import the DfE.CoreLibs.Utilities namespace wherever you need to use one of the extensions or utilities.
 3) Call the extension or utility you need.
-
-
-
-
