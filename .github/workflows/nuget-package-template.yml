@@ -90,8 +90,9 @@ jobs:
 
             # Fetch the latest version and increment it for the specific package
             PACKAGE_ID="${{ inputs.nuget_package_name }}"
-            FEED_URL="https://nuget.pkg.github.com/DFE-Digital/query?q=$PACKAGE_ID"
-            ALL_VERSIONS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$FEED_URL" | jq -r '.data[].version')
+            FEED_URL="https://api.github.com/orgs/DFE-Digital/packages/nuget/$PACKAGE_ID/versions"
+
+            ALL_VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "$FEED_URL" | jq -r '.[].name')
 
             echo "All Versions: ${ALL_VERSIONS:-None}"
 
