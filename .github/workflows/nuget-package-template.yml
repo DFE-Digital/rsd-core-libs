@@ -93,6 +93,8 @@ jobs:
             FEED_URL="https://nuget.pkg.github.com/DFE-Digital/query?q=$PACKAGE_ID"
             ALL_VERSIONS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$FEED_URL" | jq -r '.data[].version')
 
+            echo "All Versions: ${ALL_VERSIONS:-None}"
+
             # Find the latest version with `-beta` suffix
             LATEST_BETA_VERSION=$(echo "$ALL_VERSIONS" | grep -E '\-beta$' | sort -V | tail -n 1)
 
