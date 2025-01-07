@@ -8,9 +8,15 @@ on:
 
 jobs:
   build-and-package:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event != 'pull_request' }}
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      (
+        (github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push') ||
+        github.event.workflow_run.event == 'pull_request'
+      )     
     uses: ./.github/workflows/nuget-package-template.yml
     with:
       project_name: DfE.CoreLibs.Testing
       project_path: src/DfE.CoreLibs.Testing
       nuget_package_name: DfE.CoreLibs.Testing
+      custom_suffix: ${{ github.event.workflow_run.event == 'pull_request' && '-staging' || '' }}

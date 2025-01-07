@@ -98,20 +98,20 @@ jobs:
 
                 echo "All Versions: ${ALL_VERSIONS:-None}"
 
-                # Find the latest version with `-beta` suffix
-                LATEST_BETA_VERSION=$(echo "$ALL_VERSIONS" | grep -E '\-beta$' | sort -V | tail -n 1)
+                # Find the latest version with `-staging` suffix
+                LATEST_BETA_VERSION=$(echo "$ALL_VERSIONS" | grep -E '\-staging$' | sort -V | tail -n 1)
 
                 # Find the latest version without `-beta` suffix
-                LATEST_PROD_VERSION=$(echo "$ALL_VERSIONS" | grep -vE '\-beta$' | sort -V | tail -n 1)
+                LATEST_PROD_VERSION=$(echo "$ALL_VERSIONS" | grep -vE '\-staging$' | sort -V | tail -n 1)
 
                 # Log the versions we found
                 echo "Latest beta version: ${LATEST_BETA_VERSION:-None}"
                 echo "Latest production version: ${LATEST_PROD_VERSION:-None}"
 
-                # Strip `-beta` from the beta version for comparison
+                # Strip `-staging` from the beta version for comparison
                 STRIPPED_BETA_VERSION=""
                 if [[ -n "$LATEST_BETA_VERSION" ]]; then
-                  STRIPPED_BETA_VERSION=$(echo "$LATEST_BETA_VERSION" | sed 's/-beta//')
+                  STRIPPED_BETA_VERSION=$(echo "$LATEST_BETA_VERSION" | sed 's/-staging//')
                   echo "Stripped beta version: $STRIPPED_BETA_VERSION"
                 fi
 
@@ -121,7 +121,7 @@ jobs:
 
                   if [[ -n "$LATEST_BETA_VERSION" ]]; then
                     # Increment the patch version of the latest beta
-                    BASE_VERSION=$(echo "$LATEST_BETA_VERSION" | sed 's/-beta//')
+                    BASE_VERSION=$(echo "$LATEST_BETA_VERSION" | sed 's/-staging//')
                     IFS='.' read -r -a VERSION_PARTS <<< "$BASE_VERSION"
                     NEW_VERSION="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.$((VERSION_PARTS[2] + 1))$CUSTOM_SUFFIX"
                   else
