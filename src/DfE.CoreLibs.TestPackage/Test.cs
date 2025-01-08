@@ -5,6 +5,6 @@
     /// </summary>
     public class Test
     {
-
+        public int Prop1 { get; set; }
     }
 }
