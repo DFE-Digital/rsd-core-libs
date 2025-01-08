@@ -1,0 +1,22 @@
+name: Pack DfE.CoreLibs.TestPackage
+
+on:
+  workflow_run:
+    workflows: ["Build DfE.CoreLibs.TestPackage"]
+    types:
+      - completed
+
+jobs:
+  build-and-package:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      (
+        (github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push') ||
+        github.event.workflow_run.event == 'pull_request'
+      )     
+    uses: ./.github/workflows/nuget-package-template.yml
+    with:
+      project_name: DfE.CoreLibs.TestPackage
+      project_path: src/DfE.CoreLibs.TestPackage
+      nuget_package_name: DfE.CoreLibs.TestPackage
+      custom_suffix: ${{ github.event.workflow_run.event == 'pull_request' && '-prerelease' || '' }}
