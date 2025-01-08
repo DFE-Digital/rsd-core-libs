@@ -180,32 +180,38 @@ jobs:
 
     - name: Get Release Note
       id: extract_description
-      run: |
-       # Retrieve the commit message body
-        COMMIT_MESSAGE=$(git log -1 --pretty=format:"%b")
-        
-        # Check if the commit message is empty
-        if [[ -z "$COMMIT_MESSAGE" ]]; then
-          echo "No commit message found. Skipping release note extraction."
+      run: |        
+        # Retrieve the commit message body
+        if ! git log -1 --pretty=format:"%b" >/dev/null 2>&1; then
+          echo "No commits found. Skipping release note extraction."
           DESCRIPTION="No release notes provided."
         else
-          # Convert newlines in the commit message to a placeholder character (e.g., `~`)
-          SINGLE_LINE_COMMIT=$(echo "$COMMIT_MESSAGE" | tr '\n' '~')
-          
-          # Extract release note content from the single-line commit message
-          DESCRIPTION=$(echo "$SINGLE_LINE_COMMIT" | grep -oP '(?<=\(%release-note:)(.*?)(?=\s*%\))')
-          
-          # Replace the placeholder character `~` back with newlines
-          DESCRIPTION=$(echo "$DESCRIPTION" | sed 's/~/\n/g')
-          
-          # Check if the description extraction found anything
-          if [[ -z "$DESCRIPTION" ]]; then
+          COMMIT_MESSAGE=$(git log -1 --pretty=format:"%b")
+  
+          # Check if the commit message is empty
+          if [[ -z "$COMMIT_MESSAGE" ]]; then
+            echo "No commit message found. Skipping release note extraction."
             DESCRIPTION="No release notes provided."
+          else
+            # Convert newlines in the commit message to a placeholder character (e.g., `~`)
+            SINGLE_LINE_COMMIT=$(echo "$COMMIT_MESSAGE" | tr '\n' '~')
+
+            # Extract release note content from the single-line commit message
+            DESCRIPTION=$(echo "$SINGLE_LINE_COMMIT" | grep -Eo '\(%release-note:.*%\)' | sed 's/.*%release-note:\(.*\)%/\1/')
+    
+            # Replace the placeholder character `~` back with newlines
+            DESCRIPTION=$(echo "$DESCRIPTION" | sed 's/~/\n/g')
+    
+            # Check if the description extraction found anything
+            if [[ -z "$DESCRIPTION" ]]; then
+              DESCRIPTION="No release notes provided."
+            fi
           fi
         fi
-    
+
+        # Write the description to GITHUB_ENV
         echo "RELEASE_DESCRIPTION<<EOF" >> $GITHUB_ENV
-        echo "$DESCRIPTION" >> $GITHUB_ENV
+        echo -e "$DESCRIPTION" >> $GITHUB_ENV
         echo "EOF" >> $GITHUB_ENV
 
     - name: Create GitHub Release
