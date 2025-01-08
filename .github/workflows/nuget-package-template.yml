@@ -15,6 +15,10 @@ on:
         required: true
         type: string
         description: "The name of the NuGet package"
+      custom_suffix:
+        required: false
+        type: string
+        default: ""
 
 env:
   DOTNET_VERSION: '8.0.x'
@@ -82,21 +86,88 @@ jobs:
         if [[ -z "$CUSTOM_VERSION" ]]; then
           echo "No unprocessed custom version found in the last 10 commits for $PROJECT_NAME. Proceeding to fetch and increment the latest version from the feed."
 
-          # Fetch the latest version and increment it for the specific package
-          PACKAGE_ID="${{ inputs.nuget_package_name }}"
-          FEED_URL="https://nuget.pkg.github.com/DFE-Digital/query?q=$PACKAGE_ID"
-          LATEST_VERSION=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$FEED_URL" | jq -r '.data[0].version')
+            CUSTOM_SUFFIX=${{ inputs.custom_suffix }}
 
-          if [[ -z "$LATEST_VERSION" || "$LATEST_VERSION" == "null" ]]; then
-            echo "No existing version found in the feed. Defaulting to version 1.0.0"
-            NEW_VERSION="1.0.0"
-          else
-            echo "Latest version is $LATEST_VERSION"
-            IFS='.' read -r -a VERSION_PARTS <<< "$LATEST_VERSION"
-            NEW_VERSION="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.$((VERSION_PARTS[2] + 1))"
-            echo "Incrementing to new version: $NEW_VERSION"
-          fi
+            # Fetch the latest version and increment it for the specific package
+            PACKAGE_ID="${{ inputs.nuget_package_name }}"
+            FEED_URL="https://api.github.com/orgs/DFE-Digital/packages/nuget/$PACKAGE_ID/versions"
 
+            ALL_VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "$FEED_URL" | jq -r 'if type == "array" then .[].name else empty end')
+
+            if [[ -n "$ALL_VERSIONS" ]]; then
+
+                echo "All Versions: ${ALL_VERSIONS:-None}"
+
+                # Find the latest version with `-prerelease` suffix
+                LATEST_BETA_VERSION=$(echo "$ALL_VERSIONS" | grep -E '\-prerelease$' | sort -V | tail -n 1)
+
+                # Find the latest version without `-prerelease` suffix
+                LATEST_PROD_VERSION=$(echo "$ALL_VERSIONS" | grep -vE '\-prerelease$' | sort -V | tail -n 1)
+
+                # Log the versions we found
+                echo "Latest prerelease version: ${LATEST_BETA_VERSION:-None}"
+                echo "Latest production version: ${LATEST_PROD_VERSION:-None}"
+
+                # Strip `-prerelease` from the prerelease version for comparison
+                STRIPPED_BETA_VERSION=""
+                if [[ -n "$LATEST_BETA_VERSION" ]]; then
+                  STRIPPED_BETA_VERSION=$(echo "$LATEST_BETA_VERSION" | sed 's/-prerelease//')
+                  echo "Stripped prerelease version: $STRIPPED_BETA_VERSION"
+                fi
+
+                if [[ -n "$CUSTOM_SUFFIX" ]]; then
+                  # Scenario 2: PR Build (inputs.custom_suffix has a value)
+                  echo "This is a PR build. Custom suffix is: $CUSTOM_SUFFIX"
+
+                  if [[ -n "$LATEST_BETA_VERSION" ]]; then
+                    # Increment the patch version of the latest prerelease
+                    BASE_VERSION=$(echo "$LATEST_BETA_VERSION" | sed 's/-prerelease//')
+                    IFS='.' read -r -a VERSION_PARTS <<< "$BASE_VERSION"
+                    NEW_VERSION="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.$((VERSION_PARTS[2] + 1))$CUSTOM_SUFFIX"
+                  else
+                    # No prerelease version exists; use the latest production version
+                    BASE_VERSION="$LATEST_PROD_VERSION"
+                    IFS='.' read -r -a VERSION_PARTS <<< "$BASE_VERSION"
+                    NEW_VERSION="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.$((VERSION_PARTS[2] + 1))$CUSTOM_SUFFIX"
+                  fi
+
+                  echo "New Pre-Release version: $NEW_VERSION"
+
+                else
+                  # Scenario 3: Push to Main (inputs.custom_suffix is empty)
+                  echo "This is a push to main. Processing for production."
+
+                  if [[ "$STRIPPED_BETA_VERSION" == "$LATEST_PROD_VERSION" ]]; then
+                    # prerelease matches production; increment patch version
+                    BASE_VERSION="$LATEST_PROD_VERSION"
+                    IFS='.' read -r -a VERSION_PARTS <<< "$BASE_VERSION"
+                    NEW_VERSION="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.$((VERSION_PARTS[2] + 1))"
+                    echo "PreRelease version matches production. Incrementing base version."
+                  else
+                    # prerelease doesn't match production; promote prerelease to production
+                    if [[ -n "$LATEST_BETA_VERSION" ]]; then
+                      NEW_VERSION="$STRIPPED_BETA_VERSION"
+                      echo "Promoting beta version to production."
+                    else
+                      # No prerelease version exists; increment production
+                      BASE_VERSION="$LATEST_PROD_VERSION"
+                      IFS='.' read -r -a VERSION_PARTS <<< "$BASE_VERSION"
+                      NEW_VERSION="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.$((VERSION_PARTS[2] + 1))"
+                      echo "No beta version exists. Incrementing production version."
+                    fi
+                  fi
+
+                  echo "New production version: $NEW_VERSION"
+                fi
+
+            else
+
+              echo "No versions found for package $PACKAGE_ID. Defaulting to 1.0.0."
+              $NEW_VERSION="1.0.0"
+
+            fi
+
+          # Save the new version
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
         fi
 
