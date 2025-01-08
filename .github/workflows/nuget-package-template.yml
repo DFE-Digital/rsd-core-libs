@@ -163,7 +163,7 @@ jobs:
             else
 
               echo "No versions found for package $PACKAGE_ID. Defaulting to 1.0.0."
-              $NEW_VERSION="1.0.0"
+              NEW_VERSION="1.0.0"
 
             fi
 
