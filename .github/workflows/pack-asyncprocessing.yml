@@ -19,4 +19,4 @@ jobs:
       project_name: DfE.CoreLibs.AsyncProcessing
       project_path: src/DfE.CoreLibs.AsyncProcessing
       nuget_package_name: DfE.CoreLibs.AsyncProcessing
-      custom_suffix: ${{ github.event.workflow_run.event == 'pull_request' && '-staging' || '' }}
+      custom_suffix: ${{ github.event.workflow_run.event == 'pull_request' && '-prerelease' || '' }}
