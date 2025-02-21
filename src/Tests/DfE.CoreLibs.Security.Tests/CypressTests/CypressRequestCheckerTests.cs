@@ -19,7 +19,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
         {
             var httpContext = new DefaultHttpContext();
             httpContext.Request.Headers[HeaderNames.Authorization] = $"Bearer {authHeader}";
-            httpContext.Request.Headers["x-user-context-name"] = userContextHeader;
+            httpContext.Request.Headers["x-cypress-user"] = userContextHeader;
             return httpContext;
         }
 
@@ -85,7 +85,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
 
             // Missing auth header:
             var httpContext = new DefaultHttpContext();
-            httpContext.Request.Headers["x-user-context-name"] = "cypressUser";
+            httpContext.Request.Headers["x-cypress-user"] = "cypressUser";
             // No Authorization header.
             var checker = new CypressRequestChecker(env, config);
 
