@@ -21,7 +21,7 @@ namespace DfE.CoreLibs.Security.Cypress
                 .ToString()
                 .Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
 
-            var userContextHeaderValue = httpContext.Request.Headers["x-user-context-name"].ToString();
+            var userContextHeaderValue = httpContext.Request.Headers["x-cypress-user"].ToString();
 
             // Must match "cypressUser"
             if (!userContextHeaderValue.Equals("cypressUser", StringComparison.OrdinalIgnoreCase))
