@@ -34,7 +34,7 @@ public class CorrelationIdMiddleware
             if (!Guid.TryParse(httpContext.Request.Headers[Keys.HeaderKey], out thisCorrelationId))
             {
                 thisCorrelationId = Guid.NewGuid();
-                _logger.LogWarning("Detected header x-correlationId, but value cannot be parsed to a GUID. Other values are not supported. Generated a new one: {CorrelationId}", thisCorrelationId);
+                _logger.LogInformation("Detected header x-correlationId, but value cannot be parsed to a GUID. Other values are not supported. Generated a new one: {CorrelationId}", thisCorrelationId);
             }
             else
             {
@@ -44,7 +44,7 @@ public class CorrelationIdMiddleware
         else
         {
             thisCorrelationId = Guid.NewGuid();
-            _logger.LogWarning("CorrelationIdMiddleware:Invoke - x-correlationId not detected in request headers. Generated a new one: {CorrelationId}", thisCorrelationId);
+            _logger.LogInformation("CorrelationIdMiddleware:Invoke - x-correlationId not detected in request headers. Generated a new one: {CorrelationId}", thisCorrelationId);
         }
 
         if (thisCorrelationId == Guid.Empty)
