@@ -100,7 +100,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             // Assert
             _logger.Received(1).Log(
-                LogLevel.Warning,
+                LogLevel.Information,
                 Arg.Any<EventId>(),
                 Arg.Is<object>(v => v.ToString().Contains("Detected header x-correlationId, but value cannot be parsed to a GUID")),
                 Arg.Any<Exception>(),
