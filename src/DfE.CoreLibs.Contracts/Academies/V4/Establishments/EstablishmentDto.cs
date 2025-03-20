@@ -43,6 +43,7 @@ public class EstablishmentDto
     public CensusDto Census { get; set; }
     public MisEstablishmentDto MISEstablishment { get; set; }
     public AddressDto Address { get; set; }
+    public PreviousEstablishmentDto PreviousEstablishment { get; set; }   
 }
 
 [Serializable]
@@ -78,4 +79,10 @@ public class CensusDto
     public string PercentageFsmLastSixYears { get; set; }
     public string PercentageEnglishAsSecondLanguage { get; set; }
     public string PercentageSen { get; set; }
+}
+
+[Serializable]
+public class PreviousEstablishmentDto
+{
+    public string Urn { get; set; }
 }
