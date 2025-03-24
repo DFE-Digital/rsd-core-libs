@@ -43,7 +43,7 @@ public class EstablishmentDto
     public CensusDto Census { get; set; }
     public MisEstablishmentDto MISEstablishment { get; set; }
     public AddressDto Address { get; set; }
-    public PreviousEstablishmentDto PreviousEstablishment { get; set; }   
+    public PreviousEstablishmentDto? PreviousEstablishment { get; set; }   
 }
 
 [Serializable]
@@ -84,5 +84,5 @@ public class CensusDto
 [Serializable]
 public class PreviousEstablishmentDto
 {
-    public string Urn { get; set; }
+    public string? Urn { get; set; }
 }
