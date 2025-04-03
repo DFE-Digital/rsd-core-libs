@@ -85,19 +85,18 @@ namespace DfE.CoreLibs.AsyncProcessing.Services
 
         private async Task StartProcessingQueue(Type taskType)
         {
-            Console.WriteLine("📌 StartProcessingQueue triggered");
+            Console.WriteLine("StartProcessingQueue triggered");
 
             var queue = _taskQueues[taskType];
             var semaphore = _semaphores[taskType];
 
-            // Ensure ExecuteAsync has set _serviceStoppingToken before processing
             while (options.Value.UseGlobalStoppingToken && _serviceStoppingToken == CancellationToken.None)
             {
-                Console.WriteLine("⏳ Waiting for ExecuteAsync to initialize _serviceStoppingToken...");
+                Console.WriteLine("Waiting for ExecuteAsync to initialize _serviceStoppingToken...");
                 await Task.Delay(100);
             }
 
-            Console.WriteLine($"🔍 _serviceStoppingToken IsCancellationRequested: {_serviceStoppingToken.IsCancellationRequested}");
+            Console.WriteLine($"_serviceStoppingToken IsCancellationRequested: {_serviceStoppingToken.IsCancellationRequested}");
 
             await semaphore.WaitAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -107,7 +106,7 @@ namespace DfE.CoreLibs.AsyncProcessing.Services
                 {
                     var token = options.Value.UseGlobalStoppingToken ? _serviceStoppingToken : CancellationToken.None;
 
-                    Console.WriteLine($"⚡ Processing task with token IsCancellationRequested: {token.IsCancellationRequested}");
+                    Console.WriteLine($"Processing task with token IsCancellationRequested: {token.IsCancellationRequested}");
                     await taskToProcess(token).ConfigureAwait(false);
                 }
             }
@@ -120,21 +119,21 @@ namespace DfE.CoreLibs.AsyncProcessing.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            Debug.WriteLine("🔵 ExecuteAsync started");
+            Debug.WriteLine("ExecuteAsync started");
 
             if (options.Value.UseGlobalStoppingToken)
             {
                 _serviceStoppingToken = stoppingToken;
-                Debug.WriteLine("✅ _serviceStoppingToken assigned");
+                Debug.WriteLine("_serviceStoppingToken assigned");
             }
 
             while (!stoppingToken.IsCancellationRequested)
             {
-                Debug.WriteLine("⏳ ExecuteAsync loop running...");
+                Debug.WriteLine("ExecuteAsync loop running...");
                 await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken).ConfigureAwait(false);
             }
 
-            Debug.WriteLine("🛑 ExecuteAsync detected cancellation.");
+            Debug.WriteLine("ExecuteAsync detected cancellation.");
         }
 
         public override async Task StartAsync(CancellationToken cancellationToken)
