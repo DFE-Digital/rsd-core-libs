@@ -36,9 +36,11 @@ namespace DfE.CoreLibs.AsyncProcessing.Services
             queue.Enqueue(async (cancellationToken) =>
             {
                 CancellationToken token;
+                CancellationTokenSource? linkedCts = null;
+
                 if (options.Value.UseGlobalStoppingToken && callerCancellationToken.HasValue)
                 {
-                    var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_serviceStoppingToken, callerCancellationToken.Value);
+                    linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_serviceStoppingToken, callerCancellationToken.Value);
                     token = linkedCts.Token;
                 }
                 else if (options.Value.UseGlobalStoppingToken)
@@ -70,6 +72,10 @@ namespace DfE.CoreLibs.AsyncProcessing.Services
                 {
                     tcs.SetException(ex);
                     throw;
+                }
+                finally
+                {
+                    linkedCts?.Dispose();
                 }
             });
 
