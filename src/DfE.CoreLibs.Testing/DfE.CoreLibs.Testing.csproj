@@ -19,22 +19,24 @@
 		<PackageReference Include="AutoFixture" Version="4.18.1" />
 		<PackageReference Include="AutoFixture.AutoNSubstitute" Version="4.18.1" />
 		<PackageReference Include="AutoFixture.Xunit2" Version="4.18.1" />
-		<PackageReference Include="AutoMapper" Version="13.0.1" />
-		<PackageReference Include="Azure.Identity" Version="1.13.1" />
-		<PackageReference Include="DfE.CoreLibs.Utilities" Version="1.0.7" />
-		<PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.8" />
-		<PackageReference Include="Microsoft.AspNetCore.TestHost" Version="8.0.11" />
-		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="8.0.11" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.11" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.11" />
+		<PackageReference Include="AutoMapper" Version="14.0.0" />
+		<PackageReference Include="Azure.Identity" Version="1.13.2" />
+		<PackageReference Include="DfE.CoreLibs.Utilities" Version="1.0.8" />
+		<PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.14" />
+		<PackageReference Include="Microsoft.AspNetCore.TestHost" Version="8.0.14" />
+		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="8.0.14" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.14" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.14" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.14" />
 		<PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.1" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="NSubstitute" Version="5.3.0" />
-		<PackageReference Include="System.Formats.Asn1" Version="8.0.1" />
+		<PackageReference Include="System.Formats.Asn1" Version="8.0.2" />
 		<PackageReference Include="System.Net.Http" Version="4.3.4" />
+		<PackageReference Include="System.Text.Json" Version="8.0.5" />
 		<PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
+		<PackageReference Include="WireMock.Net" Version="1.7.4" />
 	</ItemGroup>
 
 

@@ -3,10 +3,14 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
+using System.Net.Http.Headers;
 using System.Security.Claims;
+using WireMock.Server;
+using WireMock.Settings;
 
 namespace DfE.CoreLibs.Testing.Mocks.WebApplicationFactory
 {
@@ -19,9 +23,35 @@ namespace DfE.CoreLibs.Testing.Mocks.WebApplicationFactory
         public Action<IServiceCollection>? ExternalServicesConfiguration { get; set; }
         public Action<HttpClient>? ExternalHttpClientConfiguration { get; set; }
 
+        public bool UseWireMock { get; set; } = false;
+        public int WireMockPort { get; set; } = 0;
+        public WireMockServer? WireMockServer { get; private set; }
+        public HttpClient? WireMockHttpClient { get; private set; }
+        public Action<IServiceCollection, IConfiguration, HttpClient>? ExternalWireMockClientRegistration { get; set; }
+        public Action<IConfigurationBuilder, WireMockServer>? ExternalWireMockConfigOverride { get; set; }
+        public Action<WireMockServer>? ExternalWireMockStubRegistration { get; set; }
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Test");
+
+            if (UseWireMock && WireMockServer == null)
+            {
+                var settings = new WireMockServerSettings
+                {
+                    Port = WireMockPort
+                };
+                WireMockServer = WireMockServer.Start(settings);
+
+                WireMockHttpClient = new HttpClient
+                {
+                    BaseAddress = new Uri(WireMockServer.Urls[0])
+                };
+                WireMockHttpClient.DefaultRequestHeaders.Authorization =
+                    new AuthenticationHeaderValue("Bearer", "wiremock-token");
+
+                Console.WriteLine($"WireMock started at: {WireMockServer.Urls[0]}");
+            }
 
             builder.ConfigureServices(services =>
             {
@@ -44,6 +74,26 @@ namespace DfE.CoreLibs.Testing.Mocks.WebApplicationFactory
                 services.AddSingleton<IEnumerable<Claim>>(sp => TestClaims ?? new());
             });
 
+            builder.ConfigureAppConfiguration((ctx, cfg) =>
+            {
+                if (WireMockServer != null && ExternalWireMockConfigOverride != null)
+                {
+                    ExternalWireMockConfigOverride(cfg, WireMockServer);
+                }
+            });
+
+            builder.ConfigureServices((ctx, services) =>
+            {
+                if (ExternalWireMockClientRegistration != null &&
+                    WireMockHttpClient != null)
+                {
+                    ExternalWireMockClientRegistration(
+                        services,
+                        ctx.Configuration,
+                        WireMockHttpClient
+                    );
+                }
+            });
         }
 
         protected override void ConfigureClient(HttpClient client)
