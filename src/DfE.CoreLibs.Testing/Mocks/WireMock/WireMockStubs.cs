@@ -9,12 +9,19 @@ namespace DfE.CoreLibs.Testing.Mocks.WireMock
 {
     public static class WireMockStubs
     {
-        public static void AddGetWithJsonResponse<TResponseBody>(this WireMockServer server, string path, TResponseBody responseBody)
+        public static void AddGetWithJsonResponse<TResponseBody>(this WireMockServer server, string path, TResponseBody responseBody, List<KeyValuePair<string,string>>? parameters)
         {
+            var request = Request.Create()
+                .WithPath(path)
+                .UsingGet();
+
+            foreach (var kvp in parameters ?? [])
+            {
+                request = request.WithParam(kvp.Key, kvp.Value);
+            }
+
             server
-               .Given(Request.Create()
-                  .WithPath(path)
-                  .UsingGet())
+               .Given(request)
                .RespondWith(Response.Create()
                   .WithStatusCode(200)
                   .WithHeader("Content-Type", "application/json")
@@ -85,8 +92,18 @@ namespace DfE.CoreLibs.Testing.Mocks.WireMock
                   .WithBody(JsonConvert.SerializeObject(responseBody)));
         }
 
-        public static void AddErrorResponse(this WireMockServer server, string path, string method)
+        public static void AddErrorResponse(this WireMockServer server, string path, string method, List<KeyValuePair<string, string>>? parameters)
         {
+            var request = Request.Create()
+                .WithPath(path)
+                .UsingGet();
+
+            foreach (var kvp in parameters ?? [])
+            {
+                request = request.WithParam(kvp.Key, kvp.Value);
+            }
+
+
             server
                .Given(Request.Create()
                   .WithPath(path)
