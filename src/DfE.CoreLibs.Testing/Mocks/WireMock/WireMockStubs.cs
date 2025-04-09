@@ -9,7 +9,7 @@ namespace DfE.CoreLibs.Testing.Mocks.WireMock
 {
     public static class WireMockStubs
     {
-        public static void AddGetWithJsonResponse<TResponseBody>(this WireMockServer server, string path, TResponseBody responseBody, List<KeyValuePair<string,string>>? parameters)
+        public static void AddGetWithJsonResponse<TResponseBody>(this WireMockServer server, string path, TResponseBody responseBody, List<KeyValuePair<string,string>>? parameters = null)
         {
             var request = Request.Create()
                 .WithPath(path)
@@ -92,7 +92,7 @@ namespace DfE.CoreLibs.Testing.Mocks.WireMock
                   .WithBody(JsonConvert.SerializeObject(responseBody)));
         }
 
-        public static void AddErrorResponse(this WireMockServer server, string path, string method, List<KeyValuePair<string, string>>? parameters)
+        public static void AddErrorResponse(this WireMockServer server, string path, string method, List<KeyValuePair<string, string>>? parameters = null)
         {
             var request = Request.Create()
                 .WithPath(path)
