@@ -1,6 +1,6 @@
-﻿using DfE.CoreLibs.Security.Interfaces;
+﻿using System.Security.Claims;
+using DfE.CoreLibs.Security.Interfaces;
 using Microsoft.AspNetCore.Authentication;
-using System.Security.Claims;
 
 namespace DfE.CoreLibs.Security.Authorization
 {
@@ -24,7 +24,7 @@ namespace DfE.CoreLibs.Security.Authorization
 
                 foreach (var claim in claims)
                 {
-                    if (!identity.HasClaim(c => c.Type == claim.Type))
+                    if (!identity.HasClaim(c => c.Type == claim.Type && c.Value == claim.Value))
                     {
                         identity.AddClaim(claim);
                     }
