@@ -7,43 +7,35 @@ using Microsoft.Net.Http.Headers;
 namespace DfE.CoreLibs.Security.Cypress
 {
     /// <inheritdoc />
-    public class CypressRequestChecker(IHostEnvironment env, IConfiguration config) : ICypressRequestChecker
+    public class CypressRequestChecker(IHostEnvironment env, IConfiguration config)
+        : ICypressRequestChecker
     {
-        /// <inheritdoc />
+        private const string CypressUserHeaderKey = "x-cypress-user";
+        private const string ExpectedCypressUser = "cypressUser";
+
         public bool IsCypressRequest(HttpContext httpContext)
         {
-            // Read config and environment 
-            var secret = config["CypressTestSecret"];
-            var environmentName = env.EnvironmentName;
+            var userHeader = httpContext.Request.Headers[CypressUserHeaderKey].ToString();
+            if (!string.Equals(userHeader, ExpectedCypressUser, StringComparison.OrdinalIgnoreCase))
+                return false;
 
-            // Read headers
-            var authHeaderValue = httpContext.Request.Headers[HeaderNames.Authorization]
+            // Only allow in Dev, Staging or Test
+            if (!(env.IsDevelopment()
+                  || env.IsStaging()
+                  || env.IsEnvironment("Test")))
+            {
+                return false;
+            }
+
+            var secret = config["CypressTestSecret"];
+            var authHdr = httpContext.Request.Headers[HeaderNames.Authorization]
                 .ToString()
                 .Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
 
-            var userContextHeaderValue = httpContext.Request.Headers["x-cypress-user"].ToString();
-
-            // Must match "cypressUser"
-            if (!userContextHeaderValue.Equals("cypressUser", StringComparison.OrdinalIgnoreCase))
-            {
+            if (string.IsNullOrWhiteSpace(secret) || string.IsNullOrWhiteSpace(authHdr))
                 return false;
-            }
 
-            // Only allow Dev/Staging
-            if (!environmentName.Equals("Development", StringComparison.OrdinalIgnoreCase) &&
-                !environmentName.Equals("Staging", StringComparison.OrdinalIgnoreCase) &&
-                !environmentName.Equals("Test", StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            // Compare secrets
-            if (string.IsNullOrWhiteSpace(secret) || string.IsNullOrWhiteSpace(authHeaderValue))
-            {
-                return false;
-            }
-
-            return authHeaderValue.Equals(secret, StringComparison.Ordinal);
+            return string.Equals(authHdr, secret, StringComparison.Ordinal);
         }
     }
 }
