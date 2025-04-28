@@ -19,10 +19,11 @@ namespace DfE.CoreLibs.Security.Cypress
         IHttpContextAccessor httpContextAccessor)
         : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {
+        private const string ObjectIdClaimType = "http://schemas.microsoft.com/identity/claims/objectidentifier";
+        private const string TestFallbackObjectId = "TEST-AD-ID";
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
-
             var httpContext = httpContextAccessor.HttpContext;
             if (httpContext == null)
             {
@@ -38,10 +39,19 @@ namespace DfE.CoreLibs.Security.Cypress
             var userInfo = ParsedUserContext.FromHeaders(headers);
             var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.Name, userInfo.Name),
+                new Claim(ClaimTypes.Name, userInfo!.Name),
                 new Claim(ClaimTypes.NameIdentifier, userId),
                 new Claim(ClaimTypes.Authentication, "true")
             };
+
+            if (!string.IsNullOrEmpty(userInfo.AdId))
+            {
+                claims.Add(new Claim(ObjectIdClaimType, userInfo.AdId));
+            }
+            else if (!claims.Exists(c => c.Type == ObjectIdClaimType))
+            {
+                claims.Add(new Claim(ObjectIdClaimType, TestFallbackObjectId));
+            }
 
             foreach (var claim in userInfo.Roles)
             {
