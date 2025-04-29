@@ -15,7 +15,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
     {
         private readonly IFixture _fixture = new Fixture().Customize(new AutoNSubstituteCustomization());
 
-        private DefaultHttpContext CreateHttpContext(string environmentName, string authHeader, string userContextHeader)
+        private static DefaultHttpContext CreateHttpContext(string environmentName, string authHeader, string userContextHeader)
         {
             var httpContext = new DefaultHttpContext();
             httpContext.Request.Headers[HeaderNames.Authorization] = $"Bearer {authHeader}";

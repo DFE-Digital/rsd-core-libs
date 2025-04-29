@@ -1,6 +1,4 @@
-﻿using System.Security.Claims;
-
-namespace DfE.CoreLibs.Security.Utils
+﻿namespace DfE.CoreLibs.Security.Utils
 {
     /// <summary>
     /// Represents user context information parsed from HTTP headers, including a username and roles
@@ -17,7 +15,7 @@ namespace DfE.CoreLibs.Security.Utils
     public record ParsedUserContext(
         string Name,
         string AdId,
-        IReadOnlyList<string> Roles)
+        IReadOnlyList<string>? Roles)
     {
         public const string NameHeaderKey = "x-user-context-name";
         public const string RoleHeaderKeyPrefix = "x-user-context-role-";
@@ -34,8 +32,11 @@ namespace DfE.CoreLibs.Security.Utils
         /// A new <see cref="ParsedUserContext"/> if valid user info is found (i.e., a name 
         /// and at least one role); otherwise <c>null</c>.
         /// </returns>
-        public static ParsedUserContext? FromHeaders(KeyValuePair<string, string>[] headers)
+        public static ParsedUserContext? FromHeaders(KeyValuePair<string, string>[]? headers)
         {
+            if (headers == null)
+                return null;
+
             // Extract name from "x-user-context-name"
             var name = headers.FirstOrDefault(x => x.Key.Equals(NameHeaderKey, StringComparison.InvariantCultureIgnoreCase)).Value;
 
@@ -48,8 +49,11 @@ namespace DfE.CoreLibs.Security.Utils
                 .Select(h => h.Value)
                 .ToArray();
 
-            // If missing name/roles, return null
-            if (string.IsNullOrWhiteSpace(name) || roles.Length == 0)
+            if (string.IsNullOrWhiteSpace(name))
+                return null;
+
+            // If no adId, then roles must be provided
+            if (string.IsNullOrWhiteSpace(adId) && roles.Length == 0)
                 return null;
 
             return new ParsedUserContext(name, adId, roles);

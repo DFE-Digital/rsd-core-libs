@@ -15,7 +15,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
         private readonly IFixture _fixture = new Fixture().Customize(new AutoNSubstituteCustomization());
 
         [Fact]
-        public void AddCypressMultiAuthentication_RegistersRequiredServicesAndPolicyScheme()
+        public async Task AddCypressMultiAuthentication_RegistersRequiredServicesAndPolicyScheme()
         {
             // Arrange
             var services = new ServiceCollection();
@@ -30,13 +30,13 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             Assert.Contains(services, d => d.ServiceType == typeof(ICypressRequestChecker) && d.ImplementationType == typeof(CypressRequestChecker));
 
             var schemeProvider = services.BuildServiceProvider().GetService<IAuthenticationSchemeProvider>();
-            var scheme = schemeProvider.GetSchemeAsync("CypressAuth").Result;
+            var scheme = await schemeProvider?.GetSchemeAsync("CypressAuth")!;
             Assert.NotNull(scheme);
 
             // Create a fake HttpContext with required headers.
             var httpContext = new DefaultHttpContext();
             httpContext.Request.Headers["x-user-context-name"] = "cypressUser";
-            httpContext.Request.Headers["Authorization"] = "Bearer secret123";
+            httpContext.Request.Headers.Authorization = "Bearer secret123";
 
             var checker = Substitute.For<ICypressRequestChecker>();
             checker.IsCypressRequest(httpContext).Returns(true);

@@ -19,7 +19,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
     {
         private readonly IFixture _fixture = new Fixture().Customize(new AutoNSubstituteCustomization());
 
-        private AuthorizationFilterContext CreateAuthorizationFilterContext(string method, string path = "/test")
+        private static AuthorizationFilterContext CreateAuthorizationFilterContext(string method, string path = "/test")
         {
             var httpContext = new DefaultHttpContext();
             httpContext.Request.Method = method;

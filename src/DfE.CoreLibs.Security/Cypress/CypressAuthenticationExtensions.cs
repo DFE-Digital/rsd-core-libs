@@ -21,7 +21,7 @@ namespace DfE.CoreLibs.Security.Cypress
             string policyScheme = "MultiAuth",
             string displayName = "Multi Auth",
             string cypressScheme = "CypressAuth",
-            string fallbackScheme = null)
+            string? fallbackScheme = null)
         {
             // Default fallback scheme to Cookies if not provided
             if (string.IsNullOrEmpty(fallbackScheme))

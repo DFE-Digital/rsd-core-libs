@@ -33,10 +33,10 @@ namespace DfE.CoreLibs.Security.Cypress
             var userId = httpContext.Request.Headers["x-user-context-id"].FirstOrDefault() ?? Guid.NewGuid().ToString();
 
             var headers = httpContext.Request.Headers
-                .Select(x => new KeyValuePair<string, string>(x.Key, x.Value.First()))
+                .Select(x => new KeyValuePair<string, string?>(x.Key, x.Value[0]))
                 .ToArray();
 
-            var userInfo = ParsedUserContext.FromHeaders(headers);
+            var userInfo = ParsedUserContext.FromHeaders(headers!);
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.Name, userInfo!.Name),
@@ -53,7 +53,7 @@ namespace DfE.CoreLibs.Security.Cypress
                 claims.Add(new Claim(ObjectIdClaimType, TestFallbackObjectId));
             }
 
-            foreach (var claim in userInfo.Roles)
+            foreach (var claim in userInfo.Roles ?? [])
             {
                 claims.Add(new Claim(ClaimTypes.Role, claim));
             }

@@ -23,7 +23,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             var loggerFactory = Substitute.For<ILoggerFactory>();
             var encoder = Substitute.For<System.Text.Encodings.Web.UrlEncoder>();
             var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
-            httpContextAccessor.HttpContext.Returns((HttpContext)null);
+            httpContextAccessor.HttpContext.Returns((HttpContext?)null);
 
             var handler = new CypressAuthenticationHandler(optionsMonitor, loggerFactory, encoder, httpContextAccessor);
 
@@ -32,7 +32,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
 
             // Assert
             Assert.False(result.Succeeded);
-            Assert.Contains("No HttpContext", result.Failure.Message);
+            Assert.Contains("No HttpContext", result?.Failure?.Message);
         }
 
         [Fact]
@@ -81,7 +81,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
         {
             // Use reflection to call the protected method.
             var method = typeof(CypressAuthenticationHandler).GetMethod("HandleAuthenticateAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-            return (Task<AuthenticateResult>)method.Invoke(handler, null);
+            return ((Task<AuthenticateResult>)method?.Invoke(handler, null)!);
         }
     }
 }
