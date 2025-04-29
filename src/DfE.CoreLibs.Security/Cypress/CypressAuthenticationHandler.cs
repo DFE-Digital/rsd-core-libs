@@ -39,9 +39,9 @@ namespace DfE.CoreLibs.Security.Cypress
             var userInfo = ParsedUserContext.FromHeaders(headers!);
             var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.Name, userInfo!.Name),
-                new Claim(ClaimTypes.NameIdentifier, userId),
-                new Claim(ClaimTypes.Authentication, "true")
+                new(ClaimTypes.Name, userInfo!.Name),
+                new(ClaimTypes.NameIdentifier, userId),
+                new(ClaimTypes.Authentication, "true")
             };
 
             if (!string.IsNullOrEmpty(userInfo.AdId))
