@@ -6,9 +6,7 @@ The DfE.CoreLibs.Security library provides a flexible foundation for managing se
 
 To install the DfE.CoreLibs.Security library, use the following command in your .NET project:
 
-
     dotnet add package DfE.CoreLibs.Security
-
 
 ## Usage
 
