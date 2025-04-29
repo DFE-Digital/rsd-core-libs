@@ -69,7 +69,7 @@ jobs:
             echo "This commit has already been processed for version update in $PROJECT_NAME. Skipping."
           else
             # Extract the version from the commit message
-            CUSTOM_VERSION=$(git show -s --format=%s $COMMIT_HASH | grep -oP '\(%update '"$PROJECT_NAME"' package version to \K([0-9]+\.[0-9]+\.[0-9]+)')
+            CUSTOM_VERSION=$(git show -s --format=%s $COMMIT_HASH | grep -oP '\(%update '"$PROJECT_NAME"' package version to \K([0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?)')
 
             if [[ -n "$CUSTOM_VERSION" ]]; then
               echo "Using custom version: $CUSTOM_VERSION"

@@ -6,9 +6,7 @@ The DfE.CoreLibs.Security library provides a flexible foundation for managing se
 
 To install the DfE.CoreLibs.Security library, use the following command in your .NET project:
 
-
     dotnet add package DfE.CoreLibs.Security
-
 
 ## Usage
 
@@ -19,7 +17,6 @@ To install the DfE.CoreLibs.Security library, use the following command in your 
 Use the `AddApplicationAuthorization` extension method to register authorization policies and configure custom claims and requirements. Policies can be defined in the `appsettings.json` file or programmatically, and you can add claim providers to inject claims dynamically.
 
 Here's how to set up the service in `ConfigureServices`:
-
     
 ```csharp
 public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
