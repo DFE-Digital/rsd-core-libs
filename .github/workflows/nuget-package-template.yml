@@ -173,23 +173,62 @@ jobs:
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
         fi
 
-    - name: Build, pack and publish
+    - name: Build and pack
       working-directory: ${{ inputs.project_path }}
       run: |
         dotnet build -c Release
         dotnet pack -c Release -p:PackageVersion=${{ env.NEW_VERSION }} --output .
-        dotnet nuget push "*.nupkg" --api-key ${{ secrets.GITHUB_TOKEN }} --source https://nuget.pkg.github.com/DFE-Digital/index.json
+
+    - name: Upload signing file list
+      uses: actions/upload-artifact@v3
+      with:
+        name: config
+        path: ${{ inputs.project_path }}/config
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: BuildArtifacts
+        path: ${{ inputs.project_path }}/**/*.nupkg
+
+  sign:
+    needs: [ build-and-package ]
+    runs-on: windows-latest # Code signing must run on a Windows agent for Authenticode signing (dll/exe)
+    if: ${{ github.event.workflow_run.conclusion == 'success' }} # Ensures it only runs on success
+    permissions:
+      id-token: write # Required for requesting the JWT
+
+    steps:
+    - name: Download signing config
+      uses: actions/download-artifact@v3
+      with:
+        name: config
+        path: config
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: BuildArtifacts
+        path: BuildArtifacts
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Install Sign CLI tool
+      run: dotnet tool install --tool-path . sign --prerelease
 
     - name: Get Release Note
       id: extract_description
-      run: |        
+      run: |
         # Retrieve the commit message body
         if ! git log -1 --pretty=format:"%b" >/dev/null 2>&1; then
           echo "No commits found. Skipping release note extraction."
           DESCRIPTION="No release notes provided."
         else
           COMMIT_MESSAGE=$(git log -1 --pretty=format:"%b")
-  
+
           # Check if the commit message is empty
           if [[ -z "$COMMIT_MESSAGE" ]]; then
             echo "No commit message found. Skipping release note extraction."
@@ -200,10 +239,10 @@ jobs:
 
             # Extract release note content from the single-line commit message
             DESCRIPTION=$(echo "$SINGLE_LINE_COMMIT" | grep -Eo '\(%release-note:.*%\)' | sed 's/.*%release-note:\(.*\)%/\1/')
-    
+
             # Replace the placeholder character `~` back with newlines
             DESCRIPTION=$(echo "$DESCRIPTION" | sed 's/~/\n/g')
-    
+
             # Check if the description extraction found anything
             if [[ -z "$DESCRIPTION" ]]; then
               DESCRIPTION="No release notes provided."
@@ -215,6 +254,35 @@ jobs:
         echo "RELEASE_DESCRIPTION<<EOF" >> $GITHUB_ENV
         echo -e "$DESCRIPTION" >> $GITHUB_ENV
         echo "EOF" >> $GITHUB_ENV
+
+    - name: Sign artifacts
+      shell: pwsh
+      run: >
+        ./sign code azure-key-vault
+        **/*.nupkg
+        --base-directory "${{ github.workspace }}/BuildArtifacts"
+        --file-list "${{ github.workspace }}/config/filelist.txt"
+        --publisher-name "Department for Education"
+        --description "Release ${{ env.NEW_VERSION }} for ${{ inputs.nuget_package_name }}"
+        --description-url "https://github.com/DFE-Digital/rsd-core-libs/pkgs/nuget/${{ inputs.nuget_package_name }}"
+        --azure-key-vault-managed-identity true
+        --azure-key-vault-url "${{ secrets.KEY_VAULT_URL }}"
+        --azure-key-vault-certificate "${{ secrets.KEY_VAULT_CERTIFICATE_ID }}"
+
+    - name: Publish packages to GitHub
+      run: >
+        dotnet nuget push "**/*.nupkg"
+        --api-key ${{ secrets.GITHUB_TOKEN }}
+        --source https://nuget.pkg.github.com/DFE-Digital/index.json
+
+    - name: Publish packages to NuGet
+      if: ${{ env.NUGET_API_KEY != '' }}
+      env:
+        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      run: >
+        dotnet nuget push "**/*.nupkg"
+        --api-key ${{ secrets.NUGET_API_KEY }}
+        --source https://api.nuget.org/v3/index.json
 
     - name: Create GitHub Release
       env:
