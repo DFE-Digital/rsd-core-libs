@@ -23,7 +23,7 @@ namespace DfE.CoreLibs.Security.Cypress
         {
             if (optionsAccessor.Value.ShouldSkipAntiforgery(context.HttpContext))
             {
-                logger.LogInformation("Skipping antiforgery due to ShouldSkipAntiforgery predicate.");
+                logger.LogInformation("Skipping anti-forgery due to ShouldSkipAntiforgery predicate.");
                 return;
             }
 
@@ -37,11 +37,11 @@ namespace DfE.CoreLibs.Security.Cypress
             var isCypress = cypressChecker.IsCypressRequest(context.HttpContext);
             if (isCypress)
             {
-                logger.LogInformation("Skipping antiforgery for Cypress request.");
+                logger.LogInformation("Skipping anti-forgery for Cypress request.");
                 return;
             }
 
-            logger.LogInformation("Enforcing antiforgery for non-Cypress request.");
+            logger.LogInformation("Enforcing anti-forgery for non-Cypress request.");
             await antiforgery.ValidateRequestAsync(context.HttpContext);
         }
     }

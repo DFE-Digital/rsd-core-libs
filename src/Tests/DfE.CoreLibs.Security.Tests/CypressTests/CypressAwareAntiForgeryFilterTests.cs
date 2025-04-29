@@ -52,7 +52,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
 
             // Assert
             await antiforgery.DidNotReceive().ValidateRequestAsync(context.HttpContext);
-            logger.Received().LogInformation("Skipping antiforgery due to ShouldSkipAntiforgery predicate.");
+            logger.Received().LogInformation("Skipping anti-forgery due to ShouldSkipAntiforgery predicate.");
         }
 
         [Fact]
@@ -96,7 +96,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
 
             // Assert
             await antiforgery.DidNotReceive().ValidateRequestAsync(context.HttpContext);
-            logger.Received().LogInformation("Skipping antiforgery for Cypress request.");
+            logger.Received().LogInformation("Skipping anti-forgery for Cypress request.");
         }
 
         [Fact]
@@ -120,7 +120,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
 
             // Assert
             await antiforgery.Received().ValidateRequestAsync(context.HttpContext);
-            logger.Received().LogInformation("Enforcing antiforgery for non-Cypress request.");
+            logger.Received().LogInformation("Enforcing anti-forgery for non-Cypress request.");
         }
     }
 }
