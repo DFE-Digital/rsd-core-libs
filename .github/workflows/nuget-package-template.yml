@@ -57,7 +57,7 @@ jobs:
         PROJECT_NAME=${{ inputs.project_name }} # Add the project name from inputs
 
         # Search the last 10 commits for the version update indicator
-        COMMIT_HASH=$(git log -n 10 --pretty=format:"%H %s" | grep -P '\(%update '"$PROJECT_NAME"' package version to \d+\.\d+\.\d+\)' | grep -oP '^\w+' | head -n 1)
+        COMMIT_HASH=$(git log -n 10 --pretty=format:"%H %s" | grep -P '\(%update '"$PROJECT_NAME"' package version to \d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?\)' | grep -oP '^\w+' | head -n 1)
 
         if [[ -n "$COMMIT_HASH" ]]; then
           echo "Found commit with version update indicator: $COMMIT_HASH"
