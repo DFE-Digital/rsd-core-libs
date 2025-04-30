@@ -2,10 +2,11 @@
 {
     /// <summary>
     /// Test Nuget Package
-    /// Updated 3
+    /// Updated 4
     /// </summary>
     public class Test
     {
         public int Prop1 { get; set; }
+        public int Prop2 { get; set; }
     }
 }
