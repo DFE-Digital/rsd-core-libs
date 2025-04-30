@@ -95,9 +95,6 @@ jobs:
             PACKAGE_ID_LOWER=$(echo "$PACKAGE_ID" | tr '[:upper:]' '[:lower:]')
             FEED_URL="https://api.nuget.org/v3-flatcontainer/${PACKAGE_ID_LOWER}/index.json"
 
-
-            ALL_VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "$FEED_URL" | jq -r 'if type == "array" then .[].name else empty end')
-
             ALL_VERSIONS=$(curl -s "$FEED_URL" | jq -r '.versions[]')
 
             if [[ -n "$ALL_VERSIONS" ]]; then
