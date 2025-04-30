@@ -95,7 +95,20 @@ jobs:
             PACKAGE_ID_LOWER=$(echo "$PACKAGE_ID" | tr '[:upper:]' '[:lower:]')
             FEED_URL="https://api.nuget.org/v3-flatcontainer/${PACKAGE_ID_LOWER}/index.json"
 
-            ALL_VERSIONS=$(curl -s "$FEED_URL" | jq -r '.versions[]')
+            echo "Querying NuGet.org feed: $FEED_URL"
+
+            # Fetch headers+body; separate out HTTP status
+            HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" "$FEED_URL")
+            HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
+            HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tail -n1)
+
+            if [[ "$HTTP_STATUS" -ne 200 ]]; then
+              echo "Feed returned status $HTTP_STATUS; assuming no versions published yet."
+              ALL_VERSIONS=""
+            else
+              # Parse out just the versions
+              ALL_VERSIONS=$(echo "$HTTP_BODY" | jq -r '.versions[]')
+            fi
 
             if [[ -n "$ALL_VERSIONS" ]]; then
 
