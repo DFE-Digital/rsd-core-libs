@@ -89,12 +89,13 @@ jobs:
           echo "No unprocessed custom version found in the last 10 commits for $PROJECT_NAME. Proceeding to fetch and increment the latest version from the feed."
 
             CUSTOM_SUFFIX=${{ inputs.custom_suffix }}
+            PACKAGE_ID="${{ inputs.nuget_package_name }}"
 
             # Fetch the latest version and increment it for the specific package
-            PACKAGE_ID="${{ inputs.nuget_package_name }}"
-            FEED_URL="https://api.github.com/orgs/DFE-Digital/packages/nuget/$PACKAGE_ID/versions"
+            PACKAGE_ID_LOWER=$(echo "$PACKAGE_ID" | tr '[:upper:]' '[:lower:]')
+            FEED_URL="https://api.nuget.org/v3-flatcontainer/${PACKAGE_ID_LOWER}/index.json"
 
-            ALL_VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "$FEED_URL" | jq -r 'if type == "array" then .[].name else empty end')
+            ALL_VERSIONS=$(curl -s "$FEED_URL" | jq -r '.versions[]')
 
             if [[ -n "$ALL_VERSIONS" ]]; then
 
@@ -178,18 +179,24 @@ jobs:
       run: |
         dotnet build -c Release
         dotnet pack -c Release -p:PackageVersion=${{ env.NEW_VERSION }} --output .
-        dotnet nuget push "*.nupkg" --api-key ${{ secrets.GITHUB_TOKEN }} --source https://nuget.pkg.github.com/DFE-Digital/index.json
+
+    - name: Publish packages to NuGet
+      working-directory: ${{ inputs.project_path }}
+      if: ${{ env.NUGET_API_KEY != '' }}
+      env:
+        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      run: dotnet nuget push "*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
 
     - name: Get Release Note
       id: extract_description
-      run: |        
+      run: |
         # Retrieve the commit message body
         if ! git log -1 --pretty=format:"%b" >/dev/null 2>&1; then
           echo "No commits found. Skipping release note extraction."
           DESCRIPTION="No release notes provided."
         else
           COMMIT_MESSAGE=$(git log -1 --pretty=format:"%b")
-  
+
           # Check if the commit message is empty
           if [[ -z "$COMMIT_MESSAGE" ]]; then
             echo "No commit message found. Skipping release note extraction."
@@ -200,10 +207,10 @@ jobs:
 
             # Extract release note content from the single-line commit message
             DESCRIPTION=$(echo "$SINGLE_LINE_COMMIT" | grep -Eo '\(%release-note:.*%\)' | sed 's/.*%release-note:\(.*\)%/\1/')
-    
+
             # Replace the placeholder character `~` back with newlines
             DESCRIPTION=$(echo "$DESCRIPTION" | sed 's/~/\n/g')
-    
+
             # Check if the description extraction found anything
             if [[ -z "$DESCRIPTION" ]]; then
               DESCRIPTION="No release notes provided."
