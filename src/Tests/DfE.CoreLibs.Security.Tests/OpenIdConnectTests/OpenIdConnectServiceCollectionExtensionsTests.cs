@@ -1,5 +1,4 @@
-﻿using DfE.CoreLibs.Security.Configurations;
-using DfE.CoreLibs.Security.DfESignIn;
+﻿using DfE.CoreLibs.Security.OpenIdConnect;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Http;
@@ -8,9 +7,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
-namespace DfE.CoreLibs.Security.Tests.DfESignIn
+namespace DfE.CoreLibs.Security.Tests.OpenIdConnectTests
 {
-    public class DfESignInServiceCollectionExtensionsTests
+    public class OpenIdConnectServiceCollectionExtensionsTests
     {
         private const string SectionName = "SignIn";
 
@@ -22,7 +21,7 @@ namespace DfE.CoreLibs.Security.Tests.DfESignIn
 
             var services = new ServiceCollection();
             var authBuilder = services.AddAuthentication();
-            authBuilder.AddDfESignInIdOnly(configuration, SectionName);
+            authBuilder.AddCustomOpenIdConnect(configuration, SectionName);
 
             return services.BuildServiceProvider();
         }
@@ -48,7 +47,7 @@ namespace DfE.CoreLibs.Security.Tests.DfESignIn
             };
 
             var provider = BuildServiceProvider(settings);
-            var opts = provider.GetRequiredService<IOptions<DfESignInOptions>>().Value;
+            var opts = provider.GetRequiredService<IOptions<Configurations.OpenIdConnectOptions>>().Value;
 
             Assert.Equal("https://example.com/oidc", opts.Authority);
             Assert.Equal("my-client", opts.ClientId);
@@ -77,7 +76,7 @@ namespace DfE.CoreLibs.Security.Tests.DfESignIn
             };
 
             var provider = BuildServiceProvider(settings);
-            var monitor = provider.GetRequiredService<IOptionsMonitor<OpenIdConnectOptions>>();
+            var monitor = provider.GetRequiredService<IOptionsMonitor<Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectOptions>>();
             var oidcOpts = monitor.Get(OpenIdConnectDefaults.AuthenticationScheme);
 
             Assert.Equal("https://example.com/oidc2", oidcOpts.Authority);
@@ -110,7 +109,7 @@ namespace DfE.CoreLibs.Security.Tests.DfESignIn
             var provider = BuildServiceProvider(settings);
 
             var oidcOpts = provider
-                .GetRequiredService<IOptionsMonitor<OpenIdConnectOptions>>()
+                .GetRequiredService<IOptionsMonitor<Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectOptions>>()
                 .Get(OpenIdConnectDefaults.AuthenticationScheme);
 
             var httpContext = new DefaultHttpContext();

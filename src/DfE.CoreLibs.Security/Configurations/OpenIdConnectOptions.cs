@@ -1,9 +1,9 @@
 ﻿namespace DfE.CoreLibs.Security.Configurations
 {
     /// <summary>
-    /// Configuration for the DfE Sign-In “ID-only” OpenID Connect integration.
+    /// Configuration for OpenID Connect integration.
     /// </summary>
-    public class DfESignInOptions
+    public class OpenIdConnectOptions
     {
         public string Authority { get; set; } = default!;
         public string ClientId { get; set; } = default!;
