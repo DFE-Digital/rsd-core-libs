@@ -45,8 +45,7 @@ namespace DfE.CoreLibs.Security.Extensions
             string action,
             string claimType = DefaultPermissionClaimType)
         {
-            if (user == null)
-                throw new ArgumentNullException(nameof(user));
+            ArgumentNullException.ThrowIfNull(user);
             if (string.IsNullOrWhiteSpace(resourceKey))
                 throw new ArgumentException("Resource key must be provided", nameof(resourceKey));
             if (string.IsNullOrWhiteSpace(action))

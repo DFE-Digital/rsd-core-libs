@@ -133,7 +133,7 @@ namespace DfE.CoreLibs.Security.Authorization
                 }
 
                 // Auto-generate resource-based policies only if actions passed into the ResourcePermissionOptions
-                if (resourceOpts.Actions?.Any() == true)
+                if (resourceOpts.Actions?.Count > 0)
                 {
                     foreach (var action in resourceOpts.Actions)
                     {

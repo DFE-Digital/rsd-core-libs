@@ -31,7 +31,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
                 },
                 configureResourcePolicies: opts =>
                 {
-                    opts.Actions.AddRange(new[] { "Read", "Write" });
+                    opts.Actions.AddRange(["Read", "Write"]);
                 });
 
             services.AddSingleton<IAuthorizationPolicyProvider, DefaultAuthorizationPolicyProvider>();

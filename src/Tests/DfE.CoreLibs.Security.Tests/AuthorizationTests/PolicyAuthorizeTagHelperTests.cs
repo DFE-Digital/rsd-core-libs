@@ -37,7 +37,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
                 items: new Dictionary<object, object>(),
                 uniqueId: "test");
 
-        private TagHelperOutput MakeOutput(string initialContent) =>
+        private static TagHelperOutput MakeOutput(string initialContent) =>
             new TagHelperOutput(
                 "authorize",
                 [],
