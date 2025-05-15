@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Security.Claims;
 using DfE.CoreLibs.Security.Authorization.Requirements;
 using DfE.CoreLibs.Security.Services;
+using DfE.CoreLibs.Security.Authorization.Handlers;
 
 namespace DfE.CoreLibs.Security.Authorization
 {
@@ -35,6 +36,7 @@ namespace DfE.CoreLibs.Security.Authorization
             var resourceOpts = new ResourcePermissionOptions();
             configureResourcePolicies?.Invoke(resourceOpts);
             services.AddSingleton(resourceOpts);
+            services.AddSingleton<IAuthorizationHandler, ResourcePermissionHandler>();
 
             services.AddAuthorization(options =>
             {
