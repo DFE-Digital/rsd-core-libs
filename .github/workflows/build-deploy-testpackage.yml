@@ -1,14 +1,14 @@
-name: CI & Pack DfE.CoreLibs.${{ env.Lib }}
+name: CI & Pack DfE.CoreLibs.TestPackage
 
 on:
   push:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.${{ env.Lib }}/**"
+      - "src/DfE.CoreLibs.TestPackage/**"
   pull_request:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.${{ env.Lib }}/**"
+      - "src/DfE.CoreLibs.TestPackage/**"
 
 env:
   Lib: TestPackage

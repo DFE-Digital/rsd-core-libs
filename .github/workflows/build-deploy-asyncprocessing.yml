@@ -1,14 +1,14 @@
-name: CI & Pack DfE.CoreLibs.${{ env.Lib }}
+name: CI & Pack DfE.CoreLibs.AsyncProcessing
 
 on:
   push:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.${{ env.Lib }}/**"
+      - "src/DfE.CoreLibs.AsyncProcessing/**"
   pull_request:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.${{ env.Lib }}/**"
+      - "src/DfE.CoreLibs.AsyncProcessing/**"
 
 env:
   Lib: AsyncProcessing
