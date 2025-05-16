@@ -27,5 +27,3 @@ jobs:
     with:
       project_name: DfE.CoreLibs.TestPackage
       project_path: src/DfE.CoreLibs.TestPackage/DfE.CoreLibs.TestPackage.csproj
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
