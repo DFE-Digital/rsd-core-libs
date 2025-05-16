@@ -1,16 +1,13 @@
-workflow: TrunkBased/preview1
+mode: ContinuousDelivery
+
 tag-prefix: '^.*-'
 
 branches:
   main:
     increment: Patch
-    label: ''
-    prevent-increment:
-      of-merged-branch: true
+    tag: ''
 
   pull-request:
     increment: Patch
     source-branches: ['main']
-    label: prerelease
-    prevent-increment:
-      of-merged-branch: true
+    tag: prerelease

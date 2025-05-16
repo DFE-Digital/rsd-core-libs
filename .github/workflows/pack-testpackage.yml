@@ -33,9 +33,9 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v1
+        uses: gittools/actions/gitversion/setup@v0.9
         with:
-          versionSpec: '6.x'
+          versionSpec: '5.x'
 
       - name: Add .NET global tools to PATH
         run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
