@@ -45,7 +45,7 @@ jobs:
         run: |
          dotnet-gitversion \
             /overrideconfig tag-prefix='^DfE\.CoreLibs\.TestPackage-' \
-            /output json /showvariable FullSemVer
+            /output json /showvariable NuGetVersionV2
 
       - name: Add NuGet source
         run: |
@@ -61,7 +61,7 @@ jobs:
         run: |
           dotnet build -c Release
           dotnet pack -c Release \
-            -p:PackageVersion=${{ steps.gitversion.outputs.FullSemVer }} \
+            -p:PackageVersion=${{ env.VERSION }} \
             --output .
           dotnet nuget push "*.nupkg" \
             --api-key "${{ secrets.GITHUB_TOKEN }}" \
