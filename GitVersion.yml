@@ -1,4 +1,4 @@
-mode: TrunkBased/preview1
+workflow: TrunkBased/preview1
 tag-prefix: '^.*-'
 
 branches:
@@ -7,15 +7,10 @@ branches:
     label: ''
     prevent-increment:
       of-merged-branch: true
-      when-branch-merged: false
-      when-current-commit-tagged: false
 
   pull-request:
     increment: Patch
-    source-branches:
-      - main
+    source-branches: ['main']
     label: prerelease
     prevent-increment:
       of-merged-branch: true
-      when-branch-merged: false
-      when-current-commit-tagged: false
