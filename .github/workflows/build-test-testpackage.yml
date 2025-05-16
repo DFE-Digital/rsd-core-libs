@@ -54,11 +54,11 @@ jobs:
               /overrideconfig tag-prefix='^DfE\.CoreLibs\.TestPackage-' \
               /showvariable MajorMinorPatch)
 
-            FULL_TAG=$(dotnet-gitversion \
+            RAW_TAG=$(dotnet-gitversion \
               /overrideconfig tag-prefix='^DfE\.CoreLibs\.TestPackage-' \
-              /showvariable PreReleaseTagWithDash)
+              /showvariable PreReleaseTag)
 
-            LABEL=$(echo "$FULL_TAG" | sed 's/[0-9]//g' | cut -c 2-)
+            LABEL=${RAW_TAG%%[0-9]*}
 
             NUM=$(dotnet-gitversion \
               /overrideconfig tag-prefix='^DfE\.CoreLibs\.TestPackage-' \
@@ -72,7 +72,6 @@ jobs:
 
             echo "Determined version: $VERSION"
             echo "VERSION=$VERSION" >> $GITHUB_ENV
-
 
       - name: Add NuGet source
         run: |
