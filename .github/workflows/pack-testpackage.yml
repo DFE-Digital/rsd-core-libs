@@ -13,10 +13,76 @@ jobs:
       (
         (github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push') ||
         github.event.workflow_run.event == 'pull_request'
-      )     
-    uses: ./.github/workflows/nuget-package-template.yml
-    with:
-      project_name: DfE.CoreLibs.TestPackage
-      project_path: src/DfE.CoreLibs.TestPackage
-      nuget_package_name: DfE.CoreLibs.TestPackage
-      custom_suffix: ${{ github.event.workflow_run.event == 'pull_request' && '-prerelease' || '' }}
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v1
+        with:
+          versionSpec: '6.x'
+
+      - name: Determine version
+        id: gitversion
+        run: gitversion /output json /showvariable FullSemVer
+
+      - name: Add NuGet source
+        run: |
+          dotnet nuget add source \
+            --username USERNAME \
+            --password "${{ secrets.GITHUB_TOKEN }}" \
+            --store-password-in-clear-text \
+            --name github \
+            https://nuget.pkg.github.com/DFE-Digital/index.json
+
+      - name: Build, pack and push
+        working-directory: src/DfE.CoreLibs.TestPackage
+        run: |
+          dotnet build -c Release
+          dotnet pack -c Release \
+            -p:PackageVersion=${{ steps.gitversion.outputs.FullSemVer }} \
+            --output .
+          dotnet nuget push "*.nupkg" \
+            --api-key "${{ secrets.GITHUB_TOKEN }}" \
+            --source https://nuget.pkg.github.com/DFE-Digital/index.json
+
+      - name: Extract release notes
+        id: extract_description
+        run: |
+          COMMIT_BODY=$(git log -1 --pretty=format:"%b")
+          if [ -z "$COMMIT_BODY" ]; then
+            echo "RELEASE_NOTES=No release notes provided." >> $GITHUB_ENV
+          else
+            NOTES=$(echo "$COMMIT_BODY" |
+              tr '\n' '~' |
+              grep -Eo '\(%release-note:.*%\)' |
+              sed 's/.*%release-note:\(.*\)%/\1/' |
+              sed 's/~/\n/g')
+            echo "RELEASE_NOTES=${NOTES:-No release notes provided.}" >> $GITHUB_ENV
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="DfE.CoreLibs.TestPackage-${{ steps.gitversion.outputs.FullSemVer }}"
+          gh release create "$TAG" \
+            --title "Release ${{ steps.gitversion.outputs.FullSemVer }}" \
+            --notes "${{ env.RELEASE_NOTES }}" \
+            --draft=false \
+            --prerelease=${{ github.event.workflow_run.event == 'pull_request' }}
