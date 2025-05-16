@@ -1,14 +1,12 @@
-name: Build DfE.CoreLibs.TestPackage
+name: CI & Pack DfE.CoreLibs.TestPackage
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
     paths:
       - 'src/DfE.CoreLibs.TestPackage/**'
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
     paths:
       - 'src/DfE.CoreLibs.TestPackage/**'
 
@@ -21,3 +19,89 @@ jobs:
       run_tests: false
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  pack:
+    needs: build-and-test
+    if: needs.build-and-test.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install GitVersion (v5)
+        uses: gittools/actions/gitversion/setup@v0.9
+        with:
+          versionSpec: '5.x'
+
+      - name: Add .NET global tools to PATH
+        run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Determine version
+        id: gitversion
+        run: |
+          VERSION=$(
+            dotnet-gitversion \
+              /overrideconfig tag-prefix='^DfE\.CoreLibs\.TestPackage-' \
+              /showvariable NuGetVersionV2
+          )
+          echo "Determined version: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Add NuGet source
+        run: |
+          dotnet nuget add source \
+            --username USERNAME \
+            --password "${{ secrets.GITHUB_TOKEN }}" \
+            --store-password-in-clear-text \
+            --name github \
+            https://nuget.pkg.github.com/DFE-Digital/index.json
+
+      - name: Build, pack and push
+        run: |
+          dotnet build src/DfE.CoreLibs.TestPackage/DfE.CoreLibs.TestPackage.csproj -c Release
+          dotnet pack src/DfE.CoreLibs.TestPackage/DfE.CoreLibs.TestPackage.csproj \
+            -c Release \
+            -p:PackageVersion=${{ env.VERSION }} \
+            --no-build \
+            --output ./artifacts
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key "${{ secrets.GITHUB_TOKEN }}" \
+            --source https://nuget.pkg.github.com/DFE-Digital/index.json \
+            --skip-duplicate
+
+      - name: Extract release notes
+        id: extract_description
+        run: |
+          COMMIT_BODY=$(git log -1 --pretty=format:"%b")
+          if [ -z "$COMMIT_BODY" ]; then
+            echo "RELEASE_NOTES=No release notes provided." >> $GITHUB_ENV
+          else
+            NOTES=$(echo "$COMMIT_BODY" |
+              tr '\n' '~' |
+              grep -Eo '\(%release-note:.*%\)' |
+              sed 's/.*%release-note:\(.*\)%/\1/' |
+              sed 's/~/\n/g')
+            echo "RELEASE_NOTES=${NOTES:-No release notes provided.}" >> $GITHUB_ENV
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="DfE.CoreLibs.TestPackage-${{ env.VERSION }}"
+          gh release create "$TAG" \
+            --title "Release ${{ env.VERSION }}" \
+            --notes "${{ env.RELEASE_NOTES }}" \
+            --draft=false \
+            --prerelease=${{ github.event_name == 'pull_request' }}
