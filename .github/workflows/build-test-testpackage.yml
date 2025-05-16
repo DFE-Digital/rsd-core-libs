@@ -50,11 +50,24 @@ jobs:
       - name: Determine version
         id: gitversion
         run: |
-          VERSION=$(
-            dotnet-gitversion \
-              /overrideconfig tag-prefix='^DfE\.CoreLibs\.TestPackage-' \
-              /showvariable SemVer
-          )
+          BASE=$(dotnet-gitversion \
+            /overrideconfig tag-prefix='^DfE\.CoreLibs\.TestPackage-' \
+            /showvariable MajorMinorPatch)
+
+          TAG=$(dotnet-gitversion \
+            /overrideconfig tag-prefix='^DfE\.CoreLibs\.TestPackage-' \
+            /showvariable PreReleaseTag)
+
+          NUM=$(dotnet-gitversion \
+            /overrideconfig tag-prefix='^DfE\.CoreLibs\.TestPackage-' \
+            /showvariable PreReleaseNumber)
+
+          if [ -n "$TAG" ]; then
+            VERSION="${BASE}-${TAG}.${NUM}"
+          else
+            VERSION="$BASE"
+          fi
+
           echo "Determined version: $VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
