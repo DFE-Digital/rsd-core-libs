@@ -1,0 +1,10 @@
+mode: Mainline
+tag-prefix: '^.*-'
+branches:
+  main:
+    increment: Patch
+    tag: ''
+  pull-request:
+    increment: Patch
+    tag: prerelease
+    source-branches: ['main']
