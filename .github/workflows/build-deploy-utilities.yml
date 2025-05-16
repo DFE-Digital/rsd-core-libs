@@ -11,7 +11,7 @@ on:
       - "src/DfE.CoreLibs.${{ env.Lib }}/**"
 
 env:
-  Lib: TestPackage
+  Lib: Utilities
 
 jobs:
   build-and-test:
