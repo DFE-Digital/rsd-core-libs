@@ -5,6 +5,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Security.Claims;
+using DfE.CoreLibs.Security.Authorization.Requirements;
+using DfE.CoreLibs.Security.Services;
+using DfE.CoreLibs.Security.Authorization.Handlers;
 
 namespace DfE.CoreLibs.Security.Authorization
 {
@@ -21,13 +24,20 @@ namespace DfE.CoreLibs.Security.Authorization
         /// <param name="configuration">The configuration object containing policy definitions.</param>
         /// <param name="apiAuthenticationScheme">The authentication scheme.</param>
         /// <param name="policyCustomizations">The customizations such as Requirements which can be added to the policy after it is created.</param>
+        /// <param name="configureResourcePolicies">The customisations such as resource policies can be added to a policy or form a new policy.</param>
         /// <returns>The modified service collection.</returns>
         public static IServiceCollection AddApplicationAuthorization(
             this IServiceCollection services,
             IConfiguration configuration,
             Dictionary<string, Action<AuthorizationPolicyBuilder>>? policyCustomizations = null,
-            string? apiAuthenticationScheme = null)
+            string? apiAuthenticationScheme = null,
+            Action<ResourcePermissionOptions>? configureResourcePolicies = null)
         {
+            var resourceOpts = new ResourcePermissionOptions();
+            configureResourcePolicies?.Invoke(resourceOpts);
+            services.AddSingleton(resourceOpts);
+            services.AddSingleton<IAuthorizationHandler, ResourcePermissionHandler>();
+
             services.AddAuthorization(options =>
             {
                 // Load policies from configuration
@@ -40,7 +50,7 @@ namespace DfE.CoreLibs.Security.Authorization
                         policyBuilder.RequireAuthenticatedUser();
 
                         // Specify the authentication scheme for the API
-                        if (apiAuthenticationScheme != null) 
+                        if (apiAuthenticationScheme != null)
                             policyBuilder.AuthenticationSchemes.Add(apiAuthenticationScheme);
 
                         if (string.Equals(policyConfig.Operator, "AND", StringComparison.OrdinalIgnoreCase))
@@ -123,8 +133,41 @@ namespace DfE.CoreLibs.Security.Authorization
                         }
                     }
                 }
+
+                // Auto-generate resource-based policies only if actions passed into the ResourcePermissionOptions
+                if (resourceOpts.Actions?.Count > 0)
+                {
+                    foreach (var action in resourceOpts.Actions)
+                    {
+                        var policyName = string.Format(
+                            resourceOpts.PolicyNameFormat, action);
+
+                        // If the policy already exists in config, just append
+                        if (options.GetPolicy(policyName) is not null)
+                        {
+                            UpdateExistingPolicy(options, policyName, pb =>
+                                pb.Requirements.Add(
+                                    new ResourcePermissionRequirement(
+                                        action, resourceOpts.ClaimType)));
+                        }
+                        else
+                        {
+                            options.AddPolicy(policyName, pb =>
+                                                    {
+                                                        pb.RequireAuthenticatedUser();
+                                                        if (apiAuthenticationScheme != null)
+                                                            pb.AuthenticationSchemes.Add(apiAuthenticationScheme);
+                                                        pb.Requirements.Add(
+                                                            new ResourcePermissionRequirement(
+                                                                action, resourceOpts.ClaimType));
+                                                    });
+                        }
+                    }
+                }
+
             });
 
+            services.AddScoped<ICurrentUser, CurrentUser>();
             services.AddTransient<IClaimsTransformation, CustomClaimsTransformation>();
 
             return services;
