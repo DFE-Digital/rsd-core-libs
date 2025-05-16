@@ -54,16 +54,16 @@ jobs:
             /overrideconfig tag-prefix='^DfE\.CoreLibs\.TestPackage-' \
             /showvariable MajorMinorPatch)
 
-          TAG=$(dotnet-gitversion \
+          LABEL=$(dotnet-gitversion \
             /overrideconfig tag-prefix='^DfE\.CoreLibs\.TestPackage-' \
-            /showvariable PreReleaseTag)
+            /showvariable PreReleaseLabel)
 
           NUM=$(dotnet-gitversion \
             /overrideconfig tag-prefix='^DfE\.CoreLibs\.TestPackage-' \
             /showvariable PreReleaseNumber)
 
-          if [ -n "$TAG" ]; then
-            VERSION="${BASE}-${TAG}.${NUM}"
+          if [ -n "$LABEL" ]; then
+            VERSION="${BASE}-${LABEL}.${NUM}"
           else
             VERSION="$BASE"
           fi
