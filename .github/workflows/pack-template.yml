@@ -11,9 +11,6 @@ on:
         required: true
         type: string
         description: "Relative path to the project .csproj"
-    secrets:
-      GITHUB_TOKEN:
-        required: true
 
 jobs:
   pack:
