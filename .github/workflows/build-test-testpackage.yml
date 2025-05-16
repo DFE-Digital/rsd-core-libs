@@ -53,7 +53,7 @@ jobs:
           VERSION=$(
             dotnet-gitversion \
               /overrideconfig tag-prefix='^DfE\.CoreLibs\.TestPackage-' \
-              /showvariable NuGetVersionV2
+              /showvariable SemVer
           )
           echo "Determined version: $VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
