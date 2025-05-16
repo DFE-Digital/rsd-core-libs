@@ -10,15 +10,12 @@ on:
     paths:
       - "src/DfE.CoreLibs.AsyncProcessing/**"
 
-env:
-  Lib: AsyncProcessing
-
 jobs:
   build-and-test:
     uses: ./.github/workflows/build-test-template.yml
     with:
-      project_name: DfE.CoreLibs.${{ env.Lib }}
-      project_path: src/DfE.CoreLibs.${{ env.Lib }}
+      project_name: DfE.CoreLibs.AsyncProcessing
+      project_path: src/DfE.CoreLibs.AsyncProcessing
       run_tests: false
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -28,5 +25,5 @@ jobs:
     if: needs.build-and-test.result == 'success'
     uses: ./.github/workflows/pack-template.yml
     with:
-      project_name: DfE.CoreLibs.${{ env.Lib }}
-      project_path: src/DfE.CoreLibs.${{ env.Lib }}/DfE.CoreLibs.${{ env.Lib }}.csproj
+      project_name: DfE.CoreLibs.AsyncProcessing
+      project_path: src/DfE.CoreLibs.AsyncProcessing/DfE.CoreLibs.AsyncProcessing.csproj

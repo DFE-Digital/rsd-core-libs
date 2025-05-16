@@ -1,24 +1,21 @@
-name: CI & Pack DfE.CoreLibs.${{ env.Lib }}
+name: CI & Pack DfE.CoreLibs.Caching
 
 on:
   push:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.${{ env.Lib }}/**"
+      - "src/DfE.CoreLibs.Caching/**"
   pull_request:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.${{ env.Lib }}/**"
-
-env:
-  Lib: Caching
+      - "src/DfE.CoreLibs.Caching/**"
 
 jobs:
   build-and-test:
     uses: ./.github/workflows/build-test-template.yml
     with:
-      project_name: DfE.CoreLibs.${{ env.Lib }}
-      project_path: src/DfE.CoreLibs.${{ env.Lib }}
+      project_name: DfE.CoreLibs.Caching
+      project_path: src/DfE.CoreLibs.Caching
       run_tests: false
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -28,5 +25,5 @@ jobs:
     if: needs.build-and-test.result == 'success'
     uses: ./.github/workflows/pack-template.yml
     with:
-      project_name: DfE.CoreLibs.${{ env.Lib }}
-      project_path: src/DfE.CoreLibs.${{ env.Lib }}/DfE.CoreLibs.${{ env.Lib }}.csproj
+      project_name: DfE.CoreLibs.Caching
+      project_path: src/DfE.CoreLibs.Caching/DfE.CoreLibs.Caching.csproj
