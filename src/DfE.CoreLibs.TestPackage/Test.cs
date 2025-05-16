@@ -2,7 +2,7 @@
 {
     /// <summary>
     /// Test Nuget Package
-    /// Updated 4
+    /// Updated 5
     /// </summary>
     public class Test
     {
