@@ -1,10 +1,13 @@
 mode: Mainline
 tag-prefix: '^.*-'
+
 branches:
   main:
     increment: Patch
-    tag: ''
+    prevent-increment-of-merged-branch-version: true
+    label: ''
   pull-request:
     increment: Patch
-    tag: prerelease
-    source-branches: ['main']
+    source-branches:
+      - main
+    label: prerelease
