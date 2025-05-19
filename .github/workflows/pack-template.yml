@@ -106,7 +106,7 @@ jobs:
         run: |
           TAG="${{ inputs.project_name }}-${{ env.VERSION }}"
           gh release create "$TAG" \
-            --title "Release ${{ env.VERSION }}" \
+            --title "Release ${{ env.VERSION }} for ${{ inputs.project_name }}" \
             --notes "${{ env.RELEASE_NOTES }}" \
             --draft=false \
             --prerelease=${{ github.event_name == 'pull_request' }}
