@@ -97,7 +97,9 @@ jobs:
               grep -Eo '\(%release-note:.*%\)' |
               sed 's/.*%release-note:\(.*\)%/\1/' |
               sed 's/~/\n/g')
-            echo "RELEASE_NOTES=${NOTES:-No release notes provided.}" >> $GITHUB_ENV
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
+          echo "$NOTES"               >> $GITHUB_ENV
+          echo "EOF"                  >> $GITHUB_ENV          
           fi
 
       - name: Create GitHub Release
