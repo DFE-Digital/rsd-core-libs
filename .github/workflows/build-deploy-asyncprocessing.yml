@@ -16,7 +16,6 @@ jobs:
     with:
       project_name: DfE.CoreLibs.AsyncProcessing
       project_path: src/DfE.CoreLibs.AsyncProcessing
-      run_tests: false
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
