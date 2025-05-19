@@ -31,7 +31,6 @@ public void ConfigureServices(IServiceCollection services, IConfiguration config
 Define your authorization policies in `appsettings.json` under the `Authorization:Policies` section. Each policy can specify required roles, claims, and custom requirements.
 
 **Example configuration:**
-
     
 ```json
 {
