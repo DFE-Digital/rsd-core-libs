@@ -1,0 +1,13 @@
+mode: ContinuousDelivery
+
+tag-prefix: '^.*-'
+
+branches:
+  main:
+    increment: Patch
+    tag: ''
+
+  pull-request:
+    increment: Patch
+    source-branches: ['main']
+    tag: prerelease
