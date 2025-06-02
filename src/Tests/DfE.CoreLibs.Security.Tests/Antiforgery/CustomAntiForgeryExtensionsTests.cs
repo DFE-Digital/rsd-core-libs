@@ -2,6 +2,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using DfE.CoreLibs.Security.Antiforgery;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace DfE.CoreLibs.Security.Tests.Antiforgery
 {
@@ -24,6 +26,11 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             Assert.Contains(services, d => d.ServiceType == typeof(CustomAwareAntiForgeryFilter));
 
             Assert.Same(mvcBuilder, result);
+
+            var serviceProvider = services.BuildServiceProvider();
+            var mvcOptions = serviceProvider.GetRequiredService<IOptions<MvcOptions>>().Value;
+
+            Assert.Contains(mvcOptions.Filters, filter => filter is ServiceFilterAttribute serviceFilter && serviceFilter.ServiceType == typeof(CustomAwareAntiForgeryFilter));
         }
     }
 }
