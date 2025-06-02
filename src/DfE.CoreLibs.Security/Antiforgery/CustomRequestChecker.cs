@@ -15,7 +15,7 @@ namespace DfE.CoreLibs.Security.Antiforgery
             }
 
             var requestHeader = httpContext.Request.Headers[headerKey];
-            return string.IsNullOrWhiteSpace(requestHeader);
+            return !string.IsNullOrWhiteSpace(requestHeader);
         }
     }
 }
