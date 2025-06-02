@@ -8,12 +8,12 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
     public class CustomRequestCheckerTests
     {
         private readonly IFixture _fixture = new Fixture().Customize(new AutoNSubstituteCustomization());
-        private readonly string headerKey = "x-custom-request";
+        private static readonly string HeaderKey = "x-custom-request";
 
-        private static DefaultHttpContext CreateHttpContext(string headerKey)
+        private static DefaultHttpContext CreateHttpContext(string headerValue)
         {
             var httpContext = new DefaultHttpContext(); 
-            httpContext.Request.Headers[headerKey] = headerKey;
+            httpContext.Request.Headers[HeaderKey] = headerValue;
             return httpContext;
         }
 
@@ -55,7 +55,7 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             var checker = new CustomRequestChecker();
 
             // Act
-            var result = checker.IsValidRequest(httpContext, headerKey);
+            var result = checker.IsValidRequest(httpContext, HeaderKey);
 
             // Assert
             Assert.True(result);
