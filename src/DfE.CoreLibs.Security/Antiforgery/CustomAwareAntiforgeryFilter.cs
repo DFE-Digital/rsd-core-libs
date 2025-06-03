@@ -9,13 +9,14 @@ namespace DfE.CoreLibs.Security.Antiforgery
 {
     /// <summary>
     /// An authorization filter that enforces AntiForgery validation for all requests,
-    /// except for those recognized as valid custom requests or for which the
+    /// except for those recognized as valid custom or Cypress requests or for which the
     /// configured predicate says to skip.
     /// </summary>
     public class CustomAwareAntiForgeryFilter(
         IAntiforgery antiforgery,
         ILogger<CustomAwareAntiForgeryFilter> logger,
         ICustomRequestChecker customChecker,
+        ICypressRequestChecker cypressChecker,
         IOptions<CustomAwareAntiForgeryOptions> optionsAccessor)
         : IAsyncAuthorizationFilter
     {
@@ -38,6 +39,13 @@ namespace DfE.CoreLibs.Security.Antiforgery
             if (isValid)
             {
                 logger.LogInformation("Skipping anti-forgery for the request.");
+                return;
+            }
+
+            var isCypress = cypressChecker.IsCypressRequest(context.HttpContext);
+            if (isCypress)
+            {
+                logger.LogInformation("Skipping anti-forgery for Cypress request.");
                 return;
             }
 

@@ -1,4 +1,5 @@
-﻿using DfE.CoreLibs.Security.Interfaces;
+﻿using DfE.CoreLibs.Security.Cypress;
+using DfE.CoreLibs.Security.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -19,6 +20,11 @@ namespace DfE.CoreLibs.Security.Antiforgery
         /// (per <see cref="ICustomRequestChecker"/>) will skip AntiForgery validation.
         /// Other requests will require AntiForgery validation as normal.
         /// </para>
+        /// <para>
+        /// By calling this method, any incoming request recognized as a Cypress request 
+        /// (per <see cref="ICypressRequestChecker"/>) will skip AntiForgery validation.
+        /// Other requests will require AntiForgery validation as normal.
+        /// </para>
         /// </remarks>
         /// <returns>
         /// The same <see cref="IMvcBuilder"/> so further MVC configuration can be chained.
@@ -26,6 +32,8 @@ namespace DfE.CoreLibs.Security.Antiforgery
         public static IMvcBuilder AddCustomAntiForgeryHandling(this IMvcBuilder mvcBuilder)
         {
             mvcBuilder.Services.AddScoped<ICustomRequestChecker, CustomRequestChecker>();
+
+            mvcBuilder.Services.AddScoped<ICypressRequestChecker, CypressRequestChecker>();
 
             mvcBuilder.Services.AddScoped<CustomAwareAntiForgeryFilter>();
 
