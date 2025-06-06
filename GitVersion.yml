@@ -10,4 +10,4 @@ branches:
   pull-request:
     increment: Patch
     source-branches: ['main']
-    tag: prerelease
+    tag: 'prerelease.{PullRequestNumber}.{Height}'
