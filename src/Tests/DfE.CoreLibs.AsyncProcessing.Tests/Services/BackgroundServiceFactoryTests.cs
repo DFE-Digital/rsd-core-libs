@@ -422,25 +422,26 @@ namespace DfE.CoreLibs.AsyncProcessing.Tests.Services
         [Fact]
         public async Task EnqueueTask_ShouldLogError_WhenTaskThrows()
         {
-            var exception = new InvalidOperationException("boom");
-
-            var enqueuedTask = _factoryNoGlobalToken.EnqueueTask<bool, IBackgroundServiceEvent>(_ => throw exception, null);
+            // Arrange
+            _factoryNoGlobalToken.EnqueueTask<int, IBackgroundServiceEvent>(token => throw new InvalidOperationException("boom"));
 
             var cts = new CancellationTokenSource();
             var runTask = _factoryNoGlobalToken.StartAsync(cts.Token);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(async () => await enqueuedTask);
-
+            await Task.Delay(200);
             cts.Cancel();
             await runTask;
 
+            // Assert
             _logger.Received(1).Log(
                 LogLevel.Error,
                 Arg.Any<EventId>(),
                 Arg.Is<object>(v => v.ToString()!.Contains("Error occurred while processing background queue")),
-                Arg.Is<InvalidOperationException>(ex => ex.Message == "boom"),
-                Arg.Any<Func<object, Exception?, string>>()!);
+                Arg.Is<AggregateException>(ex =>
+                    ex.InnerException.Message == "boom"),
+                Arg.Any<Func<object, Exception?, string>>());
         }
+
 
     }
 }

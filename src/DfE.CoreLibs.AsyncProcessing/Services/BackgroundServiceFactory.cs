@@ -14,6 +14,7 @@ namespace DfE.CoreLibs.AsyncProcessing.Services
         ILogger<BackgroundServiceFactory> logger) : BackgroundService, IBackgroundServiceFactory
     {
         private readonly IMediator _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
+
         private readonly ILogger<BackgroundServiceFactory> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         private readonly ConcurrentDictionary<Type, ConcurrentQueue<Func<CancellationToken, Task>>> _taskQueues = new();
