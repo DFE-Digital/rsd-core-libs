@@ -20,7 +20,10 @@ namespace DfE.CoreLibs.Security
         /// <returns>The updated <see cref="IServiceCollection"/>.</returns>
         public static IServiceCollection AddUserTokenService(this IServiceCollection services, IConfiguration configuration)
         {
-            services.Configure<TokenSettings>(configuration.GetSection("Authorization:TokenSettings"));
+            services.AddOptions<TokenSettings>()
+                .Bind(configuration.GetSection("Authorization:TokenSettings"))
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
             services.AddScoped<IUserTokenService, UserTokenService>();
             services.AddHttpContextAccessor();
             return services;
@@ -34,7 +37,10 @@ namespace DfE.CoreLibs.Security
         /// <returns>The updated <see cref="IServiceCollection"/>.</returns>
         public static IServiceCollection AddApiOboTokenService(this IServiceCollection services, IConfiguration configuration)
         {
-            services.Configure<TokenSettings>(configuration.GetSection("Authorization:TokenSettings"));
+            services.AddOptions<TokenSettings>()
+                .Bind(configuration.GetSection("Authorization:TokenSettings"))
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
             services.AddScoped<IApiOboTokenService, ApiOboTokenService>();
             services.AddHttpContextAccessor();
             return services;
@@ -56,7 +62,13 @@ namespace DfE.CoreLibs.Security
         /// <exception cref="ArgumentNullException">Thrown when the TokenSettings section is missing in configuration.</exception>
         public static IServiceCollection AddCustomJwtAuthentication(this IServiceCollection services, IConfiguration configuration, string authenticationScheme, AuthenticationBuilder authenticationBuilder, JwtBearerEvents? jwtBearerEvents = null)
         {
-            var tokenSettings = configuration.GetSection("Authorization:TokenSettings").Get<TokenSettings>();
+            var tokenSettingsSection = configuration.GetSection("Authorization:TokenSettings");
+            services.AddOptions<TokenSettings>()
+                .Bind(tokenSettingsSection)
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+
+            var tokenSettings = tokenSettingsSection.Get<TokenSettings>();
 
             if (tokenSettings == null)
             {

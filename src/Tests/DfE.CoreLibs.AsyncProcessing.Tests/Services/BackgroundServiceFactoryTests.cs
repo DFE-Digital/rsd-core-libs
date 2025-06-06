@@ -5,12 +5,14 @@ using DfE.CoreLibs.Testing.AutoFixture.Attributes;
 using MediatR;
 using NSubstitute;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 
 namespace DfE.CoreLibs.AsyncProcessing.Tests.Services
 {
     public class BackgroundServiceFactoryTests : IDisposable
     {
         private readonly IMediator _mediator;
+        private readonly ILogger<BackgroundServiceFactory> _logger;
         private readonly BackgroundServiceFactory _factoryNoGlobalToken;
         private readonly BackgroundServiceFactory _factoryWithGlobalToken;
 
@@ -20,6 +22,7 @@ namespace DfE.CoreLibs.AsyncProcessing.Tests.Services
         public BackgroundServiceFactoryTests()
         {
             _mediator = Substitute.For<IMediator>();
+            _logger = Substitute.For<ILogger<BackgroundServiceFactory>>();
 
             _cts = new CancellationTokenSource();
 
@@ -33,8 +36,8 @@ namespace DfE.CoreLibs.AsyncProcessing.Tests.Services
                 UseGlobalStoppingToken = true
             });
 
-            _factoryNoGlobalToken = new BackgroundServiceFactory(_mediator, optionsNoGlobalToken);
-            _factoryWithGlobalToken = new BackgroundServiceFactory(_mediator, optionsGlobalToken);
+            _factoryNoGlobalToken = new BackgroundServiceFactory(_mediator, optionsNoGlobalToken, _logger);
+            _factoryWithGlobalToken = new BackgroundServiceFactory(_mediator, optionsGlobalToken, _logger);
         }
 
         public void Dispose()
@@ -389,6 +392,54 @@ namespace DfE.CoreLibs.AsyncProcessing.Tests.Services
             await runTask;
 
             Assert.True(result);
+        }
+
+        [Fact]
+        public async Task Task_ShouldNotProcessUntilServiceStarted_WhenUseGlobalStoppingToken()
+        {
+            var processed = false;
+
+            _factoryWithGlobalToken.EnqueueTask<bool, IBackgroundServiceEvent>(token =>
+            {
+                processed = true;
+                return Task.FromResult(true);
+            }, null);
+
+            await Task.Delay(200);
+
+            Assert.False(processed, "Task should not execute before StartAsync assigns the global token.");
+
+            var runTask = _factoryWithGlobalToken.StartAsync(_cts.Token);
+
+            await Task.Delay(200);
+
+            _cts.Cancel();
+            await runTask;
+
+            Assert.True(processed, "Task should execute after the service starts and global token is assigned.");
+        }
+
+        [Fact]
+        public async Task EnqueueTask_ShouldLogError_WhenTaskThrows()
+        {
+            var exception = new InvalidOperationException("boom");
+
+            var enqueuedTask = _factoryNoGlobalToken.EnqueueTask<bool, IBackgroundServiceEvent>(_ => throw exception, null);
+
+            var cts = new CancellationTokenSource();
+            var runTask = _factoryNoGlobalToken.StartAsync(cts.Token);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(async () => await enqueuedTask);
+
+            cts.Cancel();
+            await runTask;
+
+            _logger.Received(1).Log(
+                LogLevel.Error,
+                Arg.Any<EventId>(),
+                Arg.Is<object>(v => v.ToString()!.Contains("Error occurred while processing background queue")),
+                Arg.Is<InvalidOperationException>(ex => ex.Message == "boom"),
+                Arg.Any<Func<object, Exception?, string>>()!);
         }
 
     }

@@ -2,21 +2,27 @@
 using MediatR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using DfE.CoreLibs.AsyncProcessing.Configurations;
 
 namespace DfE.CoreLibs.AsyncProcessing.Services
 {
-    public class BackgroundServiceFactory(IMediator mediator, IOptions<BackgroundServiceOptions> options) : BackgroundService, IBackgroundServiceFactory
+    public class BackgroundServiceFactory(
+        IMediator mediator,
+        IOptions<BackgroundServiceOptions> options,
+        ILogger<BackgroundServiceFactory> logger) : BackgroundService, IBackgroundServiceFactory
     {
         private readonly IMediator _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
+        private readonly ILogger<BackgroundServiceFactory> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         private readonly ConcurrentDictionary<Type, ConcurrentQueue<Func<CancellationToken, Task>>> _taskQueues = new();
 
         private readonly ConcurrentDictionary<Type, SemaphoreSlim> _semaphores = new();
 
         private CancellationToken _serviceStoppingToken = CancellationToken.None;
+
+        private readonly TaskCompletionSource _tokenInitialisedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         /// <inheritdoc />
         public Task<TResult> EnqueueTask<TResult, TEvent>(
@@ -79,24 +85,30 @@ namespace DfE.CoreLibs.AsyncProcessing.Services
                 }
             });
 
-            _ = StartProcessingQueue(taskType);
+            var processingTask = StartProcessingQueue(taskType);
+            _ = processingTask.ContinueWith(t =>
+            {
+                if (t.Exception != null)
+                {
+                    _logger.LogError(t.Exception, "Error occurred while processing background queue for type {TaskType}", taskType);
+                }
+            }, TaskContinuationOptions.OnlyOnFaulted);
             return tcs.Task;
         }
 
         private async Task StartProcessingQueue(Type taskType)
         {
-            Console.WriteLine("StartProcessingQueue triggered");
+            _logger.LogDebug("StartProcessingQueue triggered for {TaskType}", taskType);
 
             var queue = _taskQueues[taskType];
             var semaphore = _semaphores[taskType];
 
-            while (options.Value.UseGlobalStoppingToken && _serviceStoppingToken == CancellationToken.None)
+            if (options.Value.UseGlobalStoppingToken)
             {
-                Console.WriteLine("Waiting for ExecuteAsync to initialize _serviceStoppingToken...");
-                await Task.Delay(100);
+                await _tokenInitialisedTcs.Task.ConfigureAwait(false);
             }
 
-            Console.WriteLine($"_serviceStoppingToken IsCancellationRequested: {_serviceStoppingToken.IsCancellationRequested}");
+            _logger.LogDebug("_serviceStoppingToken IsCancellationRequested: {IsCancellationRequested}", _serviceStoppingToken.IsCancellationRequested);
 
             await semaphore.WaitAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -106,7 +118,7 @@ namespace DfE.CoreLibs.AsyncProcessing.Services
                 {
                     var token = options.Value.UseGlobalStoppingToken ? _serviceStoppingToken : CancellationToken.None;
 
-                    Console.WriteLine($"Processing task with token IsCancellationRequested: {token.IsCancellationRequested}");
+                    _logger.LogDebug("Processing task with token IsCancellationRequested: {IsCancellationRequested}", token.IsCancellationRequested);
                     await taskToProcess(token).ConfigureAwait(false);
                 }
             }
@@ -119,32 +131,33 @@ namespace DfE.CoreLibs.AsyncProcessing.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            Debug.WriteLine("ExecuteAsync started");
+            _logger.LogDebug("ExecuteAsync started");
 
             if (options.Value.UseGlobalStoppingToken)
             {
                 _serviceStoppingToken = stoppingToken;
-                Debug.WriteLine("_serviceStoppingToken assigned");
+                _tokenInitialisedTcs.TrySetResult();
+                _logger.LogDebug("_serviceStoppingToken assigned");
             }
 
             while (!stoppingToken.IsCancellationRequested)
             {
-                Debug.WriteLine("ExecuteAsync loop running...");
+                _logger.LogDebug("ExecuteAsync loop running...");
                 await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken).ConfigureAwait(false);
             }
 
-            Debug.WriteLine("ExecuteAsync detected cancellation.");
+            _logger.LogDebug("ExecuteAsync detected cancellation.");
         }
 
         public override async Task StartAsync(CancellationToken cancellationToken)
         {
-            Debug.WriteLine("Background service is starting...");
+            _logger.LogDebug("Background service is starting...");
 
             var executeTask = base.StartAsync(cancellationToken);
 
             await Task.Delay(500);
 
-            Debug.WriteLine("Background service started, ExecuteAsync is now running.");
+            _logger.LogDebug("Background service started, ExecuteAsync is now running.");
 
             await executeTask;
         }
