@@ -1,6 +1,4 @@
-﻿using AutoFixture.AutoNSubstitute;
-using AutoFixture;
-using DfE.CoreLibs.Security.Interfaces;
+﻿using DfE.CoreLibs.Security.Interfaces;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Abstractions;
@@ -38,14 +36,20 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             // Arrange
             var antiforgery = Substitute.For<IAntiforgery>();
             var logger = Substitute.For<ILogger<CustomAwareAntiForgeryFilter>>();
-            var CustomChecker = Substitute.For<ICustomRequestChecker>();
+            var customChecker = Substitute.For<ICustomRequestChecker>();
             var cypressChecker = Substitute.For<ICypressRequestChecker>();
             var options = Options.Create(new CustomAwareAntiForgeryOptions
             {
                 ShouldSkipAntiforgery = _ => true,
                 RequestHeaderKey = "X-Custom-Header"
             });
-            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, CustomChecker, cypressChecker, options);
+            var skipConditions = new List<Func<HttpContext, bool>>
+            {
+                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey),
+                cypressChecker.IsCypressRequest,
+                options.Value.ShouldSkipAntiforgery
+            };
+            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, skipConditions, options);
             var context = CreateAuthorizationFilterContext("POST");
 
             // Act
@@ -69,7 +73,13 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
                 ShouldSkipAntiforgery = _ => false,
                 RequestHeaderKey = "X-Custom-Header"
             });
-            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, customChecker, cypressChecker, options);
+            var skipConditions = new List<Func<HttpContext, bool>>
+            {
+                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey),
+                cypressChecker.IsCypressRequest,
+                options.Value.ShouldSkipAntiforgery
+            };
+            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, skipConditions, options);
             var context = CreateAuthorizationFilterContext("GET");
 
             // Act
@@ -94,7 +104,12 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
                 RequestHeaderKey = "X-Custom-Header"
             });
             customChecker.IsValidRequest(Arg.Any<HttpContext>(), options.Value.RequestHeaderKey).Returns(true);
-            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, customChecker, cypressChecker, options);
+            var skipConditions = new List<Func<HttpContext, bool>>
+            {
+                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey),
+                cypressChecker.IsCypressRequest
+            };
+            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, skipConditions, options);
             var context = CreateAuthorizationFilterContext("POST");
 
             // Act
@@ -102,7 +117,7 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
 
             // Assert
             await antiforgery.DidNotReceive().ValidateRequestAsync(context.HttpContext);
-            logger.Received().LogInformation("Skipping anti-forgery for the request.");
+            logger.Received().LogInformation("Skipping anti-forgery for the request due to a matching condition.");
         }
 
         [Fact]
@@ -120,7 +135,13 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             {
                 ShouldSkipAntiforgery = _ => false
             });
-            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, customChecker, cypressChecker, options);
+            var skipConditions = new List<Func<HttpContext, bool>>
+            {
+                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey),
+                cypressChecker.IsCypressRequest,
+                options.Value.ShouldSkipAntiforgery
+            };
+            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, skipConditions, options);
             var context = CreateAuthorizationFilterContext("POST");
 
             // Act
@@ -144,7 +165,12 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             {
                 ShouldSkipAntiforgery = _ => false
             });
-            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, customChecker, cypressChecker, options);
+            var skipConditions = new List<Func<HttpContext, bool>>
+            {
+                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey),
+                cypressChecker.IsCypressRequest
+            };
+            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, skipConditions, options);
             var context = CreateAuthorizationFilterContext("POST");
 
             // Act
@@ -152,7 +178,7 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
 
             // Assert
             await antiforgery.DidNotReceive().ValidateRequestAsync(context.HttpContext);
-            logger.Received().LogInformation("Skipping anti-forgery for Cypress request.");
+            logger.Received().LogInformation("Skipping anti-forgery for the request due to a matching condition.");
         }
     }
 }

@@ -15,8 +15,7 @@ namespace DfE.CoreLibs.Security.Antiforgery
     public class CustomAwareAntiForgeryFilter(
         IAntiforgery antiforgery,
         ILogger<CustomAwareAntiForgeryFilter> logger,
-        ICustomRequestChecker customChecker,
-        ICypressRequestChecker cypressChecker,
+        List<Func<HttpContext, bool>> skipConditions,
         IOptions<CustomAwareAntiForgeryOptions> optionsAccessor)
         : IAsyncAuthorizationFilter
     {
@@ -33,21 +32,13 @@ namespace DfE.CoreLibs.Security.Antiforgery
                 HttpMethods.IsOptions(method) || HttpMethods.IsTrace(method))
             {
                 return;
-            }
+            } 
 
-            var isValid = customChecker.IsValidRequest(context.HttpContext, optionsAccessor.Value.RequestHeaderKey);
-            if (isValid)
+            if (skipConditions.Any(condition => condition(context.HttpContext)))
             {
-                logger.LogInformation("Skipping anti-forgery for the request.");
+                logger.LogInformation("Skipping anti-forgery for the request due to a matching condition.");
                 return;
-            }
-
-            var isCypress = cypressChecker.IsCypressRequest(context.HttpContext);
-            if (isCypress)
-            {
-                logger.LogInformation("Skipping anti-forgery for Cypress request.");
-                return;
-            }
+            } 
 
             logger.LogInformation("Enforcing anti-forgery for the request.");
             await antiforgery.ValidateRequestAsync(context.HttpContext);
