@@ -97,6 +97,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthenticationTests
             var monitor = sp.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>();
             var opts = monitor.Get("TestScheme");
 
+            // Assert
             Assert.NotNull(opts.Events);
             Assert.NotNull(opts.Events.OnMessageReceived);
         }
