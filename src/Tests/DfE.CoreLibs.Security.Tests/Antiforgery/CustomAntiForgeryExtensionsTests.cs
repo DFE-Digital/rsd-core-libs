@@ -26,11 +26,12 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             var options = Options.Create(new CustomAwareAntiForgeryOptions
             {
                 ShouldSkipAntiforgery = _ => true,
-                RequestHeaderKey = "X-Custom-Header"
+                RequestHeaderKey = "X-Custom-Header",
+                RequestHeaderValue = "ValidRequest"
             });
             var skipConditions = new List<Func<HttpContext, bool>>
             {
-                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey),
+                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey, options.Value.RequestHeaderValue),
                 cypressChecker.IsCypressRequest
             };
 

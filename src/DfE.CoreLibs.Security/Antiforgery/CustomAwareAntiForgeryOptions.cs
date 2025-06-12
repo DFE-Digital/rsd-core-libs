@@ -15,5 +15,9 @@ namespace DfE.CoreLibs.Security.Antiforgery
         /// The key of the request header that is used to identify valid requests.
         /// </summary>
         public string? RequestHeaderKey { get; set; }
+        /// <summary>
+        /// The value of the request header that is used to identify valid requests.
+        /// </summary>
+        public string? RequestHeaderValue { get; set; }
     }
 }

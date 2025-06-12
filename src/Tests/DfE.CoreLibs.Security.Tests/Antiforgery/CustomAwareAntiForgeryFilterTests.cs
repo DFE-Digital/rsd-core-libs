@@ -41,11 +41,12 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             var options = Options.Create(new CustomAwareAntiForgeryOptions
             {
                 ShouldSkipAntiforgery = _ => true,
-                RequestHeaderKey = "X-Custom-Header"
+                RequestHeaderKey = "X-Custom-Header",
+                RequestHeaderValue = "ValidRequest"
             });
             var skipConditions = new List<Func<HttpContext, bool>>
             {
-                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey),
+                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey, options.Value.RequestHeaderValue),
                 cypressChecker.IsCypressRequest,
                 options.Value.ShouldSkipAntiforgery
             };
@@ -71,11 +72,12 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             var options = Options.Create(new CustomAwareAntiForgeryOptions
             {
                 ShouldSkipAntiforgery = _ => false,
-                RequestHeaderKey = "X-Custom-Header"
+                RequestHeaderKey = "X-Custom-Header",
+                RequestHeaderValue = "ValidRequest"
             });
             var skipConditions = new List<Func<HttpContext, bool>>
             {
-                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey),
+                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey, options.Value.RequestHeaderValue),
                 cypressChecker.IsCypressRequest,
                 options.Value.ShouldSkipAntiforgery
             };
@@ -101,12 +103,13 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             var options = Options.Create(new CustomAwareAntiForgeryOptions
             {
                 ShouldSkipAntiforgery = _ => false,
-                RequestHeaderKey = "X-Custom-Header"
+                RequestHeaderKey = "X-Custom-Header",
+                RequestHeaderValue = "ValidRequest"
             });
-            customChecker.IsValidRequest(Arg.Any<HttpContext>(), options.Value.RequestHeaderKey).Returns(true);
+            customChecker.IsValidRequest(Arg.Any<HttpContext>(), options.Value.RequestHeaderKey,options.Value.RequestHeaderValue).Returns(true);
             var skipConditions = new List<Func<HttpContext, bool>>
             {
-                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey),
+                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey, options.Value.RequestHeaderValue),
                 cypressChecker.IsCypressRequest
             };
             var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, skipConditions, options);
@@ -129,7 +132,7 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             var logger = Substitute.For<ILogger<CustomAwareAntiForgeryFilter>>();
             var customChecker = Substitute.For<ICustomRequestChecker>();
             var cypressChecker = Substitute.For<ICypressRequestChecker>();
-            customChecker.IsValidRequest(Arg.Any<HttpContext>(), Arg.Any<string?>()).Returns(false);
+            customChecker.IsValidRequest(Arg.Any<HttpContext>(), Arg.Any<string?>(), Arg.Any<string?>()).Returns(false);
             cypressChecker.IsCypressRequest(Arg.Any<HttpContext>()).Returns(false);
             var options = Options.Create(new CustomAwareAntiForgeryOptions
             {
@@ -137,7 +140,7 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             });
             var skipConditions = new List<Func<HttpContext, bool>>
             {
-                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey),
+                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey, options.Value.RequestHeaderValue),
                 cypressChecker.IsCypressRequest,
                 options.Value.ShouldSkipAntiforgery
             };
@@ -159,7 +162,7 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             var logger = Substitute.For<ILogger<CustomAwareAntiForgeryFilter>>();
             var customChecker = Substitute.For<ICustomRequestChecker>(); 
             var cypressChecker = Substitute.For<ICypressRequestChecker>();
-            customChecker.IsValidRequest(Arg.Any<HttpContext>(), Arg.Any<string?>()).Returns(false);
+            customChecker.IsValidRequest(Arg.Any<HttpContext>(), Arg.Any<string?>(), Arg.Any<string?>()).Returns(false);
             cypressChecker.IsCypressRequest(Arg.Any<HttpContext>()).Returns(true);
             var options = Options.Create(new CustomAwareAntiForgeryOptions
             {
@@ -167,7 +170,7 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             });
             var skipConditions = new List<Func<HttpContext, bool>>
             {
-                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey),
+                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey, options.Value.RequestHeaderValue),
                 cypressChecker.IsCypressRequest
             };
             var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, skipConditions, options);
