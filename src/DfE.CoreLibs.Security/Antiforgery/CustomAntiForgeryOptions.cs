@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Http;
 
-namespace DfE.CoreLibs.Security.Cypress
+namespace DfE.CoreLibs.Security.Antiforgery
 {
-    public class CypressAwareAntiForgeryOptions
+    public class CustomAntiForgeryOptions
     {
         /// <summary>
         /// A function that, given the current <see cref="HttpContext"/>,

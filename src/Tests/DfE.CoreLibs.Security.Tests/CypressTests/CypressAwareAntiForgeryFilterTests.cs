@@ -1,4 +1,5 @@
-﻿using DfE.CoreLibs.Security.Cypress;
+﻿using DfE.CoreLibs.Security.Antiforgery;
+using DfE.CoreLibs.Security.Cypress;
 using DfE.CoreLibs.Security.Interfaces;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
@@ -36,7 +37,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             var antiforgery = Substitute.For<IAntiforgery>();
             var logger = Substitute.For<ILogger<CypressAwareAntiForgeryFilter>>();
             var cypressChecker = Substitute.For<ICustomRequestChecker>();
-            var options = Options.Create(new CypressAwareAntiForgeryOptions
+            var options = Options.Create(new CustomAntiForgeryOptions
             {
                 ShouldSkipAntiforgery = _ => true
             });
@@ -58,7 +59,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             var antiforgery = Substitute.For<IAntiforgery>();
             var logger = Substitute.For<ILogger<CypressAwareAntiForgeryFilter>>();
             var cypressChecker = Substitute.For<ICustomRequestChecker>();
-            var options = Options.Create(new CypressAwareAntiForgeryOptions
+            var options = Options.Create(new CustomAntiForgeryOptions
             {
                 ShouldSkipAntiforgery = _ => false
             });
@@ -80,7 +81,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             var logger = Substitute.For<ILogger<CypressAwareAntiForgeryFilter>>();
             var cypressChecker = Substitute.For<ICustomRequestChecker>();
             cypressChecker.IsValidRequest(Arg.Any<HttpContext>()).Returns(true);
-            var options = Options.Create(new CypressAwareAntiForgeryOptions
+            var options = Options.Create(new CustomAntiForgeryOptions
             {
                 ShouldSkipAntiforgery = _ => false
             });
@@ -104,7 +105,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             var logger = Substitute.For<ILogger<CypressAwareAntiForgeryFilter>>();
             var cypressChecker = Substitute.For<ICustomRequestChecker>();
             cypressChecker.IsValidRequest(Arg.Any<HttpContext>()).Returns(false);
-            var options = Options.Create(new CypressAwareAntiForgeryOptions
+            var options = Options.Create(new CustomAntiForgeryOptions
             {
                 ShouldSkipAntiforgery = _ => false
             });
