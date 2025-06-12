@@ -15,7 +15,7 @@ namespace DfE.CoreLibs.Security.Cypress
     public class CypressAwareAntiForgeryFilter(
         IAntiforgery antiforgery,
         ILogger<CypressAwareAntiForgeryFilter> logger,
-        ICypressRequestChecker cypressChecker,
+        ICustomRequestChecker cypressChecker,
         IOptions<CypressAwareAntiForgeryOptions> optionsAccessor)
         : IAsyncAuthorizationFilter
     {
@@ -34,7 +34,7 @@ namespace DfE.CoreLibs.Security.Cypress
                 return;
             }
 
-            var isCypress = cypressChecker.IsCypressRequest(context.HttpContext);
+            var isCypress = cypressChecker.IsValidRequest(context.HttpContext);
             if (isCypress)
             {
                 logger.LogInformation("Skipping anti-forgery for Cypress request.");

@@ -19,30 +19,15 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             var mvcBuilder = Substitute.For<IMvcBuilder>();
             mvcBuilder.Services.Returns(services);
 
-            var customChecker = Substitute.For<ICustomRequestChecker>();
-            var cypressChecker = Substitute.For<ICypressRequestChecker>();
-            mvcBuilder.Services.AddScoped(provider => customChecker);
-            mvcBuilder.Services.AddScoped(provider => cypressChecker);
-            var options = Options.Create(new CustomAwareAntiForgeryOptions
-            {
-                ShouldSkipAntiforgery = _ => true,
-                RequestHeaderKey = "X-Custom-Header",
-                RequestHeaderValue = "ValidRequest"
-            });
-            var skipConditions = new List<Func<HttpContext, bool>>
-            {
-                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey, options.Value.RequestHeaderValue),
-                cypressChecker.IsCypressRequest
-            };
+            var customChecker = Substitute.For<ICustomRequestChecker>();  
+            mvcBuilder.Services.AddCustomRequestCheckerProvider<CypressRequestChecker>();
 
             // Act
-            var result = CustomAntiForgeryExtensions.AddCustomAntiForgeryHandling(mvcBuilder, skipConditions);
+            var result = CustomAntiForgeryExtensions.AddCustomAntiForgeryHandling(mvcBuilder);
 
             // Assert
 
-            Assert.Contains(services, d => d.ServiceType == typeof(ICustomRequestChecker) && (d.ImplementationFactory != null));
-
-            Assert.Contains(services, d => d.ServiceType == typeof(ICypressRequestChecker) && (d.ImplementationType == typeof(CypressRequestChecker) || d.ImplementationFactory != null));
+            Assert.Contains(services, d => d.ServiceType == typeof(ICustomRequestChecker) && (d.ImplementationType == typeof(CypressRequestChecker) || d.ImplementationFactory == null)); 
 
             Assert.Contains(services, d => d.ServiceType == typeof(CustomAwareAntiForgeryFilter));
 
@@ -55,9 +40,7 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             var mvcOptions = serviceProvider.GetRequiredService<IOptions<MvcOptions>>().Value;
 
             Assert.Contains(mvcOptions.Filters, filter => filter is ServiceFilterAttribute serviceFilter && serviceFilter.ServiceType == typeof(CustomAwareAntiForgeryFilter));
-            Assert.Contains(services, d => d.ServiceType == typeof(ICustomRequestChecker) && d.ImplementationFactory != null);
-
-            Assert.Contains(services, d => d.ServiceType == typeof(ICypressRequestChecker) && d.ImplementationFactory != null);
+            Assert.Contains(services, d => d.ServiceType == typeof(ICustomRequestChecker) && (d.ImplementationType == typeof(CypressRequestChecker) || d.ImplementationFactory == null));
 
             Assert.Contains(services, d => d.ServiceType == typeof(CustomAwareAntiForgeryFilter));
 

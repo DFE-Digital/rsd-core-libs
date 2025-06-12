@@ -1,6 +1,4 @@
-﻿using AutoFixture;
-using AutoFixture.AutoNSubstitute;
-using DfE.CoreLibs.Security.Cypress;
+﻿using DfE.CoreLibs.Security.Cypress;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -12,8 +10,6 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
 {
     public class CypressAuthenticationHandlerTests
     {
-        private readonly IFixture _fixture = new Fixture().Customize(new AutoNSubstituteCustomization());
-
         [Fact]
         public async Task HandleAuthenticateAsync_ReturnsFail_WhenHttpContextIsNull()
         {

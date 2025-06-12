@@ -15,16 +15,10 @@ namespace DfE.CoreLibs.Security.Interfaces
         /// <param name="httpContext">
         /// The current HTTP request context from which to read headers, config values, etc.
         /// </param>
-        /// <param name="headerKey">
-        /// Header key to check in the request headers to determine validity.
-        /// </param>
-        /// <param name="headerValue">
-        /// Header Value to check in the request headers to determine validity.
-        /// </param>
         /// <returns>
         /// <c>true</c> if the request is recognized as a valid request; 
         /// otherwise, <c>false</c>.
         /// </returns>
-        bool IsValidRequest(HttpContext httpContext, string? headerKey, string? headerValue);
+        bool IsValidRequest(HttpContext httpContext);
     }
 }

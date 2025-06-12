@@ -25,7 +25,7 @@ namespace DfE.CoreLibs.Security.Cypress
         /// </returns>
         public static IMvcBuilder AddCypressAntiForgeryHandling(this IMvcBuilder mvcBuilder)
         {
-            mvcBuilder.Services.AddScoped<ICypressRequestChecker, CypressRequestChecker>();
+            mvcBuilder.Services.AddScoped<ICustomRequestChecker, CypressRequestChecker>();
 
             mvcBuilder.Services.AddScoped<CypressAwareAntiForgeryFilter>();
 

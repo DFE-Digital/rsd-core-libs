@@ -1,6 +1,4 @@
-﻿using AutoFixture;
-using AutoFixture.AutoNSubstitute;
-using DfE.CoreLibs.Security.Cypress;
+﻿using DfE.CoreLibs.Security.Cypress;
 using DfE.CoreLibs.Security.Interfaces;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
@@ -17,8 +15,6 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
 {
     public class CypressAwareAntiForgeryFilterTests
     {
-        private readonly IFixture _fixture = new Fixture().Customize(new AutoNSubstituteCustomization());
-
         private static AuthorizationFilterContext CreateAuthorizationFilterContext(string method, string path = "/test")
         {
             var httpContext = new DefaultHttpContext();
@@ -30,7 +26,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             var modelState = new ModelStateDictionary();
 
             var actionContext = new ActionContext(httpContext, routeData, actionDescriptor, modelState);
-            return new AuthorizationFilterContext(actionContext, new List<IFilterMetadata>());
+            return new AuthorizationFilterContext(actionContext, []);
         }
 
         [Fact]
@@ -39,7 +35,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             // Arrange
             var antiforgery = Substitute.For<IAntiforgery>();
             var logger = Substitute.For<ILogger<CypressAwareAntiForgeryFilter>>();
-            var cypressChecker = Substitute.For<ICypressRequestChecker>();
+            var cypressChecker = Substitute.For<ICustomRequestChecker>();
             var options = Options.Create(new CypressAwareAntiForgeryOptions
             {
                 ShouldSkipAntiforgery = _ => true
@@ -61,7 +57,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             // Arrange
             var antiforgery = Substitute.For<IAntiforgery>();
             var logger = Substitute.For<ILogger<CypressAwareAntiForgeryFilter>>();
-            var cypressChecker = Substitute.For<ICypressRequestChecker>();
+            var cypressChecker = Substitute.For<ICustomRequestChecker>();
             var options = Options.Create(new CypressAwareAntiForgeryOptions
             {
                 ShouldSkipAntiforgery = _ => false
@@ -82,8 +78,8 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             // Arrange
             var antiforgery = Substitute.For<IAntiforgery>();
             var logger = Substitute.For<ILogger<CypressAwareAntiForgeryFilter>>();
-            var cypressChecker = Substitute.For<ICypressRequestChecker>();
-            cypressChecker.IsCypressRequest(Arg.Any<HttpContext>()).Returns(true);
+            var cypressChecker = Substitute.For<ICustomRequestChecker>();
+            cypressChecker.IsValidRequest(Arg.Any<HttpContext>()).Returns(true);
             var options = Options.Create(new CypressAwareAntiForgeryOptions
             {
                 ShouldSkipAntiforgery = _ => false
@@ -106,8 +102,8 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             var antiforgery = Substitute.For<IAntiforgery>();
             antiforgery.ValidateRequestAsync(Arg.Any<HttpContext>()).Returns(Task.CompletedTask);
             var logger = Substitute.For<ILogger<CypressAwareAntiForgeryFilter>>();
-            var cypressChecker = Substitute.For<ICypressRequestChecker>();
-            cypressChecker.IsCypressRequest(Arg.Any<HttpContext>()).Returns(false);
+            var cypressChecker = Substitute.For<ICustomRequestChecker>();
+            cypressChecker.IsValidRequest(Arg.Any<HttpContext>()).Returns(false);
             var options = Options.Create(new CypressAwareAntiForgeryOptions
             {
                 ShouldSkipAntiforgery = _ => false

@@ -5,11 +5,10 @@ using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging; 
 using NSubstitute;
 using Microsoft.AspNetCore.Routing;
-using DfE.CoreLibs.Security.Antiforgery;
+using DfE.CoreLibs.Security.Antiforgery; 
 
 namespace DfE.CoreLibs.Security.Tests.Antiforgery
 {
@@ -28,61 +27,25 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
 
             var actionContext = new ActionContext(httpContext, routeData, actionDescriptor, modelState);
             return new AuthorizationFilterContext(actionContext, []);
-        }
+        } 
 
-        [Fact]
-        public async Task OnAuthorizationAsync_Skips_When_ShouldSkipAntiforgeryPredicateReturnsTrue()
+        [Theory]
+        [InlineData("GET")]
+        [InlineData("OPTIONS")]
+        [InlineData("TRACE")]
+        [InlineData("HEAD")]
+        public async Task OnAuthorizationAsync_Skips_OnSafeHttpMethods(string methodName)
         {
             // Arrange
             var antiforgery = Substitute.For<IAntiforgery>();
-            var logger = Substitute.For<ILogger<CustomAwareAntiForgeryFilter>>();
-            var customChecker = Substitute.For<ICustomRequestChecker>();
-            var cypressChecker = Substitute.For<ICypressRequestChecker>();
-            var options = Options.Create(new CustomAwareAntiForgeryOptions
+            var logger = Substitute.For<ILogger<CustomAwareAntiForgeryFilter>>(); 
+            var customRequestCheckers = new List<ICustomRequestChecker>
             {
-                ShouldSkipAntiforgery = _ => true,
-                RequestHeaderKey = "X-Custom-Header",
-                RequestHeaderValue = "ValidRequest"
-            });
-            var skipConditions = new List<Func<HttpContext, bool>>
-            {
-                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey, options.Value.RequestHeaderValue),
-                cypressChecker.IsCypressRequest,
-                options.Value.ShouldSkipAntiforgery
+                Substitute.For<ICustomRequestChecker>(),
+                Substitute.For<ICustomRequestChecker>()
             };
-            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, skipConditions, options);
-            var context = CreateAuthorizationFilterContext("POST");
-
-            // Act
-            await filter.OnAuthorizationAsync(context);
-
-            // Assert
-            await antiforgery.DidNotReceive().ValidateRequestAsync(context.HttpContext);
-            logger.Received().LogInformation("Skipping anti-forgery due to ShouldSkipAntiforgery predicate.");
-        }
-
-        [Fact]
-        public async Task OnAuthorizationAsync_Skips_OnSafeHttpMethods()
-        {
-            // Arrange
-            var antiforgery = Substitute.For<IAntiforgery>();
-            var logger = Substitute.For<ILogger<CustomAwareAntiForgeryFilter>>();
-            var customChecker = Substitute.For<ICustomRequestChecker>();
-            var cypressChecker = Substitute.For<ICypressRequestChecker>();
-            var options = Options.Create(new CustomAwareAntiForgeryOptions
-            {
-                ShouldSkipAntiforgery = _ => false,
-                RequestHeaderKey = "X-Custom-Header",
-                RequestHeaderValue = "ValidRequest"
-            });
-            var skipConditions = new List<Func<HttpContext, bool>>
-            {
-                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey, options.Value.RequestHeaderValue),
-                cypressChecker.IsCypressRequest,
-                options.Value.ShouldSkipAntiforgery
-            };
-            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, skipConditions, options);
-            var context = CreateAuthorizationFilterContext("GET");
+            var filter = new CustomAwareAntiForgeryFilter(antiforgery, customRequestCheckers, logger);
+            var context = CreateAuthorizationFilterContext(methodName);
 
             // Act
             await filter.OnAuthorizationAsync(context);
@@ -90,61 +53,42 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             // Assert
             await antiforgery.DidNotReceive().ValidateRequestAsync(context.HttpContext);
         }
-
         [Fact]
-        public async Task OnAuthorizationAsync_Skips_ForCustomRequest()
-        {
-            // Arrange
-            var antiforgery = Substitute.For<IAntiforgery>();
-            var logger = Substitute.For<ILogger<CustomAwareAntiForgeryFilter>>();
-            var customChecker = Substitute.For<ICustomRequestChecker>();
-            var cypressChecker = Substitute.For<ICypressRequestChecker>();
-
-            var options = Options.Create(new CustomAwareAntiForgeryOptions
-            {
-                ShouldSkipAntiforgery = _ => false,
-                RequestHeaderKey = "X-Custom-Header",
-                RequestHeaderValue = "ValidRequest"
-            });
-            customChecker.IsValidRequest(Arg.Any<HttpContext>(), options.Value.RequestHeaderKey,options.Value.RequestHeaderValue).Returns(true);
-            var skipConditions = new List<Func<HttpContext, bool>>
-            {
-                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey, options.Value.RequestHeaderValue),
-                cypressChecker.IsCypressRequest
-            };
-            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, skipConditions, options);
-            var context = CreateAuthorizationFilterContext("POST");
-
-            // Act
-            await filter.OnAuthorizationAsync(context);
-
-            // Assert
-            await antiforgery.DidNotReceive().ValidateRequestAsync(context.HttpContext);
-            logger.Received().LogInformation("Skipping anti-forgery for the request due to a matching condition.");
-        }
-
-        [Fact]
-        public async Task OnAuthorizationAsync_EnforcesAntiforgery_ForNonCustomUnsafeRequest()
+        public async Task OnAuthorizationAsync_Skips_ForNonCustomUnsafeRequestWithEmptyCheckersList()
         {
             // Arrange
             var antiforgery = Substitute.For<IAntiforgery>();
             antiforgery.ValidateRequestAsync(Arg.Any<HttpContext>()).Returns(Task.CompletedTask);
             var logger = Substitute.For<ILogger<CustomAwareAntiForgeryFilter>>();
-            var customChecker = Substitute.For<ICustomRequestChecker>();
-            var cypressChecker = Substitute.For<ICypressRequestChecker>();
-            customChecker.IsValidRequest(Arg.Any<HttpContext>(), Arg.Any<string?>(), Arg.Any<string?>()).Returns(false);
-            cypressChecker.IsCypressRequest(Arg.Any<HttpContext>()).Returns(false);
-            var options = Options.Create(new CustomAwareAntiForgeryOptions
+            var customRequestCheckers = new List<ICustomRequestChecker>();
+            var filter = new CustomAwareAntiForgeryFilter(antiforgery, customRequestCheckers, logger);
+            var context = CreateAuthorizationFilterContext("POST");
+
+            // Act
+            await filter.OnAuthorizationAsync(context);
+
+            // Assert
+            await antiforgery.Received().ValidateRequestAsync(context.HttpContext);
+            logger.Received().LogInformation("Enforcing anti-forgery for the request.");
+        }
+
+        [Fact]
+        public async Task OnAuthorizationAsync_Enforce_ForNonCustomUnsafeRequestWithOneCheckerFails()
+        {
+            // Arrange
+            var antiforgery = Substitute.For<IAntiforgery>();
+            antiforgery.ValidateRequestAsync(Arg.Any<HttpContext>()).Returns(Task.CompletedTask);
+            var logger = Substitute.For<ILogger<CustomAwareAntiForgeryFilter>>();
+            var customRequestChecker = Substitute.For<ICustomRequestChecker>();
+            customRequestChecker.IsValidRequest(Arg.Any<HttpContext>()).Returns(false);
+            var cypressRequestChecker = Substitute.For<ICustomRequestChecker>();
+            cypressRequestChecker.IsValidRequest(Arg.Any<HttpContext>()).Returns(true);
+            var customRequestCheckers = new List<ICustomRequestChecker>
             {
-                ShouldSkipAntiforgery = _ => false
-            });
-            var skipConditions = new List<Func<HttpContext, bool>>
-            {
-                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey, options.Value.RequestHeaderValue),
-                cypressChecker.IsCypressRequest,
-                options.Value.ShouldSkipAntiforgery
+                customRequestChecker,
+                cypressRequestChecker
             };
-            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, skipConditions, options);
+            var filter = new CustomAwareAntiForgeryFilter(antiforgery, customRequestCheckers, logger);
             var context = CreateAuthorizationFilterContext("POST");
 
             // Act
@@ -155,25 +99,22 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             logger.Received().LogInformation("Enforcing anti-forgery for the request.");
         }
         [Fact]
-        public async Task OnAuthorizationAsync_Skips_ForCypressRequest()
+        public async Task OnAuthorizationAsync_Skips_ForNonCustomUnsafeRequestWithAllPassesCheckers()
         {
             // Arrange
             var antiforgery = Substitute.For<IAntiforgery>();
+            antiforgery.ValidateRequestAsync(Arg.Any<HttpContext>()).Returns(Task.CompletedTask);
             var logger = Substitute.For<ILogger<CustomAwareAntiForgeryFilter>>();
-            var customChecker = Substitute.For<ICustomRequestChecker>(); 
-            var cypressChecker = Substitute.For<ICypressRequestChecker>();
-            customChecker.IsValidRequest(Arg.Any<HttpContext>(), Arg.Any<string?>(), Arg.Any<string?>()).Returns(false);
-            cypressChecker.IsCypressRequest(Arg.Any<HttpContext>()).Returns(true);
-            var options = Options.Create(new CustomAwareAntiForgeryOptions
+            var customRequestChecker = Substitute.For<ICustomRequestChecker>();
+            customRequestChecker.IsValidRequest(Arg.Any<HttpContext>()).Returns(true);
+            var cypressRequestChecker = Substitute.For<ICustomRequestChecker>();
+            cypressRequestChecker.IsValidRequest(Arg.Any<HttpContext>()).Returns(true);
+            var customRequestCheckers = new List<ICustomRequestChecker>
             {
-                ShouldSkipAntiforgery = _ => false
-            });
-            var skipConditions = new List<Func<HttpContext, bool>>
-            {
-                ctx => customChecker.IsValidRequest(ctx, options.Value.RequestHeaderKey, options.Value.RequestHeaderValue),
-                cypressChecker.IsCypressRequest
+                customRequestChecker,
+                cypressRequestChecker
             };
-            var filter = new CustomAwareAntiForgeryFilter(antiforgery, logger, skipConditions, options);
+            var filter = new CustomAwareAntiForgeryFilter(antiforgery, customRequestCheckers, logger);
             var context = CreateAuthorizationFilterContext("POST");
 
             // Act
@@ -181,7 +122,7 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
 
             // Assert
             await antiforgery.DidNotReceive().ValidateRequestAsync(context.HttpContext);
-            logger.Received().LogInformation("Skipping anti-forgery for the request due to a matching condition.");
+            logger.Received().LogInformation("Skipping anti-forgery for the request due to matching all conditions.");
         }
     }
 }

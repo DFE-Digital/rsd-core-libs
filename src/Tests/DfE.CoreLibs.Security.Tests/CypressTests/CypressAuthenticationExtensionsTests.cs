@@ -27,7 +27,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             // Act
             authBuilder.AddCypressMultiAuthentication(policyScheme: "TestPolicy", cypressScheme: "CypressAuth", fallbackScheme: "Cookies");
 
-            Assert.Contains(services, d => d.ServiceType == typeof(ICypressRequestChecker) && d.ImplementationType == typeof(CypressRequestChecker));
+            Assert.Contains(services, d => d.ServiceType == typeof(ICustomRequestChecker) && d.ImplementationType == typeof(CypressRequestChecker));
 
             var schemeProvider = services.BuildServiceProvider().GetService<IAuthenticationSchemeProvider>();
             var scheme = await schemeProvider?.GetSchemeAsync("CypressAuth")!;
@@ -38,16 +38,16 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             httpContext.Request.Headers["x-user-context-name"] = "cypressUser";
             httpContext.Request.Headers.Authorization = "Bearer secret123";
 
-            var checker = Substitute.For<ICypressRequestChecker>();
-            checker.IsCypressRequest(httpContext).Returns(true);
+            var checker = Substitute.For<ICustomRequestChecker>();
+            checker.IsValidRequest(httpContext).Returns(true);
 
             var sp = new ServiceCollection().AddSingleton(checker).BuildServiceProvider();
             httpContext.RequestServices = sp;
 
             var selector = new Func<HttpContext, string>(context =>
             {
-                var chk = context.RequestServices.GetRequiredService<ICypressRequestChecker>();
-                return chk.IsCypressRequest(context) ? "CypressAuth" : "Cookies";
+                var chk = context.RequestServices.GetRequiredService<ICustomRequestChecker>();
+                return chk.IsValidRequest(context) ? "CypressAuth" : "Cookies";
             });
             var schemeName = selector(httpContext);
             Assert.Equal("CypressAuth", schemeName);
@@ -60,8 +60,8 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             const string cypressScheme = "CypressAuth";
             const string fallbackScheme = CookieAuthenticationDefaults.AuthenticationScheme; // "Cookies"
 
-            var fakeChecker = Substitute.For<ICypressRequestChecker>();
-            fakeChecker.IsCypressRequest(Arg.Any<HttpContext>()).Returns(false);
+            var fakeChecker = Substitute.For<ICustomRequestChecker>();
+            fakeChecker.IsValidRequest(Arg.Any<HttpContext>()).Returns(false);
 
             var services = new ServiceCollection();
             services.AddSingleton(fakeChecker);
@@ -74,8 +74,8 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
 
             Func<HttpContext, string> forwardSelector = context =>
             {
-                var checker = context.RequestServices.GetRequiredService<ICypressRequestChecker>();
-                return checker.IsCypressRequest(context) ? cypressScheme : fallbackScheme;
+                var checker = context.RequestServices.GetRequiredService<ICustomRequestChecker>();
+                return checker.IsValidRequest(context) ? cypressScheme : fallbackScheme;
             };
 
             // Act

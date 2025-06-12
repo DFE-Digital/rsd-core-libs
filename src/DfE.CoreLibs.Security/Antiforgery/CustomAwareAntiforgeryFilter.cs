@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace DfE.CoreLibs.Security.Antiforgery
 {
@@ -14,34 +13,28 @@ namespace DfE.CoreLibs.Security.Antiforgery
     /// </summary>
     public class CustomAwareAntiForgeryFilter(
         IAntiforgery antiforgery,
-        ILogger<CustomAwareAntiForgeryFilter> logger,
-        List<Func<HttpContext, bool>> skipConditions,
-        IOptions<CustomAwareAntiForgeryOptions> optionsAccessor)
+        List<ICustomRequestChecker> customRequestCheckers,
+        ILogger<CustomAwareAntiForgeryFilter> logger)
         : IAsyncAuthorizationFilter
     {
         public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
         {
-            if (optionsAccessor.Value.ShouldSkipAntiforgery(context.HttpContext))
-            {
-                logger.LogInformation("Skipping anti-forgery due to ShouldSkipAntiforgery predicate.");
-                return;
-            }
-
             var method = context.HttpContext.Request.Method;
             if (HttpMethods.IsGet(method) || HttpMethods.IsHead(method) ||
                 HttpMethods.IsOptions(method) || HttpMethods.IsTrace(method))
             {
                 return;
-            } 
+            }
+            var isValidRequests = customRequestCheckers.Select(checker => checker.IsValidRequest(context.HttpContext)).ToList();
 
-            if (skipConditions.Any(condition => condition(context.HttpContext)))
+            if (isValidRequests.Count == 0 || isValidRequests.Any(x => x == false))
             {
-                logger.LogInformation("Skipping anti-forgery for the request due to a matching condition.");
-                return;
-            } 
-
-            logger.LogInformation("Enforcing anti-forgery for the request.");
-            await antiforgery.ValidateRequestAsync(context.HttpContext);
+                logger.LogInformation("Enforcing anti-forgery for the request.");
+                await antiforgery.ValidateRequestAsync(context.HttpContext);
+                
+            }
+            logger.LogInformation("Skipping anti-forgery for the request due to matching all conditions.");
+            return;
         }
     }
 }

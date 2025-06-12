@@ -30,15 +30,15 @@ namespace DfE.CoreLibs.Security.Cypress
             }
 
             // Ensure our CypressRequestChecker is registered
-            builder.Services.AddScoped<ICypressRequestChecker, CypressRequestChecker>();
+            builder.Services.AddScoped<ICustomRequestChecker, CypressRequestChecker>();
 
             builder.AddPolicyScheme(policyScheme, displayName, options =>
             {
                 options.ForwardDefaultSelector = context =>
                 {
-                    var checker = context.RequestServices.GetRequiredService<ICypressRequestChecker>();
+                    var checker = context.RequestServices.GetRequiredService<ICustomRequestChecker>();
 
-                    var isCypress = checker.IsCypressRequest(context);
+                    var isCypress = checker.IsValidRequest(context);
 
                     if (isCypress)
                     {
