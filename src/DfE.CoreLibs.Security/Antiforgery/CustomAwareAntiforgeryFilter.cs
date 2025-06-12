@@ -27,14 +27,13 @@ namespace DfE.CoreLibs.Security.Antiforgery
             }
             var isValidRequests = customRequestCheckers.Select(checker => checker.IsValidRequest(context.HttpContext)).ToList();
 
-            if (isValidRequests.Count == 0 || isValidRequests.Any(x => x == false))
+            if (isValidRequests.Count == 0 || isValidRequests.Contains(false))
             {
                 logger.LogInformation("Enforcing anti-forgery for the request.");
                 await antiforgery.ValidateRequestAsync(context.HttpContext);
                 
             }
             logger.LogInformation("Skipping anti-forgery for the request due to matching all conditions.");
-            return;
         }
     }
 }

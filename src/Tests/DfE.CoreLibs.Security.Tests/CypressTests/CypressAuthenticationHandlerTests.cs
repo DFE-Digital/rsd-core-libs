@@ -45,7 +45,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             httpContext.Request.Headers["x-user-context-id"] = "test-id";
             httpContext.Request.Headers["x-user-context-name"] = "cypressUser";
             httpContext.Request.Headers["x-user-context-role-0"] = "testRole";
-            httpContext.Request.Headers["Authorization"] = "Bearer secret123";
+            httpContext.Request.Headers.Authorization = "Bearer secret123";
 
             var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
             httpContextAccessor.HttpContext.Returns(httpContext);
