@@ -17,7 +17,7 @@ namespace DfE.CoreLibs.Security.Cypress
         IAntiforgery antiforgery,
         ILogger<CypressAwareAntiForgeryFilter> logger,
         ICustomRequestChecker cypressChecker,
-        IOptions<CustomAntiForgeryOptions> optionsAccessor)
+        IOptions<CustomAwareAntiForgeryOptions> optionsAccessor)
         : IAsyncAuthorizationFilter
     {
         public async Task OnAuthorizationAsync(AuthorizationFilterContext context)

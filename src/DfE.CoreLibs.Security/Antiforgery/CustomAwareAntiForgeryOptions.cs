@@ -2,7 +2,7 @@
 
 namespace DfE.CoreLibs.Security.Antiforgery
 {
-    public class CustomAntiForgeryOptions
+    public class CustomAwareAntiForgeryOptions
     {
         /// <summary>
         /// A function that, given the current <see cref="HttpContext"/>,
