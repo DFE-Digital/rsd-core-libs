@@ -35,7 +35,7 @@ namespace DfE.CoreLibs.Security.Antiforgery
 
                 if (matchers.Count == 0)
                 {
-                    groupResults.Add(true);
+                    groupResults.Add(false);
                     continue;
                 }
 

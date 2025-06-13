@@ -70,7 +70,13 @@ namespace DfE.CoreLibs.Security.Tests.Antiforgery
             var options = Substitute.For<IOptions<CustomAwareAntiForgeryOptions>>();
             options.Value.Returns(new CustomAwareAntiForgeryOptions
             {
-                CheckerGroups = []
+                CheckerGroups = [
+                    new CheckerGroup
+                    {
+                        TypeNames = [],
+                        CheckerOperator = CheckerOperator.Or
+                    }
+                ],
             });
             var filter = new CustomAwareAntiForgeryFilter(antiforgery, customRequestCheckers, options, logger);
             var context = CreateAuthorizationFilterContext("POST");
