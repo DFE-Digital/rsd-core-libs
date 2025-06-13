@@ -1,20 +1,14 @@
-﻿using System;
-using DfE.CoreLibs.Security.Cypress;
+﻿using DfE.CoreLibs.Security.Cypress;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Net.Http.Headers;
 using NSubstitute;
-using Xunit;
-using AutoFixture;
-using AutoFixture.AutoNSubstitute;
 
 namespace DfE.CoreLibs.Security.Tests.CypressTests
 {
     public class CypressRequestCheckerTests
     {
-        private readonly IFixture _fixture = new Fixture().Customize(new AutoNSubstituteCustomization());
-
         private static DefaultHttpContext CreateHttpContext(string environmentName, string authHeader, string userContextHeader)
         {
             var httpContext = new DefaultHttpContext();
@@ -36,7 +30,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             var checker = new CypressRequestChecker(env, config);
 
             // Act
-            var result = checker.IsCypressRequest(httpContext);
+            var result = checker.IsValidRequest(httpContext);
 
             // Assert
             Assert.False(result);
@@ -58,7 +52,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             var checker = new CypressRequestChecker(env, config);
 
             // Act
-            var result = checker.IsCypressRequest(httpContext);
+            var result = checker.IsValidRequest(httpContext);
 
             // Assert
             // Only "Development", "Staging" and "Test" are allowed per our code.
@@ -90,7 +84,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             var checker = new CypressRequestChecker(env, config);
 
             // Act
-            var result = checker.IsCypressRequest(httpContext);
+            var result = checker.IsValidRequest(httpContext);
 
             // Assert
             Assert.False(result);
@@ -109,7 +103,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             var checker = new CypressRequestChecker(env, config);
 
             // Act
-            var result = checker.IsCypressRequest(httpContext);
+            var result = checker.IsValidRequest(httpContext);
 
             // Assert
             Assert.True(result);

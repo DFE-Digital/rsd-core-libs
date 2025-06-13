@@ -1,6 +1,4 @@
-﻿using AutoFixture;
-using AutoFixture.AutoNSubstitute;
-using DfE.CoreLibs.Security.Cypress;
+﻿using DfE.CoreLibs.Security.Cypress;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -12,8 +10,6 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
 {
     public class CypressAuthenticationHandlerTests
     {
-        private readonly IFixture _fixture = new Fixture().Customize(new AutoNSubstituteCustomization());
-
         [Fact]
         public async Task HandleAuthenticateAsync_ReturnsFail_WhenHttpContextIsNull()
         {
@@ -49,7 +45,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             httpContext.Request.Headers["x-user-context-id"] = "test-id";
             httpContext.Request.Headers["x-user-context-name"] = "cypressUser";
             httpContext.Request.Headers["x-user-context-role-0"] = "testRole";
-            httpContext.Request.Headers["Authorization"] = "Bearer secret123";
+            httpContext.Request.Headers.Authorization = "Bearer secret123";
 
             var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
             httpContextAccessor.HttpContext.Returns(httpContext);
