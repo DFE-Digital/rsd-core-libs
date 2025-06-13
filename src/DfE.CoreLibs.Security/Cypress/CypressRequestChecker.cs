@@ -8,12 +8,12 @@ namespace DfE.CoreLibs.Security.Cypress
 {
     /// <inheritdoc />
     public class CypressRequestChecker(IHostEnvironment env, IConfiguration config)
-        : ICypressRequestChecker
+        : ICustomRequestChecker
     {
         private const string CypressUserHeaderKey = "x-cypress-user";
         private const string ExpectedCypressUser = "cypressUser";
 
-        public bool IsCypressRequest(HttpContext httpContext)
+        public bool IsValidRequest(HttpContext httpContext)
         {
             var userHeader = httpContext.Request.Headers[CypressUserHeaderKey].ToString();
             if (!string.Equals(userHeader, ExpectedCypressUser, StringComparison.OrdinalIgnoreCase))

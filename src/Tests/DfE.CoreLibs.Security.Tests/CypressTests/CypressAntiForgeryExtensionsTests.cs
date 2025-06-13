@@ -1,6 +1,4 @@
-﻿using AutoFixture;
-using AutoFixture.AutoNSubstitute;
-using DfE.CoreLibs.Security.Cypress;
+﻿using DfE.CoreLibs.Security.Cypress;
 using DfE.CoreLibs.Security.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
@@ -9,8 +7,6 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
 {
     public class CypressAntiForgeryExtensionsTests
     {
-        private readonly IFixture _fixture = new Fixture().Customize(new AutoNSubstituteCustomization());
-
         [Fact]
         public void AddCypressAntiForgeryHandling_RegistersRequiredServices()
         {
@@ -23,7 +19,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             var result = CypressAntiForgeryExtensions.AddCypressAntiForgeryHandling(mvcBuilder);
 
             // Assert
-            Assert.Contains(services, d => d.ServiceType == typeof(ICypressRequestChecker) && d.ImplementationType == typeof(CypressRequestChecker));
+            Assert.Contains(services, d => d.ServiceType == typeof(ICustomRequestChecker) && d.ImplementationType == typeof(CypressRequestChecker));
 
             Assert.Contains(services, d => d.ServiceType == typeof(CypressAwareAntiForgeryFilter));
 

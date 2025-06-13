@@ -1,4 +1,5 @@
-﻿using DfE.CoreLibs.Security.Interfaces;
+﻿using DfE.CoreLibs.Security.Antiforgery;
+using DfE.CoreLibs.Security.Interfaces;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -15,8 +16,8 @@ namespace DfE.CoreLibs.Security.Cypress
     public class CypressAwareAntiForgeryFilter(
         IAntiforgery antiforgery,
         ILogger<CypressAwareAntiForgeryFilter> logger,
-        ICypressRequestChecker cypressChecker,
-        IOptions<CypressAwareAntiForgeryOptions> optionsAccessor)
+        ICustomRequestChecker cypressChecker,
+        IOptions<CustomAwareAntiForgeryOptions> optionsAccessor)
         : IAsyncAuthorizationFilter
     {
         public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
@@ -34,7 +35,7 @@ namespace DfE.CoreLibs.Security.Cypress
                 return;
             }
 
-            var isCypress = cypressChecker.IsCypressRequest(context.HttpContext);
+            var isCypress = cypressChecker.IsValidRequest(context.HttpContext);
             if (isCypress)
             {
                 logger.LogInformation("Skipping anti-forgery for Cypress request.");

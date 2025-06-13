@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Http;
 
-namespace DfE.CoreLibs.Security.Cypress
+namespace DfE.CoreLibs.Security.Antiforgery
 {
-    public class CypressAwareAntiForgeryOptions
+    public class CustomAwareAntiForgeryOptions
     {
         /// <summary>
         /// A function that, given the current <see cref="HttpContext"/>,
@@ -10,5 +10,7 @@ namespace DfE.CoreLibs.Security.Cypress
         /// </summary>
         public Func<HttpContext, bool> ShouldSkipAntiforgery { get; set; }
             = _ => false; // Default: never skip
+
+        public List<CheckerGroup> CheckerGroups { get; set; } = [];
     }
 }
