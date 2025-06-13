@@ -47,10 +47,10 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             // Arrange
             var authorizationService = _serviceProvider.GetRequiredService<IAuthorizationService>();
 
-            var userWithScopes = new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
-            {
+            var userWithScopes = new ClaimsPrincipal(new ClaimsIdentity(
+            [
                 new Claim("http://schemas.microsoft.com/identity/claims/scope", "SCOPE.API.Read SCOPE.API.Write")
-            }, "TestAuthentication"));
+            ], "TestAuthentication"));
 
             var userWithRoles = new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
             {
@@ -105,11 +105,11 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             // Arrange
             var authorizationService = _serviceProvider.GetRequiredService<IAuthorizationService>();
 
-            var user = new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
-            {
+            var user = new ClaimsPrincipal(new ClaimsIdentity(
+            [
                 new Claim("http://schemas.microsoft.com/identity/claims/scope", "SCOPE.API.Read SCOPE.API.Write")
                 // No role claims
-            }, "TestAuthentication"));
+            ], "TestAuthentication"));
 
             // Act
             var canReadWriteResult = await authorizationService.AuthorizeAsync(user, null, "CanReadWrite");
@@ -125,12 +125,12 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             // Arrange
             var authorizationService = _serviceProvider.GetRequiredService<IAuthorizationService>();
 
-            var user = new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
-            {
+            var user = new ClaimsPrincipal(new ClaimsIdentity(
+            [
                 new Claim(ClaimTypes.Role, "API.Read"),
                 new Claim(ClaimTypes.Role, "API.Write")
                 // No scope claims
-            }, "TestAuthentication"));
+            ], "TestAuthentication"));
 
             // Act
             var canReadWriteResult = await authorizationService.AuthorizeAsync(user, null, "CanReadWrite");
@@ -146,11 +146,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             // Arrange
             var authorizationService = _serviceProvider.GetRequiredService<IAuthorizationService>();
 
-            var user = new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
-            {
-                // No scope claims
-                // No role claims
-            }, "TestAuthentication"));
+            var user = new ClaimsPrincipal(new ClaimsIdentity([], "TestAuthentication"));
 
             // Act
             var canReadWriteResult = await authorizationService.AuthorizeAsync(user, null, "CanReadWrite");
@@ -166,12 +162,12 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             // Arrange
             var authorizationService = _serviceProvider.GetRequiredService<IAuthorizationService>();
 
-            var user = new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
-            {
+            var user = new ClaimsPrincipal(new ClaimsIdentity(
+            [
                 new Claim("http://schemas.microsoft.com/identity/claims/scope",
                     "SCOPE.API.Read")
                 // No role claims
-            }, "TestAuthentication"));
+            ], "TestAuthentication"));
 
             // Act
             var canReadWriteResult = await authorizationService.AuthorizeAsync(user, null, "CanReadWrite");
@@ -387,7 +383,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
     {
         public Task<IEnumerable<Claim>> GetClaimsAsync(ClaimsPrincipal principal)
         {
-            return Task.FromResult<IEnumerable<Claim>>(new[] { new Claim("DummyClaim", "DummyValue") });
+            return Task.FromResult<IEnumerable<Claim>>([new Claim("DummyClaim", "DummyValue")]);
         }
     }
 }
