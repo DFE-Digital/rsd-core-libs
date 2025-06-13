@@ -24,6 +24,9 @@ namespace DfE.CoreLibs.Security.Antiforgery
             if (configure != null)
                 mvcBuilder.Services.Configure(configure);
 
+            mvcBuilder.Services.AddScoped(provider 
+                => provider.GetServices<ICustomRequestChecker>().ToList());
+            
             // Register the filter as a service, letting DI resolve skipConditions
             mvcBuilder.Services.AddScoped<CustomAwareAntiForgeryFilter>();
 
