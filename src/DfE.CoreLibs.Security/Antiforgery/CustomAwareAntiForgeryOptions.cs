@@ -10,5 +10,7 @@ namespace DfE.CoreLibs.Security.Antiforgery
         /// </summary>
         public Func<HttpContext, bool> ShouldSkipAntiforgery { get; set; }
             = _ => false; // Default: never skip
+
+        public List<CheckerGroup> CheckerGroups { get; set; } = new();
     }
 }

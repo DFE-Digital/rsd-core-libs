@@ -15,9 +15,14 @@ namespace DfE.CoreLibs.Security.Antiforgery
         /// </summary>  
         /// <param name="mvcBuilder">The MVC builder.</param>
         /// <returns>The same <see cref="IMvcBuilder"/> so further MVC configuration can be chained.</returns>  
-        public static IMvcBuilder AddCustomAntiForgeryHandling(this IMvcBuilder mvcBuilder)
+        public static IMvcBuilder AddCustomAntiForgeryHandling(
+            this IMvcBuilder mvcBuilder,
+            Action<CustomAwareAntiForgeryOptions>? configure = null)
         {
             ArgumentNullException.ThrowIfNull(mvcBuilder);
+
+            if (configure != null)
+                mvcBuilder.Services.Configure(configure);
 
             // Register the filter as a service, letting DI resolve skipConditions
             mvcBuilder.Services.AddScoped<CustomAwareAntiForgeryFilter>();

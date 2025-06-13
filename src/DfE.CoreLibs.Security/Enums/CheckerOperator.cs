@@ -1,6 +1,6 @@
 ﻿namespace DfE.CoreLibs.Security.Enums
 {
-    public enum OperatorType
+    public enum CheckerOperator
     {
         Or,
         And

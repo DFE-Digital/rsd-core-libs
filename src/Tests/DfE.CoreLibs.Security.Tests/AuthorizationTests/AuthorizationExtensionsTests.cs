@@ -262,7 +262,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
                 .AddInMemoryCollection(new Dictionary<string, string>
                 {
                     { "Authorization:Policies:0:Name", "AndPolicy" },
-                    { "Authorization:Policies:0:Operator", "AND" },
+                    { "Authorization:Policies:0:CheckerOperator", "AND" },
                     { "Authorization:Policies:0:Scopes:0", "Scope1" },
                 }!)
                 .Build();
@@ -295,7 +295,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
                 .AddInMemoryCollection(new Dictionary<string, string>
                 {
                     { "Authorization:Policies:0:Name", "OrPolicy" },
-                    { "Authorization:Policies:0:Operator", "OR" },
+                    { "Authorization:Policies:0:CheckerOperator", "OR" },
                     { "Authorization:Policies:0:Roles:0", "Role1" },
                     { "Authorization:Policies:0:Roles:1", "Role2" }
 

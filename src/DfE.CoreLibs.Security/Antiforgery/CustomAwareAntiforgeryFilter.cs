@@ -4,40 +4,65 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DfE.CoreLibs.Security.Antiforgery
 {
-    /// <summary>
-    /// An authorization filter that enforces AntiForgery validation for all requests,
-    /// except for those recognized as valid custom or Cypress requests or for which the
-    /// configured predicate says to skip.
-    /// </summary>
     public class CustomAwareAntiForgeryFilter(
         IAntiforgery antiforgery,
-        List<ICustomRequestChecker> customRequestCheckers,
+        IEnumerable<ICustomRequestChecker> customRequestCheckers,
+        IOptions<CustomAwareAntiForgeryOptions> options,
         ILogger<CustomAwareAntiForgeryFilter> logger)
         : IAsyncAuthorizationFilter
     {
+        private readonly List<CheckerGroup> _groups = options.Value.CheckerGroups;
+
         public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
         {
-            var method = context.HttpContext.Request.Method;
-            if (HttpMethods.IsGet(method) || HttpMethods.IsHead(method) ||
-                HttpMethods.IsOptions(method) || HttpMethods.IsTrace(method))
+            // skip safe methods
+            var m = context.HttpContext.Request.Method;
+            if (HttpMethods.IsGet(m) || HttpMethods.IsHead(m) ||
+                HttpMethods.IsOptions(m) || HttpMethods.IsTrace(m))
+                return;
+
+            var groupResults = new List<bool>();
+
+            foreach (var g in _groups)
             {
+                var matchers = customRequestCheckers
+                    .Where(c => g.TypeNames.Contains(c.GetType().Name))
+                    .ToList();
+
+                if (!matchers.Any())
+                {
+                    groupResults.Add(true);
+                    continue;
+                }
+
+                var results = matchers
+                    .Select(c => c.IsValidRequest(context.HttpContext));
+
+                var groupPassed = g.CheckerOperator switch
+                {
+                    CheckerOperator.Or => results.Any(r => r),
+                    CheckerOperator.And => results.All(r => r),
+                    _ => false
+                };
+
+                logger.LogInformation("Group [{Types}] with {Op} => {Result}", string.Join(",", g.TypeNames),
+                    g.CheckerOperator, groupPassed);
+
+                groupResults.Add(groupPassed);
+            }
+
+            // only skip antiforgery if every group passed, this is the case if we have morte than one group of Checkers
+            if (groupResults.All(r => r))
+            {
+                logger.LogInformation("All groups passed > skipping antiforgery.");
                 return;
             }
 
-            var andCheckers = customRequestCheckers.Where(c => c.Operator == OperatorType.And);
-            var orCheckers = customRequestCheckers.Where(c => c.Operator == OperatorType.Or);
-
-            bool andResult = andCheckers.All(c => c.IsValidRequest(context.HttpContext));
-            bool orResult = orCheckers.Any(c => c.IsValidRequest(context.HttpContext));
-            if (customRequestCheckers.Count > 0 && (andResult || orResult))
-            {
-                logger.LogInformation("Skipping anti-forgery for the request due to matching conditions.");
-                return;
-            }
-            logger.LogInformation("Enforcing anti-forgery for the request.");
+            logger.LogInformation("Enforcing antiforgery.");
             await antiforgery.ValidateRequestAsync(context.HttpContext);
         }
     }
