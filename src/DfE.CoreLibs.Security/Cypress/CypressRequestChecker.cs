@@ -1,4 +1,5 @@
-﻿using DfE.CoreLibs.Security.Interfaces;
+﻿using DfE.CoreLibs.Security.Enums;
+using DfE.CoreLibs.Security.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -12,6 +13,8 @@ namespace DfE.CoreLibs.Security.Cypress
     {
         private const string CypressUserHeaderKey = "x-cypress-user";
         private const string ExpectedCypressUser = "cypressUser";
+
+        public OperatorType Operator => OperatorType.Or;
 
         public bool IsValidRequest(HttpContext httpContext)
         {

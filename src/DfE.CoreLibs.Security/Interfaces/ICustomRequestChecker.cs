@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http; 
+﻿using DfE.CoreLibs.Security.Enums;
+using Microsoft.AspNetCore.Http; 
 
 namespace DfE.CoreLibs.Security.Interfaces
 { 
@@ -20,5 +21,10 @@ namespace DfE.CoreLibs.Security.Interfaces
         /// otherwise, <c>false</c>.
         /// </returns>
         bool IsValidRequest(HttpContext httpContext);
+
+        /// <summary>
+        /// Gets the operator type that defines how multiple
+        /// </summary>
+        OperatorType Operator { get; }
     }
 }

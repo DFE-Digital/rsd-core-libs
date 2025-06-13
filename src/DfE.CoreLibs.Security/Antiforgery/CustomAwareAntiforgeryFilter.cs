@@ -1,4 +1,5 @@
-﻿using DfE.CoreLibs.Security.Interfaces;
+﻿using DfE.CoreLibs.Security.Enums;
+using DfE.CoreLibs.Security.Interfaces;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -25,15 +26,19 @@ namespace DfE.CoreLibs.Security.Antiforgery
             {
                 return;
             }
-            var isValidRequests = customRequestCheckers.Select(checker => checker.IsValidRequest(context.HttpContext)).ToList();
 
-            if (isValidRequests.Count == 0 || isValidRequests.Contains(false))
+            var andCheckers = customRequestCheckers.Where(c => c.Operator == OperatorType.And);
+            var orCheckers = customRequestCheckers.Where(c => c.Operator == OperatorType.Or);
+
+            bool andResult = andCheckers.All(c => c.IsValidRequest(context.HttpContext));
+            bool orResult = orCheckers.Any(c => c.IsValidRequest(context.HttpContext));
+            if (customRequestCheckers.Count > 0 && (andResult || orResult))
             {
-                logger.LogInformation("Enforcing anti-forgery for the request.");
-                await antiforgery.ValidateRequestAsync(context.HttpContext);
-                
+                logger.LogInformation("Skipping anti-forgery for the request due to matching conditions.");
+                return;
             }
-            logger.LogInformation("Skipping anti-forgery for the request due to matching all conditions.");
+            logger.LogInformation("Enforcing anti-forgery for the request.");
+            await antiforgery.ValidateRequestAsync(context.HttpContext);
         }
     }
 }

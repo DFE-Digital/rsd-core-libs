@@ -1,6 +1,5 @@
-﻿using AutoFixture;
-using AutoFixture.AutoNSubstitute;
-using DfE.CoreLibs.Security.Cypress;
+﻿using DfE.CoreLibs.Security.Cypress;
+using DfE.CoreLibs.Security.Enums;
 using DfE.CoreLibs.Security.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -12,8 +11,6 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
 {
     public class CypressAuthenticationExtensionsTests
     {
-        private readonly IFixture _fixture = new Fixture().Customize(new AutoNSubstituteCustomization());
-
         [Fact]
         public async Task AddCypressMultiAuthentication_RegistersRequiredServicesAndPolicyScheme()
         {
@@ -47,6 +44,7 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             var selector = new Func<HttpContext, string>(context =>
             {
                 var chk = context.RequestServices.GetRequiredService<ICustomRequestChecker>();
+                Assert.Equal(OperatorType.Or, checker.Operator);
                 return chk.IsValidRequest(context) ? "CypressAuth" : "Cookies";
             });
             var schemeName = selector(httpContext);
@@ -72,11 +70,12 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
                 RequestServices = sp
             };
 
-            Func<HttpContext, string> forwardSelector = context =>
+            static string forwardSelector(HttpContext context)
             {
                 var checker = context.RequestServices.GetRequiredService<ICustomRequestChecker>();
+                Assert.Equal(OperatorType.Or, checker.Operator);
                 return checker.IsValidRequest(context) ? cypressScheme : fallbackScheme;
-            };
+            }
 
             // Act
             var selectedScheme = forwardSelector(httpContext);
@@ -84,6 +83,5 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             // Assert
             Assert.Equal(fallbackScheme, selectedScheme);
         }
-    
-}
+    }
 }
