@@ -19,11 +19,16 @@ namespace Microsoft.Extensions.DependencyInjection
             // If no configuration delegate is provided, use defaults
             if (configureOptions != null)
             {
-                services.Configure(configureOptions);
+                services.AddOptions<BackgroundServiceOptions>()
+                    .Configure(configureOptions)
+                    .ValidateDataAnnotations()
+                    .ValidateOnStart();
             }
             else
             {
-                services.Configure<BackgroundServiceOptions>(_ => { });
+                services.AddOptions<BackgroundServiceOptions>()
+                    .Configure(_ => { })
+                    .ValidateOnStart();
             }
 
             services.AddSingleton<IBackgroundServiceFactory, BackgroundServiceFactory>();
