@@ -5,7 +5,6 @@ using DfE.CoreLibs.Security.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using DfE.CoreLibs.Security.Cypress;
-using Microsoft.AspNetCore.Http;
 
 namespace DfE.CoreLibs.Security.Tests.Antiforgery
 {

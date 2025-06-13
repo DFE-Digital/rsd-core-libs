@@ -44,7 +44,6 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             var selector = new Func<HttpContext, string>(context =>
             {
                 var chk = context.RequestServices.GetRequiredService<ICustomRequestChecker>();
-                Assert.Equal(OperatorType.Or, checker.Operator);
                 return chk.IsValidRequest(context) ? "CypressAuth" : "Cookies";
             });
             var schemeName = selector(httpContext);
@@ -73,7 +72,6 @@ namespace DfE.CoreLibs.Security.Tests.CypressTests
             static string forwardSelector(HttpContext context)
             {
                 var checker = context.RequestServices.GetRequiredService<ICustomRequestChecker>();
-                Assert.Equal(OperatorType.Or, checker.Operator);
                 return checker.IsValidRequest(context) ? cypressScheme : fallbackScheme;
             }
 

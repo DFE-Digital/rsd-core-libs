@@ -33,7 +33,7 @@ namespace DfE.CoreLibs.Security.Antiforgery
                     .Where(c => g.TypeNames.Contains(c.GetType().Name))
                     .ToList();
 
-                if (!matchers.Any())
+                if (matchers.Count == 0)
                 {
                     groupResults.Add(true);
                     continue;
@@ -56,13 +56,13 @@ namespace DfE.CoreLibs.Security.Antiforgery
             }
 
             // only skip antiforgery if every group passed, this is the case if we have morte than one group of Checkers
-            if (groupResults.All(r => r))
+            if (groupResults.Count > 0 && groupResults.All(r => r))
             {
                 logger.LogInformation("All groups passed > skipping antiforgery.");
                 return;
             }
 
-            logger.LogInformation("Enforcing antiforgery.");
+            logger.LogInformation("Enforcing anti-forgery for the request.");
             await antiforgery.ValidateRequestAsync(context.HttpContext);
         }
     }
