@@ -79,24 +79,15 @@ namespace DfE.CoreLibs.Security.Authorization
         /// <returns>The generated JWT token as a string.</returns>
         private string GenerateToken(ClaimsPrincipal user)
         {
-            // Extract claims
-            var claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.Name, user.Identity?.Name ?? string.Empty),
-                new Claim(ClaimTypes.NameIdentifier, user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty)
-            };
+            var claims = user.Claims
+                .Select(c => new Claim(c.Type, c.Value))
+                .ToList();
 
-            // Add role claims
-            var roleClaims = user.Claims.Where(c => c.Type == ClaimTypes.Role);
-            claims.AddRange(roleClaims);
+            var key = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(_tokenSettings.SecretKey));
 
-            // Create the symmetric security key
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_tokenSettings.SecretKey));
-
-            // Create signing credentials
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            // Create the token
             var token = new JwtSecurityToken(
                 issuer: _tokenSettings.Issuer,
                 audience: _tokenSettings.Audience,
