@@ -16,6 +16,8 @@
         public bool SaveTokens { get; set; } = true;
         public bool UseTokenLifetime { get; set; } = true;
         public string NameClaimType { get; set; } = "email";
+        public string? Issuer { get; set; }
+        public string? JwksUri { get; set; }
         public IList<string> Scopes { get; set; } = new List<string>();
     }
 }
