@@ -1,7 +1,7 @@
-﻿using System.Text;
-using DfE.CoreLibs.Security.Authorization;
+﻿using DfE.CoreLibs.Security.Authorization;
 using DfE.CoreLibs.Security.Configurations;
 using DfE.CoreLibs.Security.Interfaces;
+using DfE.CoreLibs.Security.OpenIdConnect;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
@@ -11,6 +11,7 @@ using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Tokens;
 using Moq;
 using NSubstitute;
+using System.Text;
 
 namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
 {
@@ -45,7 +46,6 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             // Act
             _services.AddMemoryCache();
             _services.AddLogging();
-
             _services.AddSingleton<IConfiguration>(_configuration);
 
             var tokenAcquisitionMock = Substitute.For<ITokenAcquisition>();
@@ -71,23 +71,28 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             var jwtBearerEvents = new Mock<JwtBearerEvents>().Object;
 
             _services.AddAuthentication()
-                .AddJwtBearer(authenticationScheme, options =>
-                {
-                    options.Events = jwtBearerEvents;
-                });
+                     .AddJwtBearer(authenticationScheme, options =>
+                     {
+                         options.Events = jwtBearerEvents;
+                     });
 
             _services.AddLogging();
             _services.AddSingleton<IConfiguration>(_configuration);
 
             // Act
-            _services.AddCustomJwtAuthentication(_configuration, authenticationScheme, new AuthenticationBuilder(_services), jwtBearerEvents);
+            _services.AddCustomJwtAuthentication(
+                _configuration,
+                authenticationScheme,
+                new AuthenticationBuilder(_services),
+                jwtBearerEvents);
+
             var provider = _services.BuildServiceProvider();
 
             // Assert
             var tokenSettings = _configuration.GetSection("Authorization:TokenSettings").Get<TokenSettings>();
             var symmetricKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenSettings?.SecretKey!));
-
             var jwtOptionsMonitor = provider.GetService<IOptionsMonitor<JwtBearerOptions>>();
+
             Assert.NotNull(jwtOptionsMonitor);
 
             var jwtOptions = jwtOptionsMonitor.Get(authenticationScheme);
@@ -99,7 +104,6 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
                 ((SymmetricSecurityKey)jwtOptions.TokenValidationParameters.IssuerSigningKey).Key
             );
         }
-
 
         [Fact]
         public void AddCustomJwtAuthentication_ShouldThrowException_WhenTokenSettingsMissing()
@@ -117,7 +121,48 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
 
             // Act & Assert
             Assert.Throws<ArgumentNullException>(() =>
-                _services.AddCustomJwtAuthentication(invalidConfiguration, authenticationScheme, authenticationBuilder));
+                _services.AddCustomJwtAuthentication(
+                    invalidConfiguration,
+                    authenticationScheme,
+                    authenticationBuilder));
+        }
+
+        [Fact]
+        public void AddExternalIdentityValidation_ShouldBindOptions_AddHttpClient_AddValidator()
+        {
+            // Arrange: in-memory config for DfESignIn section
+            var inMemorySettings = new Dictionary<string, string>
+            {
+                ["DfESignIn:Issuer"] = "https://idp.example.com/",
+                ["DfESignIn:DiscoveryEndpoint"] = "https://idp.example.com/.well-known/openid-configuration"
+            };
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(inMemorySettings)
+                .Build();
+
+            var services = new ServiceCollection();
+
+            // Act
+            services.AddExternalIdentityValidation(config);
+            var provider = services.BuildServiceProvider();
+
+            // Assert: OpenIdConnectOptions bound
+            var opts = provider.GetService<IOptions<OpenIdConnectOptions>>();
+            Assert.NotNull(opts);
+            Assert.Equal("https://idp.example.com/", opts.Value.Issuer);
+            Assert.Equal(
+                "https://idp.example.com/.well-known/openid-configuration",
+                opts.Value.DiscoveryEndpoint
+            );
+
+            // Assert: IHttpClientFactory registered
+            var httpClientFactory = provider.GetService<IHttpClientFactory>();
+            Assert.NotNull(httpClientFactory);
+
+            // Assert: IExternalIdentityValidator registered
+            var validator = provider.GetService<IExternalIdentityValidator>();
+            Assert.NotNull(validator);
+            Assert.IsType<ExternalIdentityValidator>(validator);
         }
     }
 }
