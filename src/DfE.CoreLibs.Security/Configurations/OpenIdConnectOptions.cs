@@ -18,6 +18,7 @@
         public string NameClaimType { get; set; } = "email";
         public string? Issuer { get; set; }
         public string? JwksUri { get; set; }
+        public string? DiscoveryEndpoint { get; set; }
         public IList<string> Scopes { get; set; } = new List<string>();
     }
 }
