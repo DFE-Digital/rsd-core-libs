@@ -19,7 +19,7 @@ public static class StringExtensions
         return source == null
             ? string.Empty
             : Regex.Replace(source.ToString() ?? string.Empty, "[A-Z]", " $0", RegexOptions.None,
-                TimeSpan.FromSeconds(1)).Trim();
+                TimeSpan.FromSeconds(5)).Trim();
     }
 
     /// <summary>
@@ -154,7 +154,7 @@ public static class StringExtensions
     /// <returns>A string.</returns>
     public static string ToHyphenated(this string str)
     {
-        var whitespaceRegex = new Regex(@"\s+", RegexOptions.None, TimeSpan.FromSeconds(1));
+        var whitespaceRegex = new Regex(@"\s+", RegexOptions.None, TimeSpan.FromSeconds(5));
         return whitespaceRegex.Replace(str, "-");
     }
 
@@ -165,7 +165,7 @@ public static class StringExtensions
     /// <returns>A string.</returns>
     public static string RemoveNonAlphanumericOrWhiteSpace(this string str)
     {
-        var notAlphanumericWhiteSpaceOrHyphen = new Regex(@"[^\w\s-]", RegexOptions.None, TimeSpan.FromSeconds(1));
+        var notAlphanumericWhiteSpaceOrHyphen = new Regex(@"[^\w\s-]", RegexOptions.None, TimeSpan.FromSeconds(5));
         return notAlphanumericWhiteSpaceOrHyphen.Replace(str, string.Empty);
     }
 }
