@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.AspNetCore.Authentication;
+using DfE.CoreLibs.Security.OpenIdConnect;
 
 namespace DfE.CoreLibs.Security
 {
@@ -41,10 +42,6 @@ namespace DfE.CoreLibs.Security
         }
 
         /// <summary>
-        /// ----<br/>
-        /// DO NOT USE THIS METHOD IF YOU ARE USING AZURE OR ANY OTHER THIRD PARTY IDENTITY SERVICE PROVIDER TO GENERATE AN ACCESS TOKEN.
-        /// ONLY USE THIS METHOD IF YOU ARE USING <see cref="IUserTokenService.GetUserTokenAsync"/> TO GENERATE A CUSTOM TOKEN.
-        /// ----<br/>
         /// Adds and configures Custom JWT Bearer authentication which uses Symmetric Security Key to validate a custom token.
         /// </summary>
         /// <param name="services">The service collection to which authentication services are added.</param>
@@ -87,6 +84,35 @@ namespace DfE.CoreLibs.Security
                 if (jwtBearerEvents != null)
                     options.Events = jwtBearerEvents;
             });
+
+            return services;
+        }
+
+        /// <summary>
+        /// Registers the OpenID Connect token validator, binding configuration
+        /// from the specified section, and ensures <see cref="IExternalIdentityValidator"/>
+        /// is available for DI.
+        /// </summary>
+        /// <param name="services">The service collection to add to.</param>
+        /// <param name="configuration">
+        /// Your application configuration root (used to bind OpenIdConnectOptions).
+        /// </param>
+        /// <param name="sectionName">
+        /// The configuration section name containing your OIDC settings
+        /// (defaults to "DfESignIn").
+        /// </param>
+        /// <returns>The original <see cref="IServiceCollection"/> for chaining.</returns>
+        public static IServiceCollection AddExternalIdentityValidation(
+            this IServiceCollection services,
+            IConfiguration configuration,
+            string sectionName = "DfESignIn")
+        {
+            services.Configure<OpenIdConnectOptions>(
+                configuration.GetSection(sectionName));
+
+            services.AddHttpClient();
+
+            services.AddSingleton<IExternalIdentityValidator, ExternalIdentityValidator>();
 
             return services;
         }
