@@ -16,9 +16,15 @@
         public bool SaveTokens { get; set; } = true;
         public bool UseTokenLifetime { get; set; } = true;
         public string NameClaimType { get; set; } = "email";
+
+        // Token validation
         public string? Issuer { get; set; }
         public string? JwksUri { get; set; }
         public string? DiscoveryEndpoint { get; set; }
+        public bool ValidateIssuer { get; set; } = true;
+        public bool ValidateAudience { get; set; } = false;
+        public bool ValidateLifetime { get; set; } = true;
+
         public IList<string> Scopes { get; set; } = new List<string>();
     }
 }
