@@ -1,11 +1,10 @@
-﻿using System.Security.Claims;
-using DfE.CoreLibs.Security.Extensions;
+﻿using DfE.CoreLibs.Security.Extensions;
+using System.Security.Claims;
 
 namespace DfE.CoreLibs.Security.Interfaces
 {
     /// <summary>
-    /// A facade over <see cref="ClaimsPrincipal"/> exposing the current user
-    /// and their resource-based permissions.
+    /// Extended user context exposing additional details about the current user.
     /// </summary>
     public interface ICurrentUser
     {
@@ -30,5 +29,32 @@ namespace DfE.CoreLibs.Security.Interfaces
         ///   <see cref="PermissionExtensions.DefaultPermissionClaimType"/>.
         /// </param>
         bool HasPermission(string resourceKey, string action, string claimType = PermissionExtensions.DefaultPermissionClaimType);
+
+        /// <summary>
+        /// The email address of the current user (if available).
+        /// </summary>
+        string? Email { get; }
+
+        /// <summary>
+        /// Returns true if the current user is authenticated.
+        /// </summary>
+        bool IsAuthenticated { get; }
+
+        /// <summary>
+        /// The underlying <see cref="ClaimsPrincipal"/> for advanced scenarios.
+        /// </summary>
+        ClaimsPrincipal Principal { get; }
+
+        /// <summary>
+        /// All claims belonging to the user.
+        /// </summary>
+        IEnumerable<Claim> Claims { get; }
+
+        /// <summary>
+        /// Retrieves the value for a given claim type if present.
+        /// </summary>
+        /// <param name="claimType">The claim type.</param>
+        /// <returns>The claim value or <c>null</c> if missing.</returns>
+        string? GetClaimValue(string claimType);
     }
 }
