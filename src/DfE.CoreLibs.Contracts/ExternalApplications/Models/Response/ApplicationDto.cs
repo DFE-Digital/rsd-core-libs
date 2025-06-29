@@ -11,7 +11,5 @@ namespace DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
         public ApplicationStatus? Status { get; set; } = null;
         public DateTime DateCreated { get; set; }
         public DateTime? DateSubmitted { get; set; }
-
-
     }
 }

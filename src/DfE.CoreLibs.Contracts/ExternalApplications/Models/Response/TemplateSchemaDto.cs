@@ -3,6 +3,7 @@
 public class TemplateSchemaDto
 {
     public required Guid TemplateId { get; set; }
+    public required Guid TemplateVersionId { get; set; }
     public required string VersionNumber { get; set; }
     public required string JsonSchema { get; set; }
 }
