@@ -4,9 +4,10 @@
     {
         Application = 0,
         User = 1,
-        TaskGroup = 2,
-        Task = 3,
-        Page = 4,
-        Field = 5
+        Template = 2,
+        TaskGroup = 3,
+        Task = 4,
+        Page = 5,
+        Field = 6
     }
 }
