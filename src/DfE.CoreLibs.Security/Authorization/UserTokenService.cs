@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using DfE.CoreLibs.Caching.Helpers;
 using Microsoft.Extensions.Options;
 
 namespace DfE.CoreLibs.Security.Authorization
@@ -47,7 +48,14 @@ namespace DfE.CoreLibs.Security.Authorization
             if (string.IsNullOrEmpty(userId))
                 throw new InvalidOperationException("User does not have a valid identifier.");
 
-            var cacheKey = $"UserToken_{userId}";
+            var claimStrings = user.Claims
+                .OrderBy(c => c.Type)
+                .Select(c => $"{c.Type}:{c.Value}")
+                .ToList();
+
+            var hashed = CacheKeyHelper.GenerateHashedCacheKey(claimStrings);
+
+            var cacheKey = $"UserToken_{userId}_{hashed}";
 
             // Try to get the token from cache
             if (_cache.TryGetValue(cacheKey, out string? cachedToken))
