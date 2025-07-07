@@ -53,6 +53,8 @@ namespace DfE.CoreLibs.Security.Authorization
                 .Select(c => $"{c.Type}:{c.Value}")
                 .ToList();
 
+            _logger.LogWarning("Temp UserToken Claims : {claimStrings}", claimStrings);
+
             var hashed = CacheKeyHelper.GenerateHashedCacheKey(claimStrings);
 
             var cacheKey = $"UserToken_{userId}_{hashed}";
@@ -60,7 +62,7 @@ namespace DfE.CoreLibs.Security.Authorization
             // Try to get the token from cache
             if (_cache.TryGetValue(cacheKey, out string? cachedToken))
             {
-                _logger.LogInformation("Token retrieved from cache for user: {UserId}", userId);
+                _logger.LogWarning("Token retrieved from cache for user: {UserId} and cache key: {cacheKey}", userId, cacheKey);
                 return Task.FromResult(cachedToken!);
             }
 
@@ -76,6 +78,8 @@ namespace DfE.CoreLibs.Security.Authorization
 
             // Save the token in cache
             _cache.Set(cacheKey, token, cacheEntryOptions);
+
+            _logger.LogWarning("Token Generated: {token}", token);
 
             return Task.FromResult(token);
         }
