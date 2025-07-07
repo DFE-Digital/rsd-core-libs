@@ -1,4 +1,7 @@
 ﻿namespace DfE.CoreLibs.Contracts.ExternalApplications.Models.Request
 {
-    public sealed record AddApplicationResponseRequest(string ResponseBody);
+    public class AddApplicationResponseRequest
+    {
+        public required string ResponseBody { get; set; }
+    }
 }
