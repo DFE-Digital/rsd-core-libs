@@ -109,6 +109,7 @@ namespace DfE.CoreLibs.Security
         {
             services.Configure<OpenIdConnectOptions>(
                 configuration.GetSection(sectionName));
+            services.Configure<TestAuthenticationOptions>(configuration.GetSection(TestAuthenticationOptions.SectionName));
 
             services.AddHttpClient();
 
