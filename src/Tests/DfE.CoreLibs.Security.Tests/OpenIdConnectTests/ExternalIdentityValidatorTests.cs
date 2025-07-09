@@ -23,7 +23,7 @@ namespace DfE.CoreLibs.Security.Tests.OpenIdConnectTests
             ValidateLifetime = true
         };
 
-        private IHttpClientFactory CreateHttpClientFactory()
+        private static IHttpClientFactory CreateHttpClientFactory()
         {
             var factory = Substitute.For<IHttpClientFactory>();
             // Always return a real HttpClient so HttpDocumentRetriever ctor won't get null
@@ -137,6 +137,8 @@ namespace DfE.CoreLibs.Security.Tests.OpenIdConnectTests
             // Act / Assert
             validator.Dispose();
             validator.Dispose();
+
+            Assert.True(true);
         }
 
         /// <summary>

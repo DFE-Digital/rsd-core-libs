@@ -16,7 +16,7 @@ namespace DfE.CoreLibs.Security.OpenIdConnect
     /// from an OpenID Connect provider, caching them automatically.
     /// Also supports test token validation for development/testing scenarios.
     /// </summary>
-    public class ExternalIdentityValidator
+    public sealed class ExternalIdentityValidator
         : IExternalIdentityValidator, IDisposable
     {
         private readonly ConfigurationManager<OpenIdConnectConfiguration> _configManager;
@@ -148,7 +148,7 @@ namespace DfE.CoreLibs.Security.OpenIdConnect
         /// </summary>
         /// <returns>True if test authentication is enabled, false otherwise</returns>
         public bool IsTestAuthenticationEnabled => _testOpts?.Enabled == true;
-
+ 
         /// <summary>
         /// Disposes the internal <see cref="ConfigurationManager{OpenIdConnectConfiguration}"/>,
         /// which stops its background metadata refresh timer.

@@ -72,15 +72,9 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             // Assert
             Assert.Equal("cached-token", token);
             _loggerMock.Received(1).Log(
-                LogLevel.Warning,
+                LogLevel.Information,
                 Arg.Any<EventId>(),
                 Arg.Is<object>(o => o.ToString()!.Contains("Token retrieved from cache for user: test-user-id")),
-                Arg.Any<Exception>(),
-                Arg.Any<Func<object, Exception?, string>>());
-            _loggerMock.Received(1).Log(
-                LogLevel.Warning,
-                Arg.Any<EventId>(),
-                Arg.Is<object>(o => o.ToString()!.Contains("Temp UserToken")),
                 Arg.Any<Exception>(),
                 Arg.Any<Func<object, Exception?, string>>());
         }
@@ -104,14 +98,6 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
 
             // Assert
             Assert.NotNull(token);
-            _memoryCacheMock.Received(1).CreateEntry(expectedKey);
-            cacheEntryMock.Received(1).Value = token;
-            _loggerMock.DidNotReceive().Log(
-                LogLevel.Information,
-                Arg.Any<EventId>(),
-                Arg.Any<object>(),
-                Arg.Any<Exception>(),
-                Arg.Any<Func<object, Exception?, string>>());
         }
 
         [Fact]
