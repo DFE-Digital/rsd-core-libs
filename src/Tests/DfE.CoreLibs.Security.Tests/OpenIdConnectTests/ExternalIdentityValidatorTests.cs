@@ -14,7 +14,7 @@ namespace DfE.CoreLibs.Security.Tests.OpenIdConnectTests
 {
     public class ExternalIdentityValidatorTests
     {
-        private readonly OpenIdConnectOptions _opts = new OpenIdConnectOptions
+        private readonly OpenIdConnectOptions _oidcOpts = new OpenIdConnectOptions
         {
             Issuer = "https://idp.example.com/",
             DiscoveryEndpoint = "https://idp.example.com/.well-known/openid-configuration",
@@ -22,6 +22,15 @@ namespace DfE.CoreLibs.Security.Tests.OpenIdConnectTests
             ValidateAudience = false,
             ValidateLifetime = true
         };
+
+        private static IHttpClientFactory CreateHttpClientFactory()
+        {
+            var factory = Substitute.For<IHttpClientFactory>();
+            // Always return a real HttpClient so HttpDocumentRetriever ctor won't get null
+            factory.CreateClient(Arg.Any<string>()).Returns(new System.Net.Http.HttpClient());
+            return factory;
+        }
+
 
         [Fact]
         public async Task ValidateIdTokenAsync_ValidToken_ReturnsPrincipal()
@@ -33,7 +42,7 @@ namespace DfE.CoreLibs.Security.Tests.OpenIdConnectTests
             var handler = new JwtSecurityTokenHandler();
             var descriptor = new SecurityTokenDescriptor
             {
-                Issuer = _opts.Issuer,
+                Issuer = _oidcOpts.Issuer,
                 Subject = new ClaimsIdentity(new[]
                 {
                     new Claim(ClaimTypes.NameIdentifier, "user1"),
@@ -44,7 +53,7 @@ namespace DfE.CoreLibs.Security.Tests.OpenIdConnectTests
             };
             var tokenString = handler.WriteToken(handler.CreateToken(descriptor));
 
-            var openIdConfig = new OpenIdConnectConfiguration { Issuer = _opts.Issuer };
+            var openIdConfig = new OpenIdConnectConfiguration { Issuer = _oidcOpts.Issuer };
             openIdConfig.SigningKeys.Add(signingKey);
 
             var stubConfigManager = new StubConfigManager(openIdConfig);
@@ -55,7 +64,7 @@ namespace DfE.CoreLibs.Security.Tests.OpenIdConnectTests
                 .Returns(new System.Net.Http.HttpClient());
 
             var validator = new ExternalIdentityValidator(
-                Options.Create(_opts),
+                Options.Create(_oidcOpts),
                 httpClientFactory);
 
             var field = typeof(ExternalIdentityValidator)
@@ -88,7 +97,7 @@ namespace DfE.CoreLibs.Security.Tests.OpenIdConnectTests
                 .Returns(new System.Net.Http.HttpClient());
 
             var validator = new ExternalIdentityValidator(
-                Options.Create(_opts),
+                Options.Create(_oidcOpts),
                 httpClientFactory);
 
             // Inject stub
@@ -116,7 +125,7 @@ namespace DfE.CoreLibs.Security.Tests.OpenIdConnectTests
                 .Returns(new System.Net.Http.HttpClient());
 
             var validator = new ExternalIdentityValidator(
-                Options.Create(_opts),
+                Options.Create(_oidcOpts),
                 httpClientFactory);
 
             // Inject stub
@@ -128,6 +137,8 @@ namespace DfE.CoreLibs.Security.Tests.OpenIdConnectTests
             // Act / Assert
             validator.Dispose();
             validator.Dispose();
+
+            Assert.True(true);
         }
 
         /// <summary>
@@ -156,6 +167,232 @@ namespace DfE.CoreLibs.Security.Tests.OpenIdConnectTests
             {
                 return Task.FromResult(_config);
             }
+        }
+
+        [Fact]
+        public void Constructor_NullOptions_ThrowsArgumentNullException()
+        {
+            var factory = CreateHttpClientFactory();
+            Assert.Throws<ArgumentNullException>(() =>
+                new ExternalIdentityValidator(
+                    /* options: */ null!,
+                    factory));
+        }
+
+        [Fact]
+        public void IsTestAuthenticationEnabled_Default_ReturnsFalse()
+        {
+            var factory = CreateHttpClientFactory();
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory);
+
+            Assert.False(validator.IsTestAuthenticationEnabled);
+        }
+
+        [Fact]
+        public void IsTestAuthenticationEnabled_WhenEnabled_ReturnsTrue()
+        {
+            var factory = CreateHttpClientFactory();
+            var testOpts = new TestAuthenticationOptions
+            {
+                Enabled = true,
+                JwtSigningKey = "any-key",
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = false
+            };
+
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                Options.Create(testOpts));
+
+            Assert.True(validator.IsTestAuthenticationEnabled);
+        }
+
+        [Fact]
+        public void ValidateTestIdToken_NullOrWhitespace_ThrowsArgumentNullException()
+        {
+            var factory = CreateHttpClientFactory();
+            var testOpts = new TestAuthenticationOptions
+            {
+                Enabled = true,
+                JwtSigningKey = "key",
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = false
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                Options.Create(testOpts));
+
+            Assert.Throws<ArgumentNullException>(() => validator.ValidateTestIdToken(null!));
+            Assert.Throws<ArgumentNullException>(() => validator.ValidateTestIdToken(""));
+            Assert.Throws<ArgumentNullException>(() => validator.ValidateTestIdToken("   "));
+        }
+
+        [Fact]
+        public void ValidateTestIdToken_NotEnabled_ThrowsInvalidOperationException()
+        {
+            var factory = CreateHttpClientFactory();
+            var testOpts = new TestAuthenticationOptions
+            {
+                Enabled = false,
+                JwtSigningKey = "key",
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = false
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                Options.Create(testOpts));
+
+            Assert.Throws<InvalidOperationException>(() =>
+                validator.ValidateTestIdToken("some-token"));
+        }
+
+        [Fact]
+        public void ValidateTestIdToken_NoSigningKey_ThrowsInvalidOperationException()
+        {
+            var factory = CreateHttpClientFactory();
+            var testOpts = new TestAuthenticationOptions
+            {
+                Enabled = true,
+                JwtSigningKey = "", // missing
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = false
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                Options.Create(testOpts));
+
+            Assert.Throws<InvalidOperationException>(() =>
+                validator.ValidateTestIdToken("some-token"));
+        }
+
+        [Fact]
+        public void ValidateTestIdToken_InvalidSignature_ThrowsSecurityTokenException()
+        {
+            var factory = CreateHttpClientFactory();
+            var validKey = Encoding.UTF8.GetBytes("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+            var testOpts = new TestAuthenticationOptions
+            {
+                Enabled = true,
+                JwtSigningKey = Encoding.UTF8.GetString(validKey),
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = false
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                Options.Create(testOpts));
+
+            // Token signed with a *different* key
+            var badKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"));
+            var creds = new SigningCredentials(badKey, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "user-x")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var badToken = handler.WriteToken(handler.CreateToken(descriptor));
+
+            Assert.Throws<SecurityTokenException>(() =>
+                validator.ValidateTestIdToken(badToken));
+        }
+
+        [Fact]
+        public void ValidateTestIdToken_ValidToken_ReturnsPrincipal()
+        {
+            var factory = CreateHttpClientFactory();
+            var rawKey = "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+            var testOpts = new TestAuthenticationOptions
+            {
+                Enabled = true,
+                JwtSigningKey = rawKey,
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = false
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                Options.Create(testOpts));
+
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(rawKey));
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "test-user"),
+                    new Claim(ClaimTypes.Email, "test@example.com")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var token = handler.WriteToken(handler.CreateToken(descriptor));
+
+            var principal = validator.ValidateTestIdToken(token);
+
+            Assert.NotNull(principal);
+            Assert.True(principal.Identity?.IsAuthenticated);
+            Assert.Equal("test-user",
+                principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            Assert.Equal("test@example.com",
+                principal.FindFirst(ClaimTypes.Email)?.Value);
+        }
+
+        [Fact]
+        public async System.Threading.Tasks.Task ValidateIdTokenAsync_WithTestOptionsEnabled_UsesTestPath()
+        {
+            var factory = CreateHttpClientFactory();
+            var rawKey = "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD";
+            var testOpts = new TestAuthenticationOptions
+            {
+                Enabled = true,
+                JwtSigningKey = rawKey,
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = false
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                Options.Create(testOpts));
+
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(rawKey));
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "async-user")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var token = handler.WriteToken(handler.CreateToken(descriptor));
+
+            var principal = await validator.ValidateIdTokenAsync(token);
+
+            Assert.NotNull(principal);
+            Assert.True(principal.Identity?.IsAuthenticated);
+            Assert.Equal("async-user",
+                principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
         }
     }
 }

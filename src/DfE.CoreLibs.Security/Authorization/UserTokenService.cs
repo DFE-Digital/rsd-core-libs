@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using DfE.CoreLibs.Caching.Helpers;
 using Microsoft.Extensions.Options;
 
 namespace DfE.CoreLibs.Security.Authorization
@@ -39,20 +40,26 @@ namespace DfE.CoreLibs.Security.Authorization
         /// <inheritdoc />
         public Task<string> GetUserTokenAsync(ClaimsPrincipal user)
         {
-            if (user == null)
-                throw new ArgumentNullException(nameof(user));
+            ArgumentNullException.ThrowIfNull(user);
 
             // Generate a unique cache key based on the user's unique identifier
             var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? user.Identity?.Name;
             if (string.IsNullOrEmpty(userId))
                 throw new InvalidOperationException("User does not have a valid identifier.");
 
-            var cacheKey = $"UserToken_{userId}";
+            var claimStrings = user.Claims
+                .OrderBy(c => c.Type)
+                .Select(c => $"{c.Type}:{c.Value}")
+                .ToList();
+
+            var hashed = CacheKeyHelper.GenerateHashedCacheKey(claimStrings);
+
+            var cacheKey = $"UserToken_{userId}_{hashed}";
 
             // Try to get the token from cache
             if (_cache.TryGetValue(cacheKey, out string? cachedToken))
             {
-                _logger.LogInformation("Token retrieved from cache for user: {UserId}", userId);
+                _logger.LogInformation("Token retrieved from cache for user: {UserId} and cache key: {cacheKey}", userId, cacheKey);
                 return Task.FromResult(cachedToken!);
             }
 
@@ -68,6 +75,8 @@ namespace DfE.CoreLibs.Security.Authorization
 
             // Save the token in cache
             _cache.Set(cacheKey, token, cacheEntryOptions);
+
+            _logger.LogInformation("Token Generated.");
 
             return Task.FromResult(token);
         }

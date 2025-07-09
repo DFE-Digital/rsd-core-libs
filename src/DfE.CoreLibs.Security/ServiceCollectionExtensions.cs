@@ -57,9 +57,9 @@ namespace DfE.CoreLibs.Security
 
             if (tokenSettings == null)
             {
-#pragma warning disable S3928
+#pragma warning disable CA2208
                 throw new ArgumentNullException(nameof(tokenSettings), "TokenSettings section is missing in configuration.");
-#pragma warning restore S3928
+#pragma warning restore CA2208
             }
 
             authenticationBuilder.AddJwtBearer(authenticationScheme: authenticationScheme, options =>
@@ -109,6 +109,7 @@ namespace DfE.CoreLibs.Security
         {
             services.Configure<OpenIdConnectOptions>(
                 configuration.GetSection(sectionName));
+            services.Configure<TestAuthenticationOptions>(configuration.GetSection(TestAuthenticationOptions.SectionName));
 
             services.AddHttpClient();
 
