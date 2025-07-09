@@ -51,33 +51,39 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             return $"UserToken_test-user-id_{hash}";
         }
 
-        //[Fact]
-        //public async Task GetUserTokenAsync_ReturnsCachedToken_WhenTokenExists()
-        //{
-        //    // Arrange
-        //    var expectedKey = ComputeExpectedCacheKey();
-        //    _memoryCacheMock
-        //        .TryGetValue(expectedKey, out Arg.Any<object>()!)
-        //        .Returns(call =>
-        //        {
-        //            call[1] = "cached-token";
-        //            return true;
-        //        });
+        [Fact]
+        public async Task GetUserTokenAsync_ReturnsCachedToken_WhenTokenExists()
+        {
+            // Arrange
+            var expectedKey = ComputeExpectedCacheKey();
+            _memoryCacheMock
+                .TryGetValue(expectedKey, out Arg.Any<object>()!)
+                .Returns(call =>
+                {
+                    call[1] = "cached-token";
+                    return true;
+                });
 
-        //    var service = new UserTokenService(_tokenSettingsMock, _memoryCacheMock, _loggerMock);
+            var service = new UserTokenService(_tokenSettingsMock, _memoryCacheMock, _loggerMock);
 
-        //    // Act
-        //    var token = await service.GetUserTokenAsync(_testUser);
+            // Act
+            var token = await service.GetUserTokenAsync(_testUser);
 
-        //    // Assert
-        //    Assert.Equal("cached-token", token);
-        //    _loggerMock.Received(1).Log(
-        //        LogLevel.Information,
-        //        Arg.Any<EventId>(),
-        //        Arg.Is<object>(o => o.ToString()!.Contains("Token retrieved from cache for user: test-user-id")),
-        //        Arg.Any<Exception>(),
-        //        Arg.Any<Func<object, Exception?, string>>());
-        //}
+            // Assert
+            Assert.Equal("cached-token", token);
+            _loggerMock.Received(1).Log(
+                LogLevel.Warning,
+                Arg.Any<EventId>(),
+                Arg.Is<object>(o => o.ToString()!.Contains("Token retrieved from cache for user: test-user-id")),
+                Arg.Any<Exception>(),
+                Arg.Any<Func<object, Exception?, string>>());
+            _loggerMock.Received(1).Log(
+                LogLevel.Warning,
+                Arg.Any<EventId>(),
+                Arg.Is<object>(o => o.ToString()!.Contains("Temp UserToken")),
+                Arg.Any<Exception>(),
+                Arg.Any<Func<object, Exception?, string>>());
+        }
 
         [Fact]
         public async Task GetUserTokenAsync_GeneratesAndCachesToken_WhenTokenNotInCache()
