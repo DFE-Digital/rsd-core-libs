@@ -8,4 +8,5 @@ public static class DateFormatConstants
     public const string DateUkFormat = "dd/MM/yyyy";
     public const string YearMonthDayDashed = "yyyy-MM-dd";
     public const string FullMonthAndYearFormat = "MMMM yyyy";
+    public const string DateTimeWithAmPmString = "d MMMM yyyy h:mmtt";
 }
