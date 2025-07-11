@@ -12,5 +12,7 @@ namespace DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
         public DateTime DateCreated { get; set; }
         public DateTime? DateSubmitted { get; set; }
         public ApplicationResponseDetailsDto? LatestResponse { get; init; } = null;
+        public TemplateSchemaDto? TemplateSchema { get; set; }
+
     }
 }
