@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
+    <Title>DfE.CoreLibs.FileStorage</Title>
+    <Description>A provider-agnostic file storage abstraction supporting Azure File Service.</Description>
+    <Authors>DFE-Digital</Authors>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="readme.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Azure.Storage.Files.Shares" Version="12.17.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="readme.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>
