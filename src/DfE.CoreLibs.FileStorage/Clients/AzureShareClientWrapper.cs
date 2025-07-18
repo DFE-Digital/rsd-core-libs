@@ -2,14 +2,9 @@ using Azure.Storage.Files.Shares;
 
 namespace DfE.CoreLibs.FileStorage.Clients;
 
-internal class AzureShareClientWrapper : IShareClientWrapper
+internal class AzureShareClientWrapper(string connectionString, string shareName) : IShareClientWrapper
 {
-    private readonly ShareClient _shareClient;
-
-    public AzureShareClientWrapper(string connectionString, string shareName)
-    {
-        _shareClient = new ShareClient(connectionString, shareName);
-    }
+    private readonly ShareClient _shareClient = new ShareClient(connectionString, shareName);
 
     public async Task<IShareFileClient> GetFileClientAsync(string path, CancellationToken token = default)
     {
