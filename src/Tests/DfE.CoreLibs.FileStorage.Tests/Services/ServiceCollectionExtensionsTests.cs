@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using DfE.CoreLibs.FileStorage;
 using DfE.CoreLibs.FileStorage.Interfaces;
 using DfE.CoreLibs.FileStorage.Services;
+using DfE.CoreLibs.FileStorage.Settings;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -30,5 +31,52 @@ public class ServiceCollectionExtensionsTests
 
         var service = provider.GetService<IFileStorageService>();
         Assert.IsType<AzureFileStorageService>(service);
+    }
+
+    [Fact]
+    public void AddFileStorage_BindsOptions_FromConfiguration()
+    {
+        var inMemorySettings = new Dictionary<string, string?>
+        {
+            ["FileStorage:Provider"] = "Azure",
+            ["FileStorage:Azure:ConnectionString"] = "UseDevelopmentStorage=true",
+            ["FileStorage:Azure:ShareName"] = "files"
+        };
+
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(inMemorySettings!)
+            .Build();
+        var services = new ServiceCollection();
+
+        services.AddFileStorage(configuration);
+        var provider = services.BuildServiceProvider();
+
+        var options = provider.GetService<FileStorageOptions>();
+
+        Assert.NotNull(options);
+        Assert.Equal("Azure", options!.Provider);
+        Assert.Equal("UseDevelopmentStorage=true", options.Azure.ConnectionString);
+        Assert.Equal("files", options.Azure.ShareName);
+    }
+
+    [Fact]
+    public void AddFileStorage_NoServiceRegistered_WhenProviderUnknown()
+    {
+        var inMemorySettings = new Dictionary<string, string?>
+        {
+            ["FileStorage:Provider"] = "Unknown"
+        };
+
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(inMemorySettings!)
+            .Build();
+        var services = new ServiceCollection();
+
+        services.AddFileStorage(configuration);
+        var provider = services.BuildServiceProvider();
+
+        var service = provider.GetService<IFileStorageService>();
+
+        Assert.Null(service);
     }
 }
