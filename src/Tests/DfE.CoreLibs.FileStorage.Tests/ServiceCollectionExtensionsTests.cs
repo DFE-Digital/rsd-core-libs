@@ -40,6 +40,145 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddFileStorage_WithValidLocalConfiguration_ShouldRegisterServices()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var testDirectory = Path.Combine(Path.GetTempPath(), "TestFileStorage", Guid.NewGuid().ToString());
+        var configuration = CreateConfiguration(new Dictionary<string, string>
+        {
+            ["FileStorage:Provider"] = "Local",
+            ["FileStorage:Local:BaseDirectory"] = testDirectory,
+            ["FileStorage:Local:CreateDirectoryIfNotExists"] = "true",
+            ["FileStorage:Local:AllowOverwrite"] = "true",
+            ["FileStorage:Local:MaxFileSizeBytes"] = "104857600"
+        });
+
+        try
+        {
+            // Act
+            services.AddFileStorage(configuration);
+
+            // Assert
+            var serviceProvider = services.BuildServiceProvider();
+            var fileStorageService = serviceProvider.GetService<IFileStorageService>();
+            var options = serviceProvider.GetService<FileStorageOptions>();
+
+            Assert.NotNull(fileStorageService);
+            Assert.IsType<LocalFileStorageService>(fileStorageService);
+            Assert.NotNull(options);
+            Assert.Equal("Local", options.Provider);
+            Assert.Equal(testDirectory, options.Local.BaseDirectory);
+            Assert.True(options.Local.CreateDirectoryIfNotExists);
+            Assert.True(options.Local.AllowOverwrite);
+            Assert.Equal(104857600, options.Local.MaxFileSizeBytes);
+        }
+        finally
+        {
+            // Cleanup
+            if (Directory.Exists(testDirectory))
+            {
+                Directory.Delete(testDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void AddFileStorage_WithLocalProviderCaseInsensitive_ShouldRegisterServices()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var testDirectory = Path.Combine(Path.GetTempPath(), "TestFileStorage", Guid.NewGuid().ToString());
+        var configuration = CreateConfiguration(new Dictionary<string, string>
+        {
+            ["FileStorage:Provider"] = "LOCAL",
+            ["FileStorage:Local:BaseDirectory"] = testDirectory
+        });
+
+        try
+        {
+            // Act
+            services.AddFileStorage(configuration);
+
+            // Assert
+            var serviceProvider = services.BuildServiceProvider();
+            var fileStorageService = serviceProvider.GetService<IFileStorageService>();
+
+            Assert.NotNull(fileStorageService);
+            Assert.IsType<LocalFileStorageService>(fileStorageService);
+        }
+        finally
+        {
+            // Cleanup
+            if (Directory.Exists(testDirectory))
+            {
+                Directory.Delete(testDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void AddFileStorage_WithLocalProviderMixedCase_ShouldRegisterServices()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var testDirectory = Path.Combine(Path.GetTempPath(), "TestFileStorage", Guid.NewGuid().ToString());
+        var configuration = CreateConfiguration(new Dictionary<string, string>
+        {
+            ["FileStorage:Provider"] = "Local",
+            ["FileStorage:Local:BaseDirectory"] = testDirectory
+        });
+
+        try
+        {
+            // Act
+            services.AddFileStorage(configuration);
+
+            // Assert
+            var serviceProvider = services.BuildServiceProvider();
+            var fileStorageService = serviceProvider.GetService<IFileStorageService>();
+
+            Assert.NotNull(fileStorageService);
+            Assert.IsType<LocalFileStorageService>(fileStorageService);
+        }
+        finally
+        {
+            // Cleanup
+            if (Directory.Exists(testDirectory))
+            {
+                Directory.Delete(testDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void AddFileStorage_WithLocalProviderAndDefaultSettings_ShouldRegisterServices()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var configuration = CreateConfiguration(new Dictionary<string, string>
+        {
+            ["FileStorage:Provider"] = "Local"
+        });
+
+        // Act
+        services.AddFileStorage(configuration);
+
+        // Assert
+        var serviceProvider = services.BuildServiceProvider();
+        var fileStorageService = serviceProvider.GetService<IFileStorageService>();
+        var options = serviceProvider.GetService<FileStorageOptions>();
+
+        Assert.NotNull(fileStorageService);
+        Assert.IsType<LocalFileStorageService>(fileStorageService);
+        Assert.NotNull(options);
+        Assert.Equal("Local", options.Provider);
+        Assert.True(options.Local.CreateDirectoryIfNotExists);
+        Assert.True(options.Local.AllowOverwrite);
+        Assert.Equal(100 * 1024 * 1024, options.Local.MaxFileSizeBytes);
+    }
+
+    [Fact]
     public void AddFileStorage_WithNullServices_ShouldThrowArgumentNullException()
     {
         // Arrange

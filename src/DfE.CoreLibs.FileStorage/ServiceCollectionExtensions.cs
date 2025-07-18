@@ -40,6 +40,9 @@ public static class ServiceCollectionExtensions
             "azure" => ValidateAzureConfiguration(options) ? 
                 services.AddSingleton<IFileStorageService, AzureFileStorageService>() : 
                 throw new FileStorageConfigurationException("Invalid Azure File Storage configuration. ConnectionString and ShareName are required."),
+            "local" => ValidateLocalConfiguration(options) ? 
+                services.AddSingleton<IFileStorageService, LocalFileStorageService>() : 
+                throw new FileStorageConfigurationException("Invalid Local File Storage configuration."),
             _ => throw new FileStorageConfigurationException($"Unsupported file storage provider: {options.Provider}")
         };
     }
@@ -48,5 +51,11 @@ public static class ServiceCollectionExtensions
     {
         return !string.IsNullOrWhiteSpace(options.Azure.ConnectionString) && 
                !string.IsNullOrWhiteSpace(options.Azure.ShareName);
+    }
+
+    private static bool ValidateLocalConfiguration(FileStorageOptions options)
+    {
+        // Local configuration is always valid as it has sensible defaults
+        return true;
     }
 }

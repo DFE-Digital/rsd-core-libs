@@ -39,6 +39,22 @@ public static class TestHelpers
         };
     }
 
+    public static FileStorageOptions CreateValidLocalFileStorageOptions(string baseDirectory = null, string[] allowedExtensions = null)
+    {
+        return new FileStorageOptions
+        {
+            Provider = "Local",
+            Local = new LocalFileStorageOptions
+            {
+                BaseDirectory = baseDirectory ?? Path.Combine(Path.GetTempPath(), "TestFileStorage"),
+                CreateDirectoryIfNotExists = true,
+                AllowOverwrite = true,
+                MaxFileSizeBytes = 100 * 1024 * 1024, // 100MB
+                AllowedExtensions = allowedExtensions ?? Array.Empty<string>()
+            }
+        };
+    }
+
     public static Dictionary<string, string> CreateValidConfigurationSettings()
     {
         return new Dictionary<string, string>
@@ -47,5 +63,28 @@ public static class TestHelpers
             ["FileStorage:Azure:ConnectionString"] = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=test;EndpointSuffix=core.windows.net",
             ["FileStorage:Azure:ShareName"] = "testshare"
         };
+    }
+
+    public static Dictionary<string, string> CreateValidLocalConfigurationSettings(string baseDirectory = null, string[] allowedExtensions = null)
+    {
+        var settings = new Dictionary<string, string>
+        {
+            ["FileStorage:Provider"] = "Local",
+            ["FileStorage:Local:BaseDirectory"] = baseDirectory ?? Path.Combine(Path.GetTempPath(), "TestFileStorage"),
+            ["FileStorage:Local:CreateDirectoryIfNotExists"] = "true",
+            ["FileStorage:Local:AllowOverwrite"] = "true",
+            ["FileStorage:Local:MaxFileSizeBytes"] = "104857600" // 100MB
+        };
+
+        // Add allowed extensions if provided
+        if (allowedExtensions != null && allowedExtensions.Length > 0)
+        {
+            for (int i = 0; i < allowedExtensions.Length; i++)
+            {
+                settings[$"FileStorage:Local:AllowedExtensions:{i}"] = allowedExtensions[i];
+            }
+        }
+
+        return settings;
     }
 } 

@@ -6,7 +6,7 @@ namespace DfE.CoreLibs.FileStorage.Settings;
 public class FileStorageOptions
 {
     /// <summary>
-    /// Name of the provider to use (e.g. "Azure").
+    /// Name of the provider to use (e.g. "Azure", "Local").
     /// </summary>
     public string Provider { get; set; } = "";
 
@@ -14,4 +14,9 @@ public class FileStorageOptions
     /// Azure File Service specific configuration.
     /// </summary>
     public AzureFileStorageOptions Azure { get; set; } = new();
+
+    /// <summary>
+    /// Local file storage specific configuration.
+    /// </summary>
+    public LocalFileStorageOptions Local { get; set; } = new();
 }
