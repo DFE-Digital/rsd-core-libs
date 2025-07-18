@@ -1,4 +1,5 @@
 using Azure.Storage.Files.Shares;
+using System.IO;
 
 namespace DfE.CoreLibs.FileStorage.Clients;
 

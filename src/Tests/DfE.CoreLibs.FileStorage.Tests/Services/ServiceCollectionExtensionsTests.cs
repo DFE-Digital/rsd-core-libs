@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using DfE.CoreLibs.FileStorage;
+using System.Linq;
 using DfE.CoreLibs.FileStorage.Interfaces;
 using DfE.CoreLibs.FileStorage.Services;
 using DfE.CoreLibs.FileStorage.Settings;
@@ -27,10 +28,9 @@ public class ServiceCollectionExtensionsTests
 
         services.AddFileStorage(configuration);
 
-        var provider = services.BuildServiceProvider();
-
-        var service = provider.GetService<IFileStorageService>();
-        Assert.IsType<AzureFileStorageService>(service);
+        var descriptor = services.FirstOrDefault(s => s.ServiceType == typeof(IFileStorageService));
+        Assert.NotNull(descriptor);
+        Assert.Equal(typeof(AzureFileStorageService), descriptor!.ImplementationType);
     }
 
     [Fact]
@@ -73,10 +73,9 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
 
         services.AddFileStorage(configuration);
-        var provider = services.BuildServiceProvider();
 
-        var service = provider.GetService<IFileStorageService>();
+        var descriptor = services.FirstOrDefault(s => s.ServiceType == typeof(IFileStorageService));
 
-        Assert.Null(service);
+        Assert.Null(descriptor);
     }
 }

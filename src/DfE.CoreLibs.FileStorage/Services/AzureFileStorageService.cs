@@ -1,6 +1,7 @@
 using DfE.CoreLibs.FileStorage.Interfaces;
 using DfE.CoreLibs.FileStorage.Settings;
 using DfE.CoreLibs.FileStorage.Clients;
+using System.IO;
 
 namespace DfE.CoreLibs.FileStorage.Services;
 
