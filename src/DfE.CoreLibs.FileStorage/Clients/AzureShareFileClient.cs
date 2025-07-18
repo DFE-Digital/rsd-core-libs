@@ -27,4 +27,10 @@ internal class AzureShareFileClient(ShareFileClient fileClient) : IShareFileClie
     {
         await _fileClient.DeleteIfExistsAsync(cancellationToken: token);
     }
+
+    public async Task<bool> ExistsAsync(CancellationToken token = default)
+    {
+        var response = await _fileClient.ExistsAsync(cancellationToken: token);
+        return response.Value;
+    }
 }

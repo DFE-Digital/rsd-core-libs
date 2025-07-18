@@ -1,6 +1,7 @@
 using DfE.CoreLibs.FileStorage.Interfaces;
 using DfE.CoreLibs.FileStorage.Services;
 using DfE.CoreLibs.FileStorage.Settings;
+using DfE.CoreLibs.FileStorage.Exceptions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,16 +19,34 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection to add the registration to.</param>
     /// <param name="configuration">Application configuration.</param>
     /// <returns>The original <paramref name="services"/> instance.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
+    /// <exception cref="FileStorageConfigurationException">Thrown when configuration is invalid or provider is not supported.</exception>
     public static IServiceCollection AddFileStorage(this IServiceCollection services, IConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         var options = new FileStorageOptions();
         configuration.GetSection("FileStorage").Bind(options);
+
+        // Validate configuration
+        if (string.IsNullOrWhiteSpace(options.Provider))
+            throw new FileStorageConfigurationException("FileStorage:Provider configuration is required.");
+
         services.AddSingleton(options);
 
-        return options.Provider.ToLower() switch
+        return options.Provider.ToLowerInvariant() switch
         {
-            "azure" => services.AddSingleton<IFileStorageService, AzureFileStorageService>(),
-            _ => services
+            "azure" => ValidateAzureConfiguration(options) ? 
+                services.AddSingleton<IFileStorageService, AzureFileStorageService>() : 
+                throw new FileStorageConfigurationException("Invalid Azure File Storage configuration. ConnectionString and ShareName are required."),
+            _ => throw new FileStorageConfigurationException($"Unsupported file storage provider: {options.Provider}")
         };
+    }
+
+    private static bool ValidateAzureConfiguration(FileStorageOptions options)
+    {
+        return !string.IsNullOrWhiteSpace(options.Azure.ConnectionString) && 
+               !string.IsNullOrWhiteSpace(options.Azure.ShareName);
     }
 }
