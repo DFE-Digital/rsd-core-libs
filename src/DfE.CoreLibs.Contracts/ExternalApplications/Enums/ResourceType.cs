@@ -8,6 +8,7 @@
         TaskGroup = 3,
         Task = 4,
         Page = 5,
-        Field = 6
+        Field = 6,
+        File = 7
     }
 }
