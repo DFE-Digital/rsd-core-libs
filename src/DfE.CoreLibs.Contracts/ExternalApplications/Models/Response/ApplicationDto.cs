@@ -11,6 +11,7 @@ namespace DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
         public ApplicationStatus? Status { get; set; } = null;
         public DateTime DateCreated { get; set; }
         public DateTime? DateSubmitted { get; set; }
+        public UserDto? CreatedBy { get; init; } = null;
         public ApplicationResponseDetailsDto? LatestResponse { get; init; } = null;
         public TemplateSchemaDto? TemplateSchema { get; set; }
 
