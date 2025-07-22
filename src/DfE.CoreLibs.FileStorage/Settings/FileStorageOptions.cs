@@ -8,7 +8,7 @@ public class FileStorageOptions
     /// <summary>
     /// Name of the provider to use (e.g. "Azure", "Local").
     /// </summary>
-    public string Provider { get; set; } = "Local";
+    public string Provider { get; set; } = "";
 
     /// <summary>
     /// Azure File Service specific configuration.
