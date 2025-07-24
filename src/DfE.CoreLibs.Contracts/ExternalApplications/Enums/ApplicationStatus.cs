@@ -1,8 +1,12 @@
-﻿namespace DfE.CoreLibs.Contracts.ExternalApplications.Enums
+﻿using System.ComponentModel;
+
+namespace DfE.CoreLibs.Contracts.ExternalApplications.Enums
 {
     public enum ApplicationStatus
     {
+        [Description("In Progress")]
         InProgress = 0,
+        [Description("Submitted")]
         Submitted = 1
     }
 }
