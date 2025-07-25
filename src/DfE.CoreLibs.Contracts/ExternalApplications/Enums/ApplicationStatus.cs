@@ -4,7 +4,7 @@ namespace DfE.CoreLibs.Contracts.ExternalApplications.Enums
 {
     public enum ApplicationStatus
     {
-        [Description("In Progress")]
+        [Description("In progress")]
         InProgress = 0,
         [Description("Submitted")]
         Submitted = 1
