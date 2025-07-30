@@ -43,8 +43,8 @@ namespace DfE.CoreLibs.Http.Tests.Handlers
 
         [Theory]
         [InlineData(typeof(ArgumentNullException), 400, "Invalid request: Required parameter is missing")]
-        [InlineData(typeof(ArgumentException), 400, "Invalid request: Test argument exception")]
-        [InlineData(typeof(InvalidOperationException), 400, "Invalid operation: Test invalid operation")]
+        [InlineData(typeof(ArgumentException), 400, "Invalid request: Test message")]
+        [InlineData(typeof(InvalidOperationException), 400, "Invalid operation: Test message")]
         [InlineData(typeof(UnauthorizedAccessException), 401, "Unauthorized access")]
         [InlineData(typeof(NotImplementedException), 501, "Feature not implemented")]
         [InlineData(typeof(FileNotFoundException), 404, "Resource not found")]
@@ -88,7 +88,7 @@ namespace DfE.CoreLibs.Http.Tests.Handlers
 
             // Assert
             statusCode.Should().Be(400);
-            message.Should().Be("Invalid request: Custom argument error");
+            message.Should().Be("Invalid request: Custom argument error (Parameter 'paramName')");
         }
 
         [Fact]
@@ -145,7 +145,7 @@ namespace DfE.CoreLibs.Http.Tests.Handlers
 
             // Assert
             statusCode.Should().Be(400);
-            message.Should().Be("Invalid request: ");
+            message.Should().Be("Invalid request: Value does not fall within the expected range. (Parameter 'paramName')");
         }
 
         [Fact]
@@ -159,7 +159,7 @@ namespace DfE.CoreLibs.Http.Tests.Handlers
 
             // Assert
             statusCode.Should().Be(400);
-            message.Should().Be("Invalid request: ");
+            message.Should().Be("Invalid request:  (Parameter 'paramName')");
         }
 
         [Theory]

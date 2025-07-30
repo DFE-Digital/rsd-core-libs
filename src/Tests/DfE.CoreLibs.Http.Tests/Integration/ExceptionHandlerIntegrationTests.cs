@@ -1,6 +1,7 @@
 using DfE.CoreLibs.Http.Configuration;
 using DfE.CoreLibs.Http.Extensions;
 using DfE.CoreLibs.Http.Interfaces;
+using DfE.CoreLibs.Http.Middlewares.ExceptionHandler;
 using DfE.CoreLibs.Http.Models;
 using DfE.CoreLibs.Http.Utils;
 using FluentAssertions;
@@ -10,7 +11,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Xunit;
+using ExceptionHandlerOptions = DfE.CoreLibs.Http.Configuration.ExceptionHandlerOptions;
 
 namespace DfE.CoreLibs.Http.Tests.Integration
 {
@@ -24,36 +28,35 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             services.AddLogging();
             var serviceProvider = services.BuildServiceProvider();
 
-            var app = Substitute.For<IApplicationBuilder>();
-            app.ApplicationServices.Returns(serviceProvider);
-
-            var middleware = app.UseGlobalExceptionHandler();
+            var options = new ExceptionHandlerOptions();
+            var logger = serviceProvider.GetRequiredService<ILogger<GlobalExceptionHandlerMiddleware>>();
+            var middleware = new GlobalExceptionHandlerMiddleware(
+                async (ctx) => { throw new Exception("Test exception"); },
+                logger,
+                options
+            );
 
             // Create a simple pipeline
             var context = new DefaultHttpContext();
             context.Response.Body = new MemoryStream();
             context.RequestServices = serviceProvider;
 
-            var nextCalled = false;
-            RequestDelegate next = async (ctx) =>
-            {
-                nextCalled = true;
-                throw new ArgumentException("Test exception");
-            };
-
             // Act
-            await next(context);
+            await middleware.InvokeAsync(context);
 
             // Assert
-            nextCalled.Should().BeTrue();
             context.Response.StatusCode.Should().Be(500);
             context.Response.ContentType.Should().Be("application/json");
 
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
-            errorResponse!.ErrorId.Should().Match(@"^\d{6}$");
+            Regex.IsMatch(errorResponse!.ErrorId, @"^\d{6}$").Should().BeTrue();
             errorResponse.StatusCode.Should().Be(500);
             errorResponse.Message.Should().Be("An unexpected error occurred");
         }
@@ -64,31 +67,33 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             // Arrange
             var services = new ServiceCollection();
             services.AddLogging();
-            services.AddCustomExceptionHandler<TestCustomExceptionHandler>();
             var serviceProvider = services.BuildServiceProvider();
 
-            var app = Substitute.For<IApplicationBuilder>();
-            app.ApplicationServices.Returns(serviceProvider);
-
-            var middleware = app.UseGlobalExceptionHandler();
+            var options = new ExceptionHandlerOptions();
+            options.CustomHandlers.Add(new TestCustomExceptionHandler());
+            var logger = serviceProvider.GetRequiredService<ILogger<GlobalExceptionHandlerMiddleware>>();
+            var middleware = new GlobalExceptionHandlerMiddleware(
+                async (ctx) => { throw new ArgumentException("Test exception"); },
+                logger,
+                options
+            );
 
             // Create a simple pipeline
             var context = new DefaultHttpContext();
             context.Response.Body = new MemoryStream();
             context.RequestServices = serviceProvider;
 
-            RequestDelegate next = async (ctx) =>
-            {
-                throw new ArgumentException("Test exception");
-            };
-
             // Act
-            await next(context);
+            await middleware.InvokeAsync(context);
 
             // Assert
             context.Response.StatusCode.Should().Be(422);
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.Message.Should().Be("Custom validation error");
@@ -103,31 +108,32 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             services.AddLogging();
             var serviceProvider = services.BuildServiceProvider();
 
-            var app = Substitute.For<IApplicationBuilder>();
-            app.ApplicationServices.Returns(serviceProvider);
-
             var customErrorId = "CUSTOM-123";
-            var middleware = app.UseGlobalExceptionHandler(options =>
-            {
-                options.WithCustomErrorIdGenerator(() => customErrorId);
-            });
+            var options = new ExceptionHandlerOptions();
+            options.WithCustomErrorIdGenerator(() => customErrorId);
+            
+            var logger = serviceProvider.GetRequiredService<ILogger<GlobalExceptionHandlerMiddleware>>();
+            var middleware = new GlobalExceptionHandlerMiddleware(
+                async (ctx) => { throw new Exception("Test exception"); },
+                logger,
+                options
+            );
 
             // Create a simple pipeline
             var context = new DefaultHttpContext();
             context.Response.Body = new MemoryStream();
             context.RequestServices = serviceProvider;
 
-            RequestDelegate next = async (ctx) =>
-            {
-                throw new Exception("Test exception");
-            };
-
             // Act
-            await next(context);
+            await middleware.InvokeAsync(context);
 
             // Assert
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.ErrorId.Should().Be(customErrorId);
@@ -141,33 +147,34 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             services.AddLogging();
             var serviceProvider = services.BuildServiceProvider();
 
-            var app = Substitute.For<IApplicationBuilder>();
-            app.ApplicationServices.Returns(serviceProvider);
-
-            var middleware = app.UseGlobalExceptionHandler(options =>
-            {
-                options.WithEnvironmentAwareErrorIds("Development");
-            });
+            var options = new ExceptionHandlerOptions();
+            options.WithEnvironmentAwareErrorIds("Development");
+            
+            var logger = serviceProvider.GetRequiredService<ILogger<GlobalExceptionHandlerMiddleware>>();
+            var middleware = new GlobalExceptionHandlerMiddleware(
+                async (ctx) => { throw new Exception("Test exception"); },
+                logger,
+                options
+            );
 
             // Create a simple pipeline
             var context = new DefaultHttpContext();
             context.Response.Body = new MemoryStream();
             context.RequestServices = serviceProvider;
 
-            RequestDelegate next = async (ctx) =>
-            {
-                throw new Exception("Test exception");
-            };
-
             // Act
-            await next(context);
+            await middleware.InvokeAsync(context);
 
             // Assert
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
-            errorResponse!.ErrorId.Should().Match(@"^D-\d{6}$");
+            Regex.IsMatch(errorResponse!.ErrorId, @"^D-\d{6}$").Should().BeTrue();
         }
 
         [Fact]
@@ -178,36 +185,38 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             services.AddLogging();
             var serviceProvider = services.BuildServiceProvider();
 
-            var app = Substitute.For<IApplicationBuilder>();
-            app.ApplicationServices.Returns(serviceProvider);
-
             var postProcessingCalled = false;
-            var middleware = app.UseGlobalExceptionHandler(options =>
+            var options = new ExceptionHandlerOptions();
+            options.WithSharedPostProcessing((exception, response) =>
             {
-                options.WithSharedPostProcessing((exception, response) =>
-                {
-                    postProcessingCalled = true;
-                    response.Context = new Dictionary<string, object> { ["processed"] = true };
-                });
+                postProcessingCalled = true;
+                response.Context = new Dictionary<string, object> { ["processed"] = true };
             });
+
+            // Create the middleware directly
+            var logger = serviceProvider.GetRequiredService<ILogger<GlobalExceptionHandlerMiddleware>>();
+            var middleware = new GlobalExceptionHandlerMiddleware(
+                async (ctx) => { throw new Exception("Test exception"); },
+                logger,
+                options
+            );
 
             // Create a simple pipeline
             var context = new DefaultHttpContext();
             context.Response.Body = new MemoryStream();
             context.RequestServices = serviceProvider;
 
-            RequestDelegate next = async (ctx) =>
-            {
-                throw new Exception("Test exception");
-            };
-
             // Act
-            await next(context);
+            await middleware.InvokeAsync(context);
 
             // Assert
             postProcessingCalled.Should().BeTrue();
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.Context.Should().ContainKey("processed");
@@ -221,10 +230,15 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             services.AddLogging();
             var serviceProvider = services.BuildServiceProvider();
 
-            var app = Substitute.For<IApplicationBuilder>();
-            app.ApplicationServices.Returns(serviceProvider);
-
-            var middleware = app.UseGlobalExceptionHandler();
+            var options = new ExceptionHandlerOptions();
+            options.IncludeCorrelationId = true;
+            
+            var logger = serviceProvider.GetRequiredService<ILogger<GlobalExceptionHandlerMiddleware>>();
+            var middleware = new GlobalExceptionHandlerMiddleware(
+                async (ctx) => { throw new Exception("Test exception"); },
+                logger,
+                options
+            );
 
             // Create a simple pipeline
             var context = new DefaultHttpContext();
@@ -240,17 +254,16 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             mockServiceProvider.GetService(typeof(ICorrelationContext)).Returns(correlationContext);
             context.RequestServices = mockServiceProvider;
 
-            RequestDelegate next = async (ctx) =>
-            {
-                throw new Exception("Test exception");
-            };
-
             // Act
-            await next(context);
+            await middleware.InvokeAsync(context);
 
             // Assert
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.CorrelationId.Should().Be(correlationId.ToString());
@@ -262,34 +275,34 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             // Arrange
             var services = new ServiceCollection();
             services.AddLogging();
-            services.AddCustomExceptionHandlers(
-                new LowPriorityTestHandler(),
-                new HighPriorityTestHandler()
-            );
             var serviceProvider = services.BuildServiceProvider();
 
-            var app = Substitute.For<IApplicationBuilder>();
-            app.ApplicationServices.Returns(serviceProvider);
-
-            var middleware = app.UseGlobalExceptionHandler();
+            var options = new ExceptionHandlerOptions();
+            options.CustomHandlers.Add(new LowPriorityTestHandler());
+            options.CustomHandlers.Add(new HighPriorityTestHandler());
+            var logger = serviceProvider.GetRequiredService<ILogger<GlobalExceptionHandlerMiddleware>>();
+            var middleware = new GlobalExceptionHandlerMiddleware(
+                async (ctx) => { throw new ArgumentException("Test exception"); },
+                logger,
+                options
+            );
 
             // Create a simple pipeline
             var context = new DefaultHttpContext();
             context.Response.Body = new MemoryStream();
             context.RequestServices = serviceProvider;
 
-            RequestDelegate next = async (ctx) =>
-            {
-                throw new ArgumentException("Test exception");
-            };
-
             // Act
-            await next(context);
+            await middleware.InvokeAsync(context);
 
             // Assert
             context.Response.StatusCode.Should().Be(422); // High priority handler should be used
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.Message.Should().Be("High priority error");
@@ -303,26 +316,23 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             services.AddLogging();
             var serviceProvider = services.BuildServiceProvider();
 
-            var app = Substitute.For<IApplicationBuilder>();
-            app.ApplicationServices.Returns(serviceProvider);
-
-            var middleware = app.UseGlobalExceptionHandler(options =>
-            {
-                options.IgnoredExceptionTypes.Add(typeof(ArgumentException));
-            });
+            var options = new ExceptionHandlerOptions();
+            options.IgnoredExceptionTypes.Add(typeof(ArgumentException));
+            
+            var logger = serviceProvider.GetRequiredService<ILogger<GlobalExceptionHandlerMiddleware>>();
+            var middleware = new GlobalExceptionHandlerMiddleware(
+                async (ctx) => { throw new ArgumentException("Test exception"); },
+                logger,
+                options
+            );
 
             // Create a simple pipeline
             var context = new DefaultHttpContext();
             context.Response.Body = new MemoryStream();
             context.RequestServices = serviceProvider;
 
-            RequestDelegate next = async (ctx) =>
-            {
-                throw new ArgumentException("Test exception");
-            };
-
             // Act & Assert
-            var exception = await Assert.ThrowsAsync<ArgumentException>(() => next(context));
+            var exception = await Assert.ThrowsAsync<ArgumentException>(() => middleware.InvokeAsync(context));
             exception.Message.Should().Be("Test exception");
         }
 
@@ -332,34 +342,36 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             // Arrange
             var services = new ServiceCollection();
             services.AddLogging();
-            services.AddCustomExceptionHandler<ContextAwareTestHandler>();
             var serviceProvider = services.BuildServiceProvider();
 
-            var app = Substitute.For<IApplicationBuilder>();
-            app.ApplicationServices.Returns(serviceProvider);
-
-            var middleware = app.UseGlobalExceptionHandler();
+            var options = new ExceptionHandlerOptions();
+            options.CustomHandlers.Add(new ContextAwareTestHandler());
+            var logger = serviceProvider.GetRequiredService<ILogger<GlobalExceptionHandlerMiddleware>>();
+            var middleware = new GlobalExceptionHandlerMiddleware(
+                async (ctx) => { throw new ArgumentException("Test exception"); },
+                logger,
+                options
+            );
 
             // Create a simple pipeline
             var context = new DefaultHttpContext();
             context.Response.Body = new MemoryStream();
             context.RequestServices = serviceProvider;
 
-            RequestDelegate next = async (ctx) =>
-            {
-                throw new ArgumentException("Test exception");
-            };
-
             // Act
-            await next(context);
+            await middleware.InvokeAsync(context);
 
             // Assert
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.Context.Should().ContainKey("handlerContext");
-            errorResponse.Context!["handlerContext"].Should().Be("testValue");
+            errorResponse.Context!["handlerContext"].ToString().Should().Be("testValue");
         }
 
         [Fact]
@@ -370,38 +382,39 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             services.AddLogging();
             var serviceProvider = services.BuildServiceProvider();
 
-            var app = Substitute.For<IApplicationBuilder>();
-            app.ApplicationServices.Returns(serviceProvider);
-
-            var middleware = app.UseGlobalExceptionHandler(options =>
+            var options = new ExceptionHandlerOptions();
+            options.WithSharedPostProcessing((exception, response) =>
             {
-                options.WithSharedPostProcessing((exception, response) =>
-                {
-                    throw new InvalidOperationException("Post-processing error");
-                });
+                throw new InvalidOperationException("Post-processing error");
             });
+            
+            var logger = serviceProvider.GetRequiredService<ILogger<GlobalExceptionHandlerMiddleware>>();
+            var middleware = new GlobalExceptionHandlerMiddleware(
+                async (ctx) => { throw new Exception("Test exception"); },
+                logger,
+                options
+            );
 
             // Create a simple pipeline
             var context = new DefaultHttpContext();
             context.Response.Body = new MemoryStream();
             context.RequestServices = serviceProvider;
 
-            RequestDelegate next = async (ctx) =>
-            {
-                throw new Exception("Test exception");
-            };
-
             // Act
-            await next(context);
+            await middleware.InvokeAsync(context);
 
             // Assert
             // Should not throw, but complete successfully
             context.Response.StatusCode.Should().Be(500);
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
-            errorResponse!.ErrorId.Should().Match(@"^\d{6}$");
+            Regex.IsMatch(errorResponse!.ErrorId, @"^\d{6}$").Should().BeTrue();
         }
 
         private static string ReadResponseBody(HttpContext context)

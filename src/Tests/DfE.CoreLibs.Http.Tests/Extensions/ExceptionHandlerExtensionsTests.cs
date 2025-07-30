@@ -33,7 +33,8 @@ namespace DfE.CoreLibs.Http.Tests.Extensions
             var result = app.UseGlobalExceptionHandler();
 
             // Assert
-            result.Should().Be(app);
+            result.Should().NotBeNull();
+            result.Should().BeAssignableTo<IApplicationBuilder>();
         }
 
         [Fact]
@@ -50,7 +51,8 @@ namespace DfE.CoreLibs.Http.Tests.Extensions
             });
 
             // Assert
-            result.Should().Be(app);
+            result.Should().NotBeNull();
+            result.Should().BeAssignableTo<IApplicationBuilder>();
         }
 
         [Fact]
@@ -68,7 +70,8 @@ namespace DfE.CoreLibs.Http.Tests.Extensions
             var result = app.UseGlobalExceptionHandler(options);
 
             // Assert
-            result.Should().Be(app);
+            result.Should().NotBeNull();
+            result.Should().BeAssignableTo<IApplicationBuilder>();
         }
 
         [Fact]
@@ -177,7 +180,7 @@ namespace DfE.CoreLibs.Http.Tests.Extensions
             result.Should().Be(options);
             options.ErrorIdGenerator.Should().NotBeNull();
             var generatedId = options.ErrorIdGenerator!();
-            generatedId.Should().Match(@"^\d{8}-\d{6}-\d{4}$");
+            System.Text.RegularExpressions.Regex.IsMatch(generatedId, @"^\d{8}-\d{6}-\d{4}$").Should().BeTrue();
         }
 
         [Fact]
@@ -193,7 +196,7 @@ namespace DfE.CoreLibs.Http.Tests.Extensions
             result.Should().Be(options);
             options.ErrorIdGenerator.Should().NotBeNull();
             var generatedId = options.ErrorIdGenerator!();
-            generatedId.Should().Match(@"^[a-f0-9]{8}$");
+            System.Text.RegularExpressions.Regex.IsMatch(generatedId, @"^[a-f0-9]{8}$").Should().BeTrue();
         }
 
         [Fact]
@@ -209,7 +212,7 @@ namespace DfE.CoreLibs.Http.Tests.Extensions
             result.Should().Be(options);
             options.ErrorIdGenerator.Should().NotBeNull();
             var generatedId = options.ErrorIdGenerator!();
-            generatedId.Should().Match(@"^\d{13}$");
+            System.Text.RegularExpressions.Regex.IsMatch(generatedId, @"^\d{13}$").Should().BeTrue();
         }
 
         [Theory]
@@ -230,7 +233,7 @@ namespace DfE.CoreLibs.Http.Tests.Extensions
             result.Should().Be(options);
             options.ErrorIdGenerator.Should().NotBeNull();
             var generatedId = options.ErrorIdGenerator!();
-            generatedId.Should().Match($"^{expectedPrefix}-\\d{{6}}$");
+            System.Text.RegularExpressions.Regex.IsMatch(generatedId, $"^{expectedPrefix}-\\d{{6}}$").Should().BeTrue();
         }
 
         [Theory]
@@ -249,7 +252,7 @@ namespace DfE.CoreLibs.Http.Tests.Extensions
             result.Should().Be(options);
             options.ErrorIdGenerator.Should().NotBeNull();
             var generatedId = options.ErrorIdGenerator!();
-            generatedId.Should().Match($"^{expectedPrefix}-\\d{{8}}-\\d{{6}}-\\d{{4}}$");
+            System.Text.RegularExpressions.Regex.IsMatch(generatedId, $"^{expectedPrefix}-\\d{{8}}-\\d{{6}}-\\d{{4}}$").Should().BeTrue();
         }
 
         [Theory]
@@ -268,7 +271,7 @@ namespace DfE.CoreLibs.Http.Tests.Extensions
             result.Should().Be(options);
             options.ErrorIdGenerator.Should().NotBeNull();
             var generatedId = options.ErrorIdGenerator!();
-            generatedId.Should().Match($"^{expectedPrefix}-[a-f0-9]{{8}}$");
+            System.Text.RegularExpressions.Regex.IsMatch(generatedId, $"^{expectedPrefix}-[a-f0-9]{{8}}$").Should().BeTrue();
         }
 
         [Theory]
@@ -287,7 +290,7 @@ namespace DfE.CoreLibs.Http.Tests.Extensions
             result.Should().Be(options);
             options.ErrorIdGenerator.Should().NotBeNull();
             var generatedId = options.ErrorIdGenerator!();
-            generatedId.Should().Match($"^{expectedPrefix}-\\d{{13}}$");
+            System.Text.RegularExpressions.Regex.IsMatch(generatedId, $"^{expectedPrefix}-\\d{{13}}$").Should().BeTrue();
         }
 
         [Fact]

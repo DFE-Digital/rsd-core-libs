@@ -14,6 +14,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using NSubstitute.ExceptionExtensions;
 
 namespace DfE.CoreLibs.Http.Tests.Middlewares
@@ -61,22 +63,27 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             // Arrange
             var exception = new ArgumentException("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
             await _middleware.InvokeAsync(context);
 
             // Assert
-            context.Response.StatusCode.Should().Be(500);
+            context.Response.StatusCode.Should().Be(400); // DefaultExceptionHandler handles ArgumentException with 400
             context.Response.ContentType.Should().Be("application/json");
             
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
-            errorResponse!.ErrorId.Should().Match(@"^\d{6}$"); // 6-digit random
-            errorResponse.StatusCode.Should().Be(500);
-            errorResponse.Message.Should().Be("An unexpected error occurred");
+            Regex.IsMatch(errorResponse!.ErrorId, @"^\d{6}$").Should().BeTrue(); // 6-digit random
+            errorResponse.StatusCode.Should().Be(400);
+            errorResponse.Message.Should().Be("Invalid request: Test exception");
             errorResponse.ExceptionType.Should().Be("ArgumentException");
             errorResponse.Details.Should().BeNull(); // IncludeDetails = false
         }
@@ -89,6 +96,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             _options.IncludeDetails = true;
             var exception = new InvalidOperationException("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -96,7 +104,11 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             // Assert
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.Details.Should().Contain("InvalidOperationException");
@@ -111,6 +123,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             _options.LogExceptions = false;
             var exception = new Exception("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -133,6 +146,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             _options.LogExceptions = true;
             var exception = new Exception("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -169,7 +183,11 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             // Assert
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.CorrelationId.Should().Be(correlationId.ToString());
@@ -183,6 +201,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             _options.IncludeCorrelationId = false;
             var exception = new Exception("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -190,7 +209,11 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             // Assert
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.CorrelationId.Should().BeNull();
@@ -206,6 +229,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             
             var exception = new Exception("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -213,7 +237,11 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             // Assert
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.ErrorId.Should().Be(customErrorId);
@@ -227,6 +255,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             _options.ErrorIdGenerator = null;
             var exception = new Exception("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -234,10 +263,14 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             // Assert
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
-            errorResponse!.ErrorId.Should().Match(@"^\d{6}$");
+            Regex.IsMatch(errorResponse!.ErrorId, @"^\d{6}$").Should().BeTrue();
         }
 
         [Theory]
@@ -248,6 +281,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             _options.IgnoredExceptionTypes.Add(typeof(ArgumentException));
             var exception = new ArgumentException("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act & Assert
@@ -273,6 +307,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             var exception = new ArgumentException("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -281,7 +316,11 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             // Assert
             context.Response.StatusCode.Should().Be(422);
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.Message.Should().Be("Custom validation error");
@@ -302,6 +341,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             var exception = new ArgumentException("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -310,7 +350,11 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             // Assert
             context.Response.StatusCode.Should().Be(400); // Default handler for ArgumentException
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.Message.Should().Contain("Invalid request");
@@ -330,6 +374,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             var exception = new Exception("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -338,7 +383,11 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             // Assert
             postProcessingCalled.Should().BeTrue();
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.Context.Should().ContainKey("processed");
@@ -356,6 +405,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             var exception = new Exception("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -389,6 +439,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             var exception = new ArgumentException("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -420,6 +471,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             var exception = new ArgumentException("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -427,11 +479,15 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             // Assert
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.Context.Should().ContainKey("testKey");
-            errorResponse.Context!["testKey"].Should().Be("testValue");
+            errorResponse.Context!["testKey"].ToString().Should().Be("testValue");
         }
 
         [Theory]
@@ -441,6 +497,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             // Arrange
             var exception = new Exception("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -448,7 +505,11 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             // Assert
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.Context.Should().BeNull();
@@ -477,6 +538,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
             var exception = new ArgumentException("Test exception");
             context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -485,7 +547,11 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             // Assert
             context.Response.StatusCode.Should().Be(422);
             var responseBody = ReadResponseBody(context);
-            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody, jsonOptions);
             
             errorResponse.Should().NotBeNull();
             errorResponse!.Message.Should().Be("High priority error");
@@ -497,47 +563,35 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
 
         [Theory]
         [CustomAutoData(typeof(HttpContextCustomization))]
-        public async Task InvokeAsync_ShouldHandleNullOptions(DefaultHttpContext context)
+        public void Constructor_ShouldThrowArgumentNullException_WhenOptionsIsNull()
         {
-            // Arrange
-            var middlewareWithNullOptions = new GlobalExceptionHandlerMiddleware(_nextDelegate, _logger, null!);
-            var exception = new Exception("Test exception");
-            context.Response.Body = new MemoryStream();
-            _nextDelegate.Invoke(context).Throws(exception);
-
             // Act & Assert
-            await Assert.ThrowsAsync<ArgumentNullException>(() => 
-                middlewareWithNullOptions.InvokeAsync(context));
+            var exception = Assert.Throws<ArgumentNullException>(() => 
+                new GlobalExceptionHandlerMiddleware(_nextDelegate, _logger, null!));
+            
+            exception.ParamName.Should().Be("options");
         }
 
         [Theory]
         [CustomAutoData(typeof(HttpContextCustomization))]
-        public async Task InvokeAsync_ShouldHandleNullNextDelegate(DefaultHttpContext context)
+        public void Constructor_ShouldThrowArgumentNullException_WhenNextDelegateIsNull()
         {
-            // Arrange
-            var middlewareWithNullNext = new GlobalExceptionHandlerMiddleware(null!, _logger, _options);
-            var exception = new Exception("Test exception");
-            context.Response.Body = new MemoryStream();
-            _nextDelegate.Invoke(context).Throws(exception);
-
             // Act & Assert
-            await Assert.ThrowsAsync<ArgumentNullException>(() => 
-                middlewareWithNullNext.InvokeAsync(context));
+            var exception = Assert.Throws<ArgumentNullException>(() => 
+                new GlobalExceptionHandlerMiddleware(null!, _logger, _options));
+            
+            exception.ParamName.Should().Be("next");
         }
 
         [Theory]
         [CustomAutoData(typeof(HttpContextCustomization))]
-        public async Task InvokeAsync_ShouldHandleNullLogger(DefaultHttpContext context)
+        public void Constructor_ShouldThrowArgumentNullException_WhenLoggerIsNull()
         {
-            // Arrange
-            var middlewareWithNullLogger = new GlobalExceptionHandlerMiddleware(_nextDelegate, null!, _options);
-            var exception = new Exception("Test exception");
-            context.Response.Body = new MemoryStream();
-            _nextDelegate.Invoke(context).Throws(exception);
-
             // Act & Assert
-            await Assert.ThrowsAsync<ArgumentNullException>(() => 
-                middlewareWithNullLogger.InvokeAsync(context));
+            var exception = Assert.Throws<ArgumentNullException>(() => 
+                new GlobalExceptionHandlerMiddleware(_nextDelegate, null!, _options));
+            
+            exception.ParamName.Should().Be("logger");
         }
 
         private static string ReadResponseBody(HttpContext context)

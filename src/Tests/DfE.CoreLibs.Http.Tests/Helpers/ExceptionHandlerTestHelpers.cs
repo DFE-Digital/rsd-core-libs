@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
 
 namespace DfE.CoreLibs.Http.Tests.Helpers
 {
