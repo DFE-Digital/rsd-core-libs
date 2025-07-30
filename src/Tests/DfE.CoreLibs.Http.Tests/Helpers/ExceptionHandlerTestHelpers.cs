@@ -159,7 +159,7 @@ namespace DfE.CoreLibs.Http.Tests.Helpers
             response.Should().NotBeNull();
             response!.StatusCode.Should().Be(expectedStatusCode);
             response.Message.Should().Be(expectedMessage);
-            response.ErrorId.Should().MatchRegex(expectedErrorIdPattern);
+            response.ErrorId.Should().Match(expectedErrorIdPattern);
             response.Timestamp.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(1));
         }
 

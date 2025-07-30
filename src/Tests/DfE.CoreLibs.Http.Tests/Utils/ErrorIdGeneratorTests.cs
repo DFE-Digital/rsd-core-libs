@@ -1,5 +1,6 @@
 using DfE.CoreLibs.Http.Utils;
 using FluentAssertions;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace DfE.CoreLibs.Http.Tests.Utils
@@ -106,7 +107,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environment);
-            result.Should().MatchRegex($"^{prefix}-\\d{{8}}-\\d{{6}}-\\d{{4}}$");
+            result.Should().Match($"^{prefix}-\\d{{8}}-\\d{{6}}-\\d{{4}}$");
         }
 
         [Fact]
@@ -142,7 +143,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environment);
-            result.Should().MatchRegex($"^{prefix}-[a-f0-9]{{8}}$");
+            result.Should().Match($"^{prefix}-[a-f0-9]{{8}}$");
         }
 
         [Fact]
@@ -173,7 +174,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environment);
-            result.Should().MatchRegex($"^{prefix}-\\d{{13}}$");
+            result.Should().Match($"^{prefix}-\\d{{13}}$");
         }
 
         [Theory]
@@ -189,7 +190,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environmentName);
-            result.Should().MatchRegex($"^{prefix}-\\d{{6}}$");
+            result.Should().Match($"^{prefix}-\\d{{6}}$");
         }
 
         [Theory]
@@ -205,7 +206,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environmentName);
-            result.Should().MatchRegex($"^{prefix}-\\d{{8}}-\\d{{6}}-\\d{{4}}$");
+            result.Should().Match($"^{prefix}-\\d{{8}}-\\d{{6}}-\\d{{4}}$");
         }
 
         [Theory]
@@ -221,7 +222,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environmentName);
-            result.Should().MatchRegex($"^{prefix}-[a-f0-9]{{8}}$");
+            result.Should().Match($"^{prefix}-[a-f0-9]{{8}}$");
         }
 
         [Theory]
@@ -237,7 +238,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environmentName);
-            result.Should().MatchRegex($"^{prefix}-\\d{{13}}$");
+            result.Should().Match($"^{prefix}-\\d{{13}}$");
         }
 
         [Fact]
@@ -258,7 +259,8 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             results.Should().HaveCount(100);
-            results.Should().Match(@"^\d{6}$");
+            results.Should().OnlyContain(r => Regex.IsMatch(r, @"^\d{6}$"));
+
             results.Distinct().Should().HaveCount(100); // All should be unique
         }
 
@@ -280,7 +282,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             results.Should().HaveCount(100);
-            results.Should().OnlyContain(r => r.Match(@"^\d{8}-\d{6}-\d{4}$"));
+            results.Should().OnlyContain(r => Regex.IsMatch(r, @"^\d{8}-\d{6}-\d{4}$"));
         }
 
         [Fact]
@@ -301,7 +303,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             results.Should().HaveCount(100);
-            results.Should().OnlyContain(r => r.MatchRegex(@"^[a-f0-9]{8}$"));
+            results.Should().OnlyContain(r => Regex.IsMatch(r, @"^[a-f0-9]{8}$"));
             results.Distinct().Should().HaveCount(100); // All should be unique
         }
 
@@ -323,7 +325,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             results.Should().HaveCount(100);
-            results.Should().OnlyContain(r => r.MatchRegex(@"^\d{13}$"));
+            results.Should().OnlyContain(r => Regex.IsMatch(r, @"^\d{13}$"));
         }
 
         [Theory]

@@ -74,7 +74,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
             
             errorResponse.Should().NotBeNull();
-            errorResponse!.ErrorId.Should().MatchRegex(@"^\d{6}$"); // 6-digit random
+            errorResponse!.ErrorId.Should().Match(@"^\d{6}$"); // 6-digit random
             errorResponse.StatusCode.Should().Be(500);
             errorResponse.Message.Should().Be("An unexpected error occurred");
             errorResponse.ExceptionType.Should().Be("ArgumentException");
@@ -237,7 +237,7 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
             
             errorResponse.Should().NotBeNull();
-            errorResponse!.ErrorId.Should().MatchRegex(@"^\d{6}$");
+            errorResponse!.ErrorId.Should().Match(@"^\d{6}$");
         }
 
         [Theory]

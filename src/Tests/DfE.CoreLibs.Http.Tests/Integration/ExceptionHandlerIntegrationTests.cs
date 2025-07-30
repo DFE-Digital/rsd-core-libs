@@ -167,7 +167,7 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
             
             errorResponse.Should().NotBeNull();
-            errorResponse!.ErrorId.Should().MatchRegex(@"^D-\d{6}$");
+            errorResponse!.ErrorId.Should().Match(@"^D-\d{6}$");
         }
 
         [Fact]
@@ -401,7 +401,7 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(responseBody);
             
             errorResponse.Should().NotBeNull();
-            errorResponse!.ErrorId.Should().MatchRegex(@"^\d{6}$");
+            errorResponse!.ErrorId.Should().Match(@"^\d{6}$");
         }
 
         private static string ReadResponseBody(HttpContext context)
