@@ -68,7 +68,7 @@ public class GlobalExceptionHandlerMiddleware
         // Check if this exception type should be ignored
         if (_options.IgnoredExceptionTypes.Contains(exception.GetType()))
         {
-            throw; // Re-throw ignored exceptions
+            throw exception; // Re-throw ignored exceptions
         }
 
         // Generate unique error ID using custom generator or default
@@ -82,8 +82,11 @@ public class GlobalExceptionHandlerMiddleware
             correlationId = correlationContext?.CorrelationId.ToString();
         }
 
+        // Create context dictionary for handlers to use
+        var handlerContext = new Dictionary<string, object>();
+
         // Determine status code and message using custom handlers
-        var (statusCode, message) = GetExceptionDetails(exception);
+        var (statusCode, message) = GetExceptionDetails(exception, handlerContext);
 
         // Create error response
         var errorResponse = new ExceptionResponse
@@ -94,7 +97,8 @@ public class GlobalExceptionHandlerMiddleware
             ExceptionType = exception.GetType().Name,
             Timestamp = DateTime.UtcNow,
             CorrelationId = correlationId,
-            Details = _options.IncludeDetails ? exception.ToString() : null
+            Details = _options.IncludeDetails ? exception.ToString() : null,
+            Context = handlerContext.Any() ? handlerContext : null
         };
 
         // Execute shared post-processing action if configured
@@ -122,7 +126,7 @@ public class GlobalExceptionHandlerMiddleware
         await context.Response.WriteAsync(jsonResponse);
     }
 
-    private (int statusCode, string message) GetExceptionDetails(Exception exception)
+    private (int statusCode, string message) GetExceptionDetails(Exception exception, Dictionary<string, object> context)
     {
         var exceptionType = exception.GetType();
 
@@ -131,7 +135,7 @@ public class GlobalExceptionHandlerMiddleware
         {
             if (handler.CanHandle(exceptionType))
             {
-                return handler.Handle(exception);
+                return handler.Handle(exception, context);
             }
         }
 
