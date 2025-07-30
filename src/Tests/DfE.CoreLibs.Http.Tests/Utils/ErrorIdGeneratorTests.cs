@@ -14,7 +14,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
             var result = ErrorIdGenerator.GenerateDefault();
 
             // Assert
-            result.Should().Match(@"^\d{6}$");
+            Regex.IsMatch(result, @"^\d{6}$").Should().BeTrue();
             int.Parse(result).Should().BeGreaterThanOrEqualTo(100000);
             int.Parse(result).Should().BeLessThanOrEqualTo(999999);
         }
@@ -64,7 +64,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environment);
-            result.Should().Match($"^{prefix}-\\d{{6}}$");
+            Regex.IsMatch(result, $"^{prefix}-\\d{{6}}$").Should().BeTrue();
         }
 
         [Fact]
@@ -74,7 +74,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
             var result = ErrorIdGenerator.GenerateTimestampBased();
 
             // Assert
-            result.Should().Match(@"^\d{8}-\d{6}-\d{4}$");
+            Regex.IsMatch(result, @"^\d{8}-\d{6}-\d{4}$").Should().BeTrue();
             
             // Parse and validate components
             var parts = result.Split('-');
@@ -107,7 +107,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environment);
-            result.Should().Match($"^{prefix}-\\d{{8}}-\\d{{6}}-\\d{{4}}$");
+            Regex.IsMatch(result, $"^{prefix}-\\d{{8}}-\\d{{6}}-\\d{{4}}$").Should().BeTrue();
         }
 
         [Fact]
@@ -118,7 +118,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             result.Should().HaveLength(8);
-            result.Should().Match(@"^[a-f0-9]{8}$");
+            Regex.IsMatch(result, @"^[a-f0-9]{8}$").Should().BeTrue();
         }
 
         [Fact]
@@ -143,7 +143,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environment);
-            result.Should().Match($"^{prefix}-[a-f0-9]{{8}}$");
+            Regex.IsMatch(result, $"^{prefix}-[a-f0-9]{{8}}$").Should().BeTrue();
         }
 
         [Fact]
@@ -153,7 +153,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
             var result = ErrorIdGenerator.GenerateSequential();
 
             // Assert
-            result.Should().Match(@"^\d{13}$"); // Unix timestamp in milliseconds
+            Regex.IsMatch(result, @"^\d{13}$").Should().BeTrue(); // Unix timestamp in milliseconds
             
             var timestamp = long.Parse(result);
             var expectedMinTimestamp = DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeMilliseconds();
@@ -174,7 +174,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environment);
-            result.Should().Match($"^{prefix}-\\d{{13}}$");
+            Regex.IsMatch(result, $"^{prefix}-\\d{{13}}$").Should().BeTrue();
         }
 
         [Theory]
@@ -190,7 +190,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environmentName);
-            result.Should().Match($"^{prefix}-\\d{{6}}$");
+            Regex.IsMatch(result, $"^{prefix}-\\d{{6}}$").Should().BeTrue();
         }
 
         [Theory]
@@ -206,7 +206,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environmentName);
-            result.Should().Match($"^{prefix}-\\d{{8}}-\\d{{6}}-\\d{{4}}$");
+            Regex.IsMatch(result, $"^{prefix}-\\d{{8}}-\\d{{6}}-\\d{{4}}$").Should().BeTrue();
         }
 
         [Theory]
@@ -222,7 +222,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environmentName);
-            result.Should().Match($"^{prefix}-[a-f0-9]{{8}}$");
+            Regex.IsMatch(result, $"^{prefix}-[a-f0-9]{{8}}$").Should().BeTrue();
         }
 
         [Theory]
@@ -238,7 +238,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environmentName);
-            result.Should().Match($"^{prefix}-\\d{{13}}$");
+            Regex.IsMatch(result, $"^{prefix}-\\d{{13}}$").Should().BeTrue();
         }
 
         [Fact]
