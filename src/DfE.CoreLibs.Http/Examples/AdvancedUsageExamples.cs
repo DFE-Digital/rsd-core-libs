@@ -2,6 +2,7 @@ using DfE.CoreLibs.Http.Configuration;
 using DfE.CoreLibs.Http.Extensions;
 using DfE.CoreLibs.Http.Interfaces;
 using DfE.CoreLibs.Http.Models;
+using DfE.CoreLibs.Http.Utils;
 
 namespace DfE.CoreLibs.Http.Examples;
 
@@ -28,6 +29,34 @@ public static class AdvancedUsageExamples
 
         var sequentialOptions = new ExceptionHandlerOptions()
             .WithSequentialErrorIds(); // Unix timestamp
+    }
+
+    /// <summary>
+    /// Example of environment-aware error ID generation.
+    /// </summary>
+    public static void EnvironmentAwareErrorIdGenerationExample()
+    {
+        // Environment-aware default error IDs
+        var devOptions = new ExceptionHandlerOptions()
+            .WithEnvironmentAwareErrorIds("Development"); // D-123456
+
+        var testOptions = new ExceptionHandlerOptions()
+            .WithEnvironmentAwareErrorIds("Test"); // T-123456
+
+        var prodOptions = new ExceptionHandlerOptions()
+            .WithEnvironmentAwareErrorIds("Production"); // P-123456
+
+        // Environment-aware timestamp-based error IDs
+        var timestampOptions = new ExceptionHandlerOptions()
+            .WithEnvironmentAwareTimestampErrorIds("Development"); // D-20240115-143022-5678
+
+        // Environment-aware GUID-based error IDs
+        var guidOptions = new ExceptionHandlerOptions()
+            .WithEnvironmentAwareGuidErrorIds("Production"); // P-a1b2c3d4
+
+        // Environment-aware sequential error IDs
+        var sequentialOptions = new ExceptionHandlerOptions()
+            .WithEnvironmentAwareSequentialErrorIds("Test"); // T-1705321822123
     }
 
     /// <summary>
@@ -83,6 +112,79 @@ public static class AdvancedUsageExamples
         });
     }
 
+    /// <summary>
+    /// Example of environment-specific configuration with environment-aware error IDs.
+    /// </summary>
+    public static void EnvironmentSpecificExample()
+    {
+        var isDevelopment = true; // Replace with actual environment check
+        var environmentName = isDevelopment ? "Development" : "Production";
+
+        var options = new ExceptionHandlerOptions
+        {
+            IncludeDetails = isDevelopment,
+            LogExceptions = true,
+            DefaultErrorMessage = isDevelopment ? "An error occurred" : "Something went wrong"
+        }
+        .WithEnvironmentAwareErrorIds(environmentName) // D-123456 or P-123456
+        .WithSharedPostProcessing((exception, response) =>
+        {
+            if (isDevelopment)
+            {
+                // Development: Log to console
+                Console.WriteLine($"DEV ERROR: {response.ErrorId} - {response.Message}");
+            }
+            else
+            {
+                // Production: Send to monitoring system
+                SendToMonitoringSystem(response);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Example of different error ID strategies per environment.
+    /// </summary>
+    public static void EnvironmentSpecificErrorIdStrategiesExample()
+    {
+        var environmentName = "Development"; // Replace with actual environment
+
+        var options = new ExceptionHandlerOptions
+        {
+            IncludeDetails = true,
+            LogExceptions = true
+        };
+
+        // Different strategies for different environments
+        switch (environmentName)
+        {
+            case "Development":
+                options.WithEnvironmentAwareErrorIds(environmentName); // D-123456
+                break;
+            case "Test":
+                options.WithEnvironmentAwareTimestampErrorIds(environmentName); // T-20240115-143022-5678
+                break;
+            case "Production":
+                options.WithEnvironmentAwareGuidErrorIds(environmentName); // P-a1b2c3d4
+                break;
+            default:
+                options.WithEnvironmentAwareSequentialErrorIds(environmentName); // X-1705321822123
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Example of using environment prefixes with custom logic.
+    /// </summary>
+    public static void CustomEnvironmentLogicExample()
+    {
+        var environmentName = "Development"; // Replace with actual environment
+        var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environmentName); // "D"
+
+        var options = new ExceptionHandlerOptions()
+            .WithCustomErrorIdGenerator(() => 
+                $"{prefix}-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}".Substring(0, 15));
+    }
 
     // Helper methods for examples
     private static void IncrementErrorCounter(int statusCode)
@@ -108,5 +210,10 @@ public static class AdvancedUsageExamples
     private static void NotifyTeamIfNeeded(ExceptionResponse response)
     {
         // Implementation for team notifications
+    }
+
+    private static void SendToMonitoringSystem(ExceptionResponse response)
+    {
+        // Implementation for monitoring
     }
 } 

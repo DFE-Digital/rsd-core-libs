@@ -162,6 +162,62 @@ public static class ExceptionHandlerExtensions
     }
 
     /// <summary>
+    /// Configures the exception handler to use environment-aware default error IDs.
+    /// </summary>
+    /// <param name="options">The exception handler options.</param>
+    /// <param name="environmentName">The environment name (e.g., "Development", "Production").</param>
+    /// <returns>The exception handler options for chaining.</returns>
+    public static ExceptionHandlerOptions WithEnvironmentAwareErrorIds(
+        this ExceptionHandlerOptions options,
+        string environmentName)
+    {
+        options.ErrorIdGenerator = () => ErrorIdGenerator.GenerateDefaultWithEnvironment(environmentName);
+        return options;
+    }
+
+    /// <summary>
+    /// Configures the exception handler to use environment-aware timestamp-based error IDs.
+    /// </summary>
+    /// <param name="options">The exception handler options.</param>
+    /// <param name="environmentName">The environment name (e.g., "Development", "Production").</param>
+    /// <returns>The exception handler options for chaining.</returns>
+    public static ExceptionHandlerOptions WithEnvironmentAwareTimestampErrorIds(
+        this ExceptionHandlerOptions options,
+        string environmentName)
+    {
+        options.ErrorIdGenerator = () => ErrorIdGenerator.GenerateTimestampBasedWithEnvironment(environmentName);
+        return options;
+    }
+
+    /// <summary>
+    /// Configures the exception handler to use environment-aware GUID-based error IDs.
+    /// </summary>
+    /// <param name="options">The exception handler options.</param>
+    /// <param name="environmentName">The environment name (e.g., "Development", "Production").</param>
+    /// <returns>The exception handler options for chaining.</returns>
+    public static ExceptionHandlerOptions WithEnvironmentAwareGuidErrorIds(
+        this ExceptionHandlerOptions options,
+        string environmentName)
+    {
+        options.ErrorIdGenerator = () => ErrorIdGenerator.GenerateGuidBasedWithEnvironment(environmentName);
+        return options;
+    }
+
+    /// <summary>
+    /// Configures the exception handler to use environment-aware sequential error IDs.
+    /// </summary>
+    /// <param name="options">The exception handler options.</param>
+    /// <param name="environmentName">The environment name (e.g., "Development", "Production").</param>
+    /// <returns>The exception handler options for chaining.</returns>
+    public static ExceptionHandlerOptions WithEnvironmentAwareSequentialErrorIds(
+        this ExceptionHandlerOptions options,
+        string environmentName)
+    {
+        options.ErrorIdGenerator = () => ErrorIdGenerator.GenerateSequentialWithEnvironment(environmentName);
+        return options;
+    }
+
+    /// <summary>
     /// Configures shared post-processing action that will be executed after any handler processes an exception.
     /// </summary>
     /// <param name="options">The exception handler options.</param>

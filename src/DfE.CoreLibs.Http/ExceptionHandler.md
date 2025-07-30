@@ -7,6 +7,7 @@ This middleware provides a standardized way to handle all unhandled exceptions i
 - ✅ **Global Exception Handling**: Catches all unhandled exceptions
 - ✅ **Standardized Responses**: Consistent JSON error format
 - ✅ **Unique Error IDs**: 6-digit identifiers for tracking (default) with customizable generators
+- ✅ **Environment-Aware IDs**: Automatic environment prefixes (D/T/P for Dev/Test/Prod)
 - ✅ **Correlation ID Support**: Integrates with existing correlation tracking
 - ✅ **Customizable**: Configurable status codes, messages, and behavior
 - ✅ **Extensible**: Support for custom exception handlers
@@ -69,6 +70,33 @@ The middleware provides multiple ways to generate error IDs:
 
 By default, the middleware generates random 6-digit error IDs (e.g., "123456").
 
+### Environment-Aware Error IDs
+
+The middleware supports automatic environment prefixes:
+
+```csharp
+// Environment-aware error IDs
+app.UseGlobalExceptionHandler(options =>
+{
+    options.WithEnvironmentAwareErrorIds("Development"); // D-123456
+    // or
+    options.WithEnvironmentAwareErrorIds("Production"); // P-123456
+    // or
+    options.WithEnvironmentAwareErrorIds("Test"); // T-123456
+});
+```
+
+### Available Environment Prefixes
+
+| Environment Name | Prefix | Example |
+|------------------|--------|---------|
+| Development/Dev | D | `D-123456` |
+| Test/Staging | T | `T-123456` |
+| Production/Prod | P | `P-123456` |
+| UAT | U | `U-123456` |
+| QA | Q | `Q-123456` |
+| Unknown | X | `X-123456` |
+
 ### Custom Error ID Generators
 
 ```csharp
@@ -90,14 +118,40 @@ app.UseGlobalExceptionHandler(options =>
 });
 ```
 
+### Environment-Aware Built-in Generators
+
+```csharp
+// Environment-aware timestamp-based error IDs
+app.UseGlobalExceptionHandler(options =>
+{
+    options.WithEnvironmentAwareTimestampErrorIds("Development"); // D-20240115-143022-5678
+});
+
+// Environment-aware GUID-based error IDs
+app.UseGlobalExceptionHandler(options =>
+{
+    options.WithEnvironmentAwareGuidErrorIds("Production"); // P-a1b2c3d4
+});
+
+// Environment-aware sequential error IDs
+app.UseGlobalExceptionHandler(options =>
+{
+    options.WithEnvironmentAwareSequentialErrorIds("Test"); // T-1705321822123
+});
+```
+
 ### Available Error ID Generators
 
 | Generator | Format | Example |
 |-----------|--------|---------|
 | Default | 6-digit random | `123456` |
+| Environment-aware Default | `{Prefix}-{6-digit}` | `D-123456` |
 | Timestamp-based | `YYYYMMDD-HHMMSS-XXXX` | `20240115-143022-5678` |
+| Environment-aware Timestamp | `{Prefix}-YYYYMMDD-HHMMSS-XXXX` | `D-20240115-143022-5678` |
 | GUID-based | First 8 chars of GUID | `a1b2c3d4` |
+| Environment-aware GUID | `{Prefix}-{8-char-GUID}` | `P-a1b2c3d4` |
 | Sequential | Unix timestamp | `1705321822123` |
+| Environment-aware Sequential | `{Prefix}-{timestamp}` | `T-1705321822123` |
 
 ## Shared Post-Processing
 
@@ -245,7 +299,7 @@ All exceptions are formatted into a consistent JSON response:
 
 ```json
 {
-  "errorId": "123456",
+  "errorId": "D-123456",
   "statusCode": 400,
   "message": "Invalid request: Required parameter is missing",
   "exceptionType": "ArgumentNullException",
@@ -288,7 +342,66 @@ All exceptions are formatted into a consistent JSON response:
 
 ## Advanced Usage Examples
 
-### Combined Custom Handlers with Shared Post-Processing
+### Environment-Aware Configuration
+
+```csharp
+var environmentName = app.Environment.EnvironmentName; // "Development", "Production", etc.
+
+var options = new ExceptionHandlerOptions
+{
+    IncludeDetails = app.Environment.IsDevelopment(),
+    LogExceptions = true,
+    DefaultErrorMessage = app.Environment.IsProduction() ? "Something went wrong" : "An error occurred"
+}
+.WithEnvironmentAwareErrorIds(environmentName) // D-123456, P-123456, etc.
+.WithSharedPostProcessing((exception, response) =>
+{
+    // Environment-specific post-processing
+    if (app.Environment.IsDevelopment())
+    {
+        Console.WriteLine($"DEV ERROR: {response.ErrorId} - {response.Message}");
+    }
+    else
+    {
+        SendToMonitoringSystem(response);
+    }
+});
+
+app.UseGlobalExceptionHandler(options);
+```
+
+### Environment-Specific Error ID Strategies
+
+```csharp
+var environmentName = app.Environment.EnvironmentName;
+
+var options = new ExceptionHandlerOptions
+{
+    IncludeDetails = app.Environment.IsDevelopment(),
+    LogExceptions = true
+};
+
+// Different strategies for different environments
+switch (environmentName)
+{
+    case "Development":
+        options.WithEnvironmentAwareErrorIds(environmentName); // D-123456
+        break;
+    case "Test":
+        options.WithEnvironmentAwareTimestampErrorIds(environmentName); // T-20240115-143022-5678
+        break;
+    case "Production":
+        options.WithEnvironmentAwareGuidErrorIds(environmentName); // P-a1b2c3d4
+        break;
+    default:
+        options.WithEnvironmentAwareSequentialErrorIds(environmentName); // X-1705321822123
+        break;
+}
+
+app.UseGlobalExceptionHandler(options);
+```
+
+### Combined Custom Handlers with Environment-Aware Error IDs
 
 ```csharp
 var options = new ExceptionHandlerOptions
@@ -301,44 +414,12 @@ var options = new ExceptionHandlerOptions
         new ValidationExceptionHandler()
     }
 }
-.WithTimestampBasedErrorIds()
+.WithEnvironmentAwareTimestampErrorIds(app.Environment.EnvironmentName) // D-20240115-143022-5678
 .WithSharedPostProcessing((exception, response) =>
 {
     // Common post-processing logic
     TrackErrorMetrics(response);
     NotifyTeamIfNeeded(response);
-});
-
-app.UseGlobalExceptionHandler(options);
-```
-
-### Environment-Specific Configuration
-
-```csharp
-var isDevelopment = app.Environment.IsDevelopment();
-
-var options = new ExceptionHandlerOptions
-{
-    IncludeDetails = isDevelopment,
-    LogExceptions = true,
-    DefaultErrorMessage = isDevelopment ? "An error occurred" : "Something went wrong"
-}
-.WithCustomErrorIdGenerator(() => 
-    isDevelopment 
-        ? $"DEV-{ErrorIdGenerator.GenerateDefault()}" 
-        : ErrorIdGenerator.GenerateTimestampBased())
-.WithSharedPostProcessing((exception, response) =>
-{
-    if (isDevelopment)
-    {
-        // Development: Log to console
-        Console.WriteLine($"DEV ERROR: {response.ErrorId} - {response.Message}");
-    }
-    else
-    {
-        // Production: Send to monitoring system
-        SendToMonitoringSystem(response);
-    }
 });
 
 app.UseGlobalExceptionHandler(options);
@@ -408,12 +489,17 @@ The middleware automatically includes error IDs and correlation IDs in logs, mak
 ```csharp
 // In your Application Insights queries
 traces
-| where customDimensions.ErrorId == "123456"
+| where customDimensions.ErrorId startswith "D-" // Development errors
 | project timestamp, message, customDimensions
 
 // Or by correlation ID
 traces
 | where customDimensions.CorrelationId == "550e8400-e29b-41d4-a716-446655440000"
+| project timestamp, message, customDimensions
+
+// Environment-specific queries
+traces
+| where customDimensions.ErrorId startswith "P-" // Production errors
 | project timestamp, message, customDimensions
 ```
 
@@ -456,19 +542,28 @@ public class BusinessRuleException : Exception
 
 ### 4. Error ID Strategy
 
-- **Development**: Use descriptive IDs (e.g., `DEV-123456`)
-- **Production**: Use timestamp-based IDs for better tracking
-- **High-volume**: Use sequential IDs for performance
+- **Development**: Use environment-aware default IDs (e.g., `D-123456`)
+- **Test**: Use environment-aware timestamp IDs (e.g., `T-20240115-143022-5678`)
+- **Production**: Use environment-aware GUID IDs (e.g., `P-a1b2c3d4`)
+- **High-volume**: Use environment-aware sequential IDs (e.g., `P-1705321822123`)
 - **Security-sensitive**: Use GUID-based IDs for unpredictability
 
-### 5. Post-Processing Strategy
+### 5. Environment-Aware Strategy
+
+- **Development**: Use simple IDs for easy debugging (`D-123456`)
+- **Test**: Use timestamp IDs for chronological tracking (`T-20240115-143022-5678`)
+- **Production**: Use GUID IDs for security and uniqueness (`P-a1b2c3d4`)
+- **UAT/QA**: Use appropriate prefixes (`U-123456`, `Q-123456`)
+
+### 6. Post-Processing Strategy
 
 - **Metrics**: Always track error counts and types
 - **Notifications**: Only for critical errors (500+ status codes)
 - **Logging**: Keep it lightweight to avoid performance impact
 - **Context**: Add useful debugging information
+- **Environment Tracking**: Use environment prefixes in logs and metrics
 
-### 6. Testing
+### 7. Testing
 
 Test your exception handling:
 
@@ -488,7 +583,7 @@ public async Task Should_Return_Formatted_Error_Response()
     var errorResponse = JsonSerializer.Deserialize<ExceptionResponse>(content);
     
     errorResponse.Should().NotBeNull();
-    errorResponse!.ErrorId.Should().MatchRegex(@"^\d{6}$");
+    errorResponse!.ErrorId.Should().MatchRegex(@"^[DTPUQX]-\d{6}$"); // Environment-aware pattern
     errorResponse.StatusCode.Should().Be(400);
 }
 ```
@@ -500,6 +595,7 @@ public async Task Should_Return_Formatted_Error_Response()
 - **Log appropriately**: Use structured logging for better analysis
 - **Rate limiting**: Consider rate limiting for error endpoints to prevent abuse
 - **Error ID security**: Use unpredictable IDs in security-sensitive applications
+- **Environment isolation**: Use different error ID strategies per environment
 
 ## Migration from Existing Error Handling
 
