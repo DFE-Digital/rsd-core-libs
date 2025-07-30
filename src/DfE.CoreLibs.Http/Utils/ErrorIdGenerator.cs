@@ -5,8 +5,8 @@ namespace DfE.CoreLibs.Http.Utils;
 /// </summary>
 public static class ErrorIdGenerator
 {
-    private static readonly Random _random = new Random();
-    private static readonly object _lock = new object();
+    private static readonly Random Random = new();
+    private static readonly object Lock = new();
 
     /// <summary>
     /// Generates a random 6-digit error ID.
@@ -14,9 +14,9 @@ public static class ErrorIdGenerator
     /// <returns>A 6-digit string representation of a random number.</returns>
     public static string GenerateDefault()
     {
-        lock (_lock)
+        lock (Lock)
         {
-            return _random.Next(100000, 999999).ToString();
+            return Random.Next(100000, 999999).ToString();
         }
     }
 
@@ -27,9 +27,9 @@ public static class ErrorIdGenerator
     /// <returns>An environment-prefixed 6-digit error ID.</returns>
     public static string GenerateDefault(string environment)
     {
-        lock (_lock)
+        lock (Lock)
         {
-            var randomId = _random.Next(100000, 999999).ToString();
+            var randomId = Random.Next(100000, 999999).ToString();
             return $"{environment}-{randomId}";
         }
     }
@@ -40,10 +40,10 @@ public static class ErrorIdGenerator
     /// <returns>A timestamp-based error ID.</returns>
     public static string GenerateTimestampBased()
     {
-        lock (_lock)
+        lock (Lock)
         {
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-            var random = _random.Next(1000, 9999);
+            var random = Random.Next(1000, 9999);
             return $"{timestamp}-{random}";
         }
     }
@@ -55,10 +55,10 @@ public static class ErrorIdGenerator
     /// <returns>An environment-prefixed timestamp-based error ID.</returns>
     public static string GenerateTimestampBased(string environment)
     {
-        lock (_lock)
+        lock (Lock)
         {
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-            var random = _random.Next(1000, 9999);
+            var random = Random.Next(1000, 9999);
             return $"{environment}-{timestamp}-{random}";
         }
     }

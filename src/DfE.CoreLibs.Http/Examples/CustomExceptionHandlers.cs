@@ -1,10 +1,12 @@
 using DfE.CoreLibs.Http.Interfaces;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.CoreLibs.Http.Examples;
 
 /// <summary>
 /// Example custom exception for business rule violations.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class BusinessRuleException : Exception
 {
     public BusinessRuleException(string message) : base(message) { }
@@ -14,6 +16,7 @@ public class BusinessRuleException : Exception
 /// <summary>
 /// Example custom exception for validation failures.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class ValidationException : Exception
 {
     public ValidationException(string message) : base(message) { }
@@ -23,6 +26,7 @@ public class ValidationException : Exception
 /// <summary>
 /// Example custom exception for resource not found scenarios.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class ResourceNotFoundException : Exception
 {
     public string ResourceType { get; }
@@ -40,6 +44,7 @@ public class ResourceNotFoundException : Exception
 /// Example custom exception handler for business rule exceptions.
 /// This demonstrates how a service can register its own exception handling logic.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class BusinessRuleExceptionHandler : ICustomExceptionHandler
 {
     public int Priority => 10; // Higher priority than default handler
@@ -58,6 +63,7 @@ public class BusinessRuleExceptionHandler : ICustomExceptionHandler
 /// <summary>
 /// Example custom exception handler for validation exceptions.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class ValidationExceptionHandler : ICustomExceptionHandler
 {
     public int Priority => 20; // Higher priority than default handler
@@ -76,6 +82,7 @@ public class ValidationExceptionHandler : ICustomExceptionHandler
 /// <summary>
 /// Example custom exception handler for resource not found exceptions.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class ResourceNotFoundExceptionHandler : ICustomExceptionHandler
 {
     public int Priority => 30; // Higher priority than default handler
@@ -99,6 +106,7 @@ public class ResourceNotFoundExceptionHandler : ICustomExceptionHandler
 /// <summary>
 /// Example custom exception handler that demonstrates context usage.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class ContextAwareExceptionHandler : ICustomExceptionHandler
 {
     public int Priority => 5; // Very high priority

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using DfE.CoreLibs.Http.Configuration;
 using DfE.CoreLibs.Http.Extensions;
 using DfE.CoreLibs.Http.Interfaces;
@@ -9,6 +10,7 @@ namespace DfE.CoreLibs.Http.Examples;
 /// <summary>
 /// Examples demonstrating advanced usage of the exception handler middleware.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public static class AdvancedUsageExamples
 {
     /// <summary>
