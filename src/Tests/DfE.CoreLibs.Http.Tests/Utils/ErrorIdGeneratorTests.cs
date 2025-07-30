@@ -60,7 +60,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
         public void GenerateDefault_WithEnvironment_ShouldReturnPrefixedSixDigitNumber(string environment)
         {
             // Act
-            var result = ErrorIdGenerator.GenerateDefault(environment);
+            var result = ErrorIdGenerator.GenerateDefaultWithEnvironment(environment);
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environment);
@@ -103,7 +103,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
         public void GenerateTimestampBased_WithEnvironment_ShouldReturnPrefixedFormat(string environment)
         {
             // Act
-            var result = ErrorIdGenerator.GenerateTimestampBased(environment);
+            var result = ErrorIdGenerator.GenerateTimestampBasedWithEnvironment(environment);
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environment);
@@ -139,7 +139,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
         public void GenerateGuidBased_WithEnvironment_ShouldReturnPrefixedFormat(string environment)
         {
             // Act
-            var result = ErrorIdGenerator.GenerateGuidBased(environment);
+            var result = ErrorIdGenerator.GenerateGuidBasedWithEnvironment(environment);
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environment);
@@ -170,7 +170,7 @@ namespace DfE.CoreLibs.Http.Tests.Utils
         public void GenerateSequential_WithEnvironment_ShouldReturnPrefixedFormat(string environment)
         {
             // Act
-            var result = ErrorIdGenerator.GenerateSequential(environment);
+            var result = ErrorIdGenerator.GenerateSequentialWithEnvironment(environment);
 
             // Assert
             var prefix = ErrorIdGenerator.GetEnvironmentPrefix(environment);
