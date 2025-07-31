@@ -85,20 +85,20 @@ public class GlobalExceptionHandlerMiddleware
         // Create context dictionary for handlers to use
         var handlerContext = new Dictionary<string, object>();
 
-        // Determine status code and message using custom handlers
-        var (statusCode, message) = GetExceptionDetails(exception, handlerContext);
+        // Get exception response from custom handlers
+        var exceptionResponse = GetExceptionResponse(exception, handlerContext);
 
-        // Create error response
+        // Create final error response with middleware-specific properties
         var errorResponse = new ExceptionResponse
         {
             ErrorId = errorId,
-            StatusCode = statusCode,
-            Message = message,
-            ExceptionType = exception.GetType().Name,
+            StatusCode = exceptionResponse.StatusCode,
+            Message = exceptionResponse.Message,
+            ExceptionType = exceptionResponse.ExceptionType ?? exception.GetType().Name,
             Timestamp = DateTime.UtcNow,
             CorrelationId = correlationId,
-            Details = _options.IncludeDetails ? exception.ToString() : null,
-            Context = handlerContext.Any() ? handlerContext : null
+            Details = _options.IncludeDetails ? exception.ToString() : exceptionResponse.Details,
+            Context = exceptionResponse.Context ?? (handlerContext.Any() ? handlerContext : null)
         };
 
         // Execute shared post-processing action if configured
@@ -118,7 +118,7 @@ public class GlobalExceptionHandlerMiddleware
         }
 
         // Set response
-        context.Response.StatusCode = statusCode;
+        context.Response.StatusCode = errorResponse.StatusCode;
         context.Response.ContentType = "application/json";
 
         // Serialize and write response
@@ -126,7 +126,7 @@ public class GlobalExceptionHandlerMiddleware
         await context.Response.WriteAsync(jsonResponse);
     }
 
-    private (int statusCode, string message) GetExceptionDetails(Exception exception, Dictionary<string, object> context)
+    private ExceptionResponse GetExceptionResponse(Exception exception, Dictionary<string, object> context)
     {
         var exceptionType = exception.GetType();
 
@@ -140,7 +140,12 @@ public class GlobalExceptionHandlerMiddleware
         }
 
         // Final fallback
-        return (500, _options.DefaultErrorMessage);
+        return new ExceptionResponse
+        {
+            StatusCode = 500,
+            Message = _options.DefaultErrorMessage,
+            ExceptionType = exception.GetType().Name
+        };
     }
 
     private void LogException(Exception exception, string errorId, string? correlationId)

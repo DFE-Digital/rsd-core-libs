@@ -1,4 +1,5 @@
 using DfE.CoreLibs.Http.Interfaces;
+using DfE.CoreLibs.Http.Models;
 using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.CoreLibs.Http.Examples;
@@ -54,9 +55,15 @@ public class BusinessRuleExceptionHandler : ICustomExceptionHandler
         return exceptionType == typeof(BusinessRuleException);
     }
 
-    public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+    public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
     {
-        return (422, $"Business rule violation: {exception.Message}");
+        return new ExceptionResponse
+        {
+            StatusCode = 422,
+            Message = $"Business rule violation: {exception.Message}",
+            ExceptionType = "BusinessRuleException",
+            Context = context
+        };
     }
 }
 
@@ -73,9 +80,15 @@ public class ValidationExceptionHandler : ICustomExceptionHandler
         return exceptionType == typeof(ValidationException);
     }
 
-    public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+    public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
     {
-        return (400, $"Validation failed: {exception.Message}");
+        return new ExceptionResponse
+        {
+            StatusCode = 400,
+            Message = $"Validation failed: {exception.Message}",
+            ExceptionType = "ValidationException",
+            Context = context
+        };
     }
 }
 
@@ -92,14 +105,26 @@ public class ResourceNotFoundExceptionHandler : ICustomExceptionHandler
         return exceptionType == typeof(ResourceNotFoundException);
     }
 
-    public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+    public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
     {
         if (exception is ResourceNotFoundException resourceException)
         {
-            return (404, $"The requested {resourceException.ResourceType} was not found.");
+            return new ExceptionResponse
+            {
+                StatusCode = 404,
+                Message = $"The requested {resourceException.ResourceType} was not found.",
+                ExceptionType = "ResourceNotFoundException",
+                Context = context
+            };
         }
 
-        return (404, "The requested resource was not found.");
+        return new ExceptionResponse
+        {
+            StatusCode = 404,
+            Message = "The requested resource was not found.",
+            ExceptionType = "ResourceNotFoundException",
+            Context = context
+        };
     }
 }
 
@@ -116,14 +141,19 @@ public class ContextAwareExceptionHandler : ICustomExceptionHandler
         return exceptionType == typeof(InvalidOperationException);
     }
 
-    public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+    public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
     {
         // Use context to provide more specific error messages
-        if (context != null && context.TryGetValue("operation", out var operation))
-        {
-            return (400, $"Operation '{operation}' failed: {exception.Message}");
-        }
+        var message = context != null && context.TryGetValue("operation", out var operation)
+            ? $"Operation '{operation}' failed: {exception.Message}"
+            : $"Invalid operation: {exception.Message}";
 
-        return (400, $"Invalid operation: {exception.Message}");
+        return new ExceptionResponse
+        {
+            StatusCode = 400,
+            Message = message,
+            ExceptionType = "InvalidOperationException",
+            Context = context
+        };
     }
 } 

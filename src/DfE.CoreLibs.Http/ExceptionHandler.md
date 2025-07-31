@@ -221,9 +221,15 @@ public class BusinessRuleExceptionHandler : ICustomExceptionHandler
         return exceptionType == typeof(BusinessRuleException);
     }
 
-    public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+    public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
     {
-        return (422, $"Business rule violation: {exception.Message}");
+        return new ExceptionResponse
+        {
+            StatusCode = 422,
+            Message = $"Business rule violation: {exception.Message}",
+            ExceptionType = "BusinessRuleException",
+            Context = context
+        };
     }
 }
 ```
@@ -281,14 +287,19 @@ public class ContextAwareHandler : ICustomExceptionHandler
         return exceptionType == typeof(InvalidOperationException);
     }
 
-    public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+    public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
     {
-        if (context?.TryGetValue("operation", out var operation) == true)
-        {
-            return (400, $"Operation '{operation}' failed: {exception.Message}");
-        }
+        var message = context?.TryGetValue("operation", out var operation) == true
+            ? $"Operation '{operation}' failed: {exception.Message}"
+            : $"Invalid operation: {exception.Message}";
 
-        return (400, $"Invalid operation: {exception.Message}");
+        return new ExceptionResponse
+        {
+            StatusCode = 400,
+            Message = message,
+            ExceptionType = "InvalidOperationException",
+            Context = context
+        };
     }
 }
 ```
@@ -441,13 +452,31 @@ public class FileStorageExceptionHandler : ICustomExceptionHandler
                exceptionType == typeof(FileNotFoundException);
     }
 
-    public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+    public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
     {
         return exception switch
         {
-            FileStorageException => (500, "File storage operation failed"),
-            FileNotFoundException => (404, "File not found"),
-            _ => (500, "File operation failed")
+            FileStorageException => new ExceptionResponse
+            {
+                StatusCode = 500,
+                Message = "File storage operation failed",
+                ExceptionType = "FileStorageException",
+                Context = context
+            },
+            FileNotFoundException => new ExceptionResponse
+            {
+                StatusCode = 404,
+                Message = "File not found",
+                ExceptionType = "FileNotFoundException",
+                Context = context
+            },
+            _ => new ExceptionResponse
+            {
+                StatusCode = 500,
+                Message = "File operation failed",
+                ExceptionType = exception.GetType().Name,
+                Context = context
+            }
         };
     }
 }
@@ -470,13 +499,31 @@ public class SecurityExceptionHandler : ICustomExceptionHandler
                exceptionType == typeof(SecurityException);
     }
 
-    public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+    public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
     {
         return exception switch
         {
-            UnauthorizedAccessException => (401, "Access denied"),
-            SecurityException => (403, "Security violation"),
-            _ => (401, "Authentication required")
+            UnauthorizedAccessException => new ExceptionResponse
+            {
+                StatusCode = 401,
+                Message = "Access denied",
+                ExceptionType = "UnauthorizedAccessException",
+                Context = context
+            },
+            SecurityException => new ExceptionResponse
+            {
+                StatusCode = 403,
+                Message = "Security violation",
+                ExceptionType = "SecurityException",
+                Context = context
+            },
+            _ => new ExceptionResponse
+            {
+                StatusCode = 401,
+                Message = "Authentication required",
+                ExceptionType = exception.GetType().Name,
+                Context = context
+            }
         };
     }
 }

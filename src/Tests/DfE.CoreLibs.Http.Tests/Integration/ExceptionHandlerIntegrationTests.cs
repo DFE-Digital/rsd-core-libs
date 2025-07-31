@@ -434,9 +434,14 @@ namespace DfE.CoreLibs.Http.Tests.Integration
                 return exceptionType == typeof(ArgumentException);
             }
 
-            public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+            public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
             {
-                return (422, "Custom validation error");
+                return new ExceptionResponse
+                {
+                    StatusCode = 422,
+                    Message = "Custom validation error",
+                    ExceptionType = "ArgumentException"
+                };
             }
         }
 
@@ -449,9 +454,14 @@ namespace DfE.CoreLibs.Http.Tests.Integration
                 return exceptionType == typeof(ArgumentException);
             }
 
-            public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+            public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
             {
-                return (422, "High priority error");
+                return new ExceptionResponse
+                {
+                    StatusCode = 422,
+                    Message = "High priority error",
+                    ExceptionType = "ArgumentException"
+                };
             }
         }
 
@@ -464,9 +474,14 @@ namespace DfE.CoreLibs.Http.Tests.Integration
                 return exceptionType == typeof(ArgumentException);
             }
 
-            public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+            public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
             {
-                return (400, "Low priority error");
+                return new ExceptionResponse
+                {
+                    StatusCode = 400,
+                    Message = "Low priority error",
+                    ExceptionType = "ArgumentException"
+                };
             }
         }
 
@@ -479,13 +494,15 @@ namespace DfE.CoreLibs.Http.Tests.Integration
                 return exceptionType == typeof(ArgumentException);
             }
 
-            public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+            public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
             {
-                if (context != null)
+                return new ExceptionResponse
                 {
-                    context["handlerContext"] = "testValue";
-                }
-                return (422, "Context aware error");
+                    StatusCode = 422,
+                    Message = "Context aware error",
+                    ExceptionType = "ArgumentException",
+                    Context = new Dictionary<string, object> { ["handlerContext"] = "testValue" }
+                };
             }
         }
     }

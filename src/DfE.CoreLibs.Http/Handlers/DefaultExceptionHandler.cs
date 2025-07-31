@@ -1,4 +1,5 @@
 using DfE.CoreLibs.Http.Interfaces;
+using DfE.CoreLibs.Http.Models;
 
 namespace DfE.CoreLibs.Http.Handlers;
 
@@ -26,9 +27,9 @@ public class DefaultExceptionHandler : ICustomExceptionHandler
         };
     }
 
-    public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+    public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
     {
-        return exception.GetType().Name switch
+        var (statusCode, message) = exception.GetType().Name switch
         {
             nameof(ArgumentNullException) => (400, "Invalid request: Required parameter is missing"),
             nameof(ArgumentException) => (400, "Invalid request: " + exception.Message),
@@ -39,6 +40,14 @@ public class DefaultExceptionHandler : ICustomExceptionHandler
             nameof(DirectoryNotFoundException) => (404, "Directory not found"),
             nameof(TimeoutException) => (408, "Request timeout"),
             _ => (500, "An unexpected error occurred")
+        };
+
+        return new ExceptionResponse
+        {
+            StatusCode = statusCode,
+            Message = message,
+            ExceptionType = exception.GetType().Name,
+            Context = context
         };
     }
 } 

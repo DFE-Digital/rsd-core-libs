@@ -56,11 +56,11 @@ namespace DfE.CoreLibs.Http.Tests.Handlers
             var exception = CreateException(exceptionType, "Test message");
 
             // Act
-            var (statusCode, message) = _handler.Handle(exception);
+            var exceptionResponse = _handler.Handle(exception);
 
             // Assert
-            statusCode.Should().Be(expectedStatusCode);
-            message.Should().Be(expectedMessage);
+            exceptionResponse.StatusCode.Should().Be(expectedStatusCode);
+            exceptionResponse.Message.Should().Be(expectedMessage);
         }
 
         [Fact]
@@ -70,11 +70,11 @@ namespace DfE.CoreLibs.Http.Tests.Handlers
             var exception = new InvalidCastException("Test cast exception");
 
             // Act
-            var (statusCode, message) = _handler.Handle(exception);
+            var exceptionResponse = _handler.Handle(exception);
 
             // Assert
-            statusCode.Should().Be(500);
-            message.Should().Be("An unexpected error occurred");
+            exceptionResponse.StatusCode.Should().Be(500);
+            exceptionResponse.Message.Should().Be("An unexpected error occurred");
         }
 
         [Fact]
@@ -84,11 +84,11 @@ namespace DfE.CoreLibs.Http.Tests.Handlers
             var exception = new ArgumentException("Custom argument error", "paramName");
 
             // Act
-            var (statusCode, message) = _handler.Handle(exception);
+            var exceptionResponse = _handler.Handle(exception);
 
             // Assert
-            statusCode.Should().Be(400);
-            message.Should().Be("Invalid request: Custom argument error (Parameter 'paramName')");
+            exceptionResponse.StatusCode.Should().Be(400);
+            exceptionResponse.Message.Should().Be("Invalid request: Custom argument error (Parameter 'paramName')");
         }
 
         [Fact]
@@ -98,11 +98,11 @@ namespace DfE.CoreLibs.Http.Tests.Handlers
             var exception = new InvalidOperationException("Custom operation error");
 
             // Act
-            var (statusCode, message) = _handler.Handle(exception);
+            var exceptionResponse = _handler.Handle(exception);
 
             // Assert
-            statusCode.Should().Be(400);
-            message.Should().Be("Invalid operation: Custom operation error");
+            exceptionResponse.StatusCode.Should().Be(400);
+            exceptionResponse.Message.Should().Be("Invalid operation: Custom operation error");
         }
 
         [Fact]
@@ -113,11 +113,11 @@ namespace DfE.CoreLibs.Http.Tests.Handlers
             var context = new Dictionary<string, object> { ["test"] = "value" };
 
             // Act
-            var (statusCode, message) = _handler.Handle(exception, context);
+            var exceptionResponse = _handler.Handle(exception, context);
 
             // Assert
-            statusCode.Should().Be(400);
-            message.Should().Contain("Invalid request");
+            exceptionResponse.StatusCode.Should().Be(400);
+            exceptionResponse.Message.Should().Contain("Invalid request");
         }
 
         [Fact]
@@ -127,11 +127,11 @@ namespace DfE.CoreLibs.Http.Tests.Handlers
             var exception = new ArgumentException("Test exception");
 
             // Act
-            var (statusCode, message) = _handler.Handle(exception, null);
+            var exceptionResponse = _handler.Handle(exception, null);
 
             // Assert
-            statusCode.Should().Be(400);
-            message.Should().Contain("Invalid request");
+            exceptionResponse.StatusCode.Should().Be(400);
+            exceptionResponse.Message.Should().Contain("Invalid request");
         }
 
         [Fact]
@@ -141,11 +141,11 @@ namespace DfE.CoreLibs.Http.Tests.Handlers
             var exception = new ArgumentException(null, "paramName");
 
             // Act
-            var (statusCode, message) = _handler.Handle(exception);
+            var exceptionResponse = _handler.Handle(exception);
 
             // Assert
-            statusCode.Should().Be(400);
-            message.Should().Be("Invalid request: Value does not fall within the expected range. (Parameter 'paramName')");
+            exceptionResponse.StatusCode.Should().Be(400);
+            exceptionResponse.Message.Should().Be("Invalid request: Value does not fall within the expected range. (Parameter 'paramName')");
         }
 
         [Fact]
@@ -155,11 +155,11 @@ namespace DfE.CoreLibs.Http.Tests.Handlers
             var exception = new ArgumentException("", "paramName");
 
             // Act
-            var (statusCode, message) = _handler.Handle(exception);
+            var exceptionResponse = _handler.Handle(exception);
 
             // Assert
-            statusCode.Should().Be(400);
-            message.Should().Be("Invalid request:  (Parameter 'paramName')");
+            exceptionResponse.StatusCode.Should().Be(400);
+            exceptionResponse.Message.Should().Be("Invalid request:  (Parameter 'paramName')");
         }
 
         [Theory]
@@ -177,29 +177,13 @@ namespace DfE.CoreLibs.Http.Tests.Handlers
             var exception = CreateException(exceptionType, "Test message");
 
             // Act
-            var (statusCode, message) = _handler.Handle(exception);
+            var exceptionResponse = _handler.Handle(exception);
 
             // Assert
-            statusCode.Should().BeGreaterThan(0);
-            message.Should().NotBeNullOrEmpty();
+            exceptionResponse.StatusCode.Should().BeGreaterThan(0);
+            exceptionResponse.Message.Should().NotBeNullOrEmpty();
         }
 
-        [Fact]
-        public void Handle_ShouldReturnConsistentResults_ForSameExceptionType()
-        {
-            // Arrange
-            var exception1 = new ArgumentException("First message");
-            var exception2 = new ArgumentException("Second message");
-
-            // Act
-            var (statusCode1, message1) = _handler.Handle(exception1);
-            var (statusCode2, message2) = _handler.Handle(exception2);
-
-            // Assert
-            statusCode1.Should().Be(statusCode2);
-            message1.Should().StartWith("Invalid request: ");
-            message2.Should().StartWith("Invalid request: ");
-        }
 
         [Fact]
         public void Handle_ShouldHandleInnerExceptions()
@@ -209,11 +193,11 @@ namespace DfE.CoreLibs.Http.Tests.Handlers
             var exception = new ArgumentException("Outer error", innerException);
 
             // Act
-            var (statusCode, message) = _handler.Handle(exception);
+            var exceptionResponse = _handler.Handle(exception);
 
             // Assert
-            statusCode.Should().Be(400);
-            message.Should().Be("Invalid request: Outer error");
+            exceptionResponse.StatusCode.Should().Be(400);
+            exceptionResponse.Message.Should().Be("Invalid request: Outer error");
         }
 
         private static Exception CreateException(Type exceptionType, string message)

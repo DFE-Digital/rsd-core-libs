@@ -300,7 +300,12 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             customHandler.Priority.Returns(10);
             customHandler.CanHandle(typeof(ArgumentException)).Returns(true);
             customHandler.Handle(Arg.Any<Exception>(), Arg.Any<Dictionary<string, object>>())
-                       .Returns((422, "Custom validation error"));
+                       .Returns(new ExceptionResponse
+                       {
+                           StatusCode = 422,
+                           Message = "Custom validation error",
+                           ExceptionType = "ArgumentException"
+                       });
 
             _options.CustomHandlers.Add(customHandler);
             var newMiddleware = new GlobalExceptionHandlerMiddleware(_nextDelegate, _logger, _options);
@@ -431,7 +436,12 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             customHandler.Priority.Returns(10);
             customHandler.CanHandle(typeof(ArgumentException)).Returns(true);
             customHandler.Handle(Arg.Any<Exception>(), Arg.Any<Dictionary<string, object>>())
-                       .Returns((422, "Custom error"))
+                       .Returns(new ExceptionResponse
+                       {
+                           StatusCode = 422,
+                           Message = "Custom error",
+                           ExceptionType = "ArgumentException"
+                       })
                        .AndDoes(callInfo => passedContext = callInfo.Arg<Dictionary<string, object>>());
 
             _options.CustomHandlers.Add(customHandler);
@@ -459,11 +469,12 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             customHandler.Priority.Returns(10);
             customHandler.CanHandle(typeof(ArgumentException)).Returns(true);
             customHandler.Handle(Arg.Any<Exception>(), Arg.Any<Dictionary<string, object>>())
-                       .Returns((422, "Custom error"))
-                       .AndDoes(callInfo => 
+                       .Returns(new ExceptionResponse
                        {
-                           var context = callInfo.Arg<Dictionary<string, object>>();
-                           context["testKey"] = "testValue";
+                           StatusCode = 422,
+                           Message = "Custom error",
+                           ExceptionType = "ArgumentException",
+                           Context = new Dictionary<string, object> { ["testKey"] = "testValue" }
                        });
 
             _options.CustomHandlers.Add(customHandler);
@@ -524,13 +535,23 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             highPriorityHandler.Priority.Returns(5);
             highPriorityHandler.CanHandle(typeof(ArgumentException)).Returns(true);
             highPriorityHandler.Handle(Arg.Any<Exception>(), Arg.Any<Dictionary<string, object>>())
-                             .Returns((422, "High priority error"));
+                             .Returns(new ExceptionResponse
+                             {
+                                 StatusCode = 422,
+                                 Message = "High priority error",
+                                 ExceptionType = "ArgumentException"
+                             });
 
             var lowPriorityHandler = Substitute.For<ICustomExceptionHandler>();
             lowPriorityHandler.Priority.Returns(15);
             lowPriorityHandler.CanHandle(typeof(ArgumentException)).Returns(true);
             lowPriorityHandler.Handle(Arg.Any<Exception>(), Arg.Any<Dictionary<string, object>>())
-                            .Returns((400, "Low priority error"));
+                            .Returns(new ExceptionResponse
+                            {
+                                StatusCode = 400,
+                                Message = "Low priority error",
+                                ExceptionType = "ArgumentException"
+                            });
 
             _options.CustomHandlers.Add(lowPriorityHandler); // Add low priority first
             _options.CustomHandlers.Add(highPriorityHandler); // Add high priority second

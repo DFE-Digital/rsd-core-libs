@@ -111,7 +111,7 @@ namespace DfE.CoreLibs.Http.Tests.Helpers
         }
 
         /// <summary>
-        /// Creates a test custom exception handler.
+        /// Creates a test exception handler with custom behavior.
         /// </summary>
         /// <param name="priority">The priority of the handler.</param>
         /// <param name="canHandle">Function to determine if the handler can handle an exception type.</param>
@@ -120,7 +120,7 @@ namespace DfE.CoreLibs.Http.Tests.Helpers
         public static ICustomExceptionHandler CreateTestHandler(
             int priority,
             Func<Type, bool> canHandle,
-            Func<Exception, Dictionary<string, object>?, (int, string)> handle)
+            Func<Exception, Dictionary<string, object>?, ExceptionResponse> handle)
         {
             return new TestCustomExceptionHandler(priority, canHandle, handle);
         }
@@ -141,7 +141,13 @@ namespace DfE.CoreLibs.Http.Tests.Helpers
             return CreateTestHandler(
                 priority,
                 exceptionType => exceptionType == typeof(TException),
-                (exception, context) => (statusCode, message));
+                (exception, context) => new ExceptionResponse
+                {
+                    StatusCode = statusCode,
+                    Message = message,
+                    ExceptionType = exception.GetType().Name,
+                    Context = context
+                });
         }
 
         /// <summary>
@@ -186,12 +192,12 @@ namespace DfE.CoreLibs.Http.Tests.Helpers
         {
             private readonly int _priority;
             private readonly Func<Type, bool> _canHandle;
-            private readonly Func<Exception, Dictionary<string, object>?, (int, string)> _handle;
+            private readonly Func<Exception, Dictionary<string, object>?, ExceptionResponse> _handle;
 
             public TestCustomExceptionHandler(
                 int priority,
                 Func<Type, bool> canHandle,
-                Func<Exception, Dictionary<string, object>?, (int, string)> handle)
+                Func<Exception, Dictionary<string, object>?, ExceptionResponse> handle)
             {
                 _priority = priority;
                 _canHandle = canHandle;
@@ -205,7 +211,7 @@ namespace DfE.CoreLibs.Http.Tests.Helpers
                 return _canHandle(exceptionType);
             }
 
-            public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+            public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
             {
                 return _handle(exception, context);
             }

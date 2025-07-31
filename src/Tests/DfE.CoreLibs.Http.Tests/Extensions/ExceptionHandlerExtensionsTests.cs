@@ -348,9 +348,14 @@ namespace DfE.CoreLibs.Http.Tests.Extensions
                 return exceptionType == typeof(ArgumentException);
             }
 
-            public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+            public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
             {
-                return (400, "Test handler");
+                return new ExceptionResponse
+                {
+                    StatusCode = 400,
+                    Message = "Test handler",
+                    ExceptionType = "ArgumentException"
+                };
             }
         }
 
@@ -363,9 +368,14 @@ namespace DfE.CoreLibs.Http.Tests.Extensions
                 return exceptionType == typeof(InvalidOperationException);
             }
 
-            public (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null)
+            public ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null)
             {
-                return (422, "Another test handler");
+                return new ExceptionResponse
+                {
+                    StatusCode = 422,
+                    Message = "Another test handler",
+                    ExceptionType = "InvalidOperationException"
+                };
             }
         }
     }

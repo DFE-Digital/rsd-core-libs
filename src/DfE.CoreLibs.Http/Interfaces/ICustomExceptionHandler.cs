@@ -1,3 +1,5 @@
+using DfE.CoreLibs.Http.Models;
+
 namespace DfE.CoreLibs.Http.Interfaces;
 
 /// <summary>
@@ -14,12 +16,12 @@ public interface ICustomExceptionHandler
     bool CanHandle(Type exceptionType);
 
     /// <summary>
-    /// Handles the exception and returns the status code and message.
+    /// Handles the exception and returns a complete exception response.
     /// </summary>
     /// <param name="exception">The exception to handle.</param>
     /// <param name="context">Additional context information (optional).</param>
-    /// <returns>A tuple containing the HTTP status code and error message.</returns>
-    (int statusCode, string message) Handle(Exception exception, Dictionary<string, object>? context = null);
+    /// <returns>A complete exception response with status code, message, and additional details.</returns>
+    ExceptionResponse Handle(Exception exception, Dictionary<string, object>? context = null);
 
     /// <summary>
     /// Gets the priority of this handler. Lower numbers have higher priority.
