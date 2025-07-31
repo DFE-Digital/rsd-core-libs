@@ -1,9 +1,16 @@
-﻿namespace DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
+﻿using System.Text.Json.Serialization;
+
+namespace DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
 {
     public class Result<T>
     {
+        [JsonPropertyName("value")]
         public T? Value { get; }
+        
+        [JsonPropertyName("isSuccess")]
         public bool IsSuccess { get; }
+        
+        [JsonPropertyName("error")]
         public string? Error { get; }
 
         private Result(T value, bool isSuccess, string? error)

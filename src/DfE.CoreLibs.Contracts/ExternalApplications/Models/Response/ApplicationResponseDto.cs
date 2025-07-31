@@ -1,10 +1,12 @@
-﻿namespace DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
+﻿using System.Text.Json.Serialization;
+
+namespace DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
 {
     public sealed record ApplicationResponseDto(
-        Guid ResponseId,
-        string ApplicationReference,
-        Guid ApplicationId,
-        string ResponseBody,
-        DateTime CreatedOn,
-        Guid CreatedBy);
+        [property: JsonPropertyName("responseId")] Guid ResponseId,
+        [property: JsonPropertyName("applicationReference")] string ApplicationReference,
+        [property: JsonPropertyName("applicationId")] Guid ApplicationId,
+        [property: JsonPropertyName("responseBody")] string ResponseBody,
+        [property: JsonPropertyName("createdOn")] DateTime CreatedOn,
+        [property: JsonPropertyName("createdBy")] Guid CreatedBy);
 }
