@@ -79,6 +79,8 @@ public static class ExceptionHandlerExtensions
     public static IServiceCollection AddCustomExceptionHandler<THandler>(this IServiceCollection services)
         where THandler : class, ICustomExceptionHandler
     {
+        // Register both the concrete type and the interface
+        services.AddScoped<THandler>();
         services.AddScoped<ICustomExceptionHandler, THandler>();
         return services;
     }

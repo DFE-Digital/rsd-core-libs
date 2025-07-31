@@ -63,7 +63,9 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             // Arrange
             var exception = new ArgumentException("Test exception");
             context.Response.Body = new MemoryStream();
-            context.RequestServices = new ServiceCollection().BuildServiceProvider();
+            var services = new ServiceCollection();
+            services.AddSingleton<IEnumerable<ICustomExceptionHandler>>(Enumerable.Empty<ICustomExceptionHandler>());
+            context.RequestServices = services.BuildServiceProvider();
             _nextDelegate.Invoke(context).Throws(exception);
 
             // Act
@@ -170,8 +172,10 @@ namespace DfE.CoreLibs.Http.Tests.Middlewares
             var correlationId = Guid.NewGuid();
             correlationContext.CorrelationId.Returns(correlationId);
             
-            var serviceProvider = Substitute.For<IServiceProvider>();
-            serviceProvider.GetService(typeof(ICorrelationContext)).Returns(correlationContext);
+            var services = new ServiceCollection();
+            services.AddSingleton<IEnumerable<ICustomExceptionHandler>>(Enumerable.Empty<ICustomExceptionHandler>());
+            services.AddSingleton(correlationContext);
+            var serviceProvider = services.BuildServiceProvider();
             context.RequestServices = serviceProvider;
 
             var exception = new Exception("Test exception");

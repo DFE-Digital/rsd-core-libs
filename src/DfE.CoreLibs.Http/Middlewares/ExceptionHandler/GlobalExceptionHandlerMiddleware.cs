@@ -41,7 +41,7 @@ public class GlobalExceptionHandlerMiddleware
         // Initialize handlers with custom handlers first, then default handler
         _handlers = new List<ICustomExceptionHandler>();
         
-        // Add custom handlers
+        // Add custom handlers from options
         _handlers.AddRange(_options.CustomHandlers);
         
         // Add default handler
@@ -86,7 +86,7 @@ public class GlobalExceptionHandlerMiddleware
         var handlerContext = new Dictionary<string, object>();
 
         // Get exception response from custom handlers
-        var exceptionResponse = GetExceptionResponse(exception, handlerContext);
+        var exceptionResponse = GetExceptionResponse(exception, handlerContext, context.RequestServices);
 
         // Create final error response with middleware-specific properties
         var errorResponse = new ExceptionResponse
@@ -126,11 +126,21 @@ public class GlobalExceptionHandlerMiddleware
         await context.Response.WriteAsync(jsonResponse);
     }
 
-    private ExceptionResponse GetExceptionResponse(Exception exception, Dictionary<string, object> context)
+    private ExceptionResponse GetExceptionResponse(Exception exception, Dictionary<string, object> context, IServiceProvider serviceProvider)
     {
         var exceptionType = exception.GetType();
 
-        // Try custom handlers first (they have higher priority)
+        // Try custom handlers from service container first
+        var serviceHandlers = serviceProvider.GetServices<ICustomExceptionHandler>();
+        foreach (var handler in serviceHandlers)
+        {
+            if (handler.CanHandle(exceptionType))
+            {
+                return handler.Handle(exception, context);
+            }
+        }
+
+        // Try handlers from options
         foreach (var handler in _handlers)
         {
             if (handler.CanHandle(exceptionType))

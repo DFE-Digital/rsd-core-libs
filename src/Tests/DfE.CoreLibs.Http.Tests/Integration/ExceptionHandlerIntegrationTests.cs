@@ -26,6 +26,7 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             // Arrange
             var services = new ServiceCollection();
             services.AddLogging();
+            services.AddSingleton<IEnumerable<ICustomExceptionHandler>>(Enumerable.Empty<ICustomExceptionHandler>());
             var serviceProvider = services.BuildServiceProvider();
 
             var options = new ExceptionHandlerOptions();
@@ -67,6 +68,7 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             // Arrange
             var services = new ServiceCollection();
             services.AddLogging();
+            services.AddSingleton<IEnumerable<ICustomExceptionHandler>>(Enumerable.Empty<ICustomExceptionHandler>());
             var serviceProvider = services.BuildServiceProvider();
 
             var options = new ExceptionHandlerOptions();
@@ -106,6 +108,7 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             // Arrange
             var services = new ServiceCollection();
             services.AddLogging();
+            services.AddSingleton<IEnumerable<ICustomExceptionHandler>>(Enumerable.Empty<ICustomExceptionHandler>());
             var serviceProvider = services.BuildServiceProvider();
 
             var customErrorId = "CUSTOM-123";
@@ -145,6 +148,7 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             // Arrange
             var services = new ServiceCollection();
             services.AddLogging();
+            services.AddSingleton<IEnumerable<ICustomExceptionHandler>>(Enumerable.Empty<ICustomExceptionHandler>());
             var serviceProvider = services.BuildServiceProvider();
 
             var options = new ExceptionHandlerOptions();
@@ -183,6 +187,7 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             // Arrange
             var services = new ServiceCollection();
             services.AddLogging();
+            services.AddSingleton<IEnumerable<ICustomExceptionHandler>>(Enumerable.Empty<ICustomExceptionHandler>());
             var serviceProvider = services.BuildServiceProvider();
 
             var postProcessingCalled = false;
@@ -228,6 +233,7 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             // Arrange
             var services = new ServiceCollection();
             services.AddLogging();
+            services.AddSingleton<IEnumerable<ICustomExceptionHandler>>(Enumerable.Empty<ICustomExceptionHandler>());
             var serviceProvider = services.BuildServiceProvider();
 
             var options = new ExceptionHandlerOptions();
@@ -250,8 +256,12 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             var correlationId = Guid.NewGuid();
             correlationContext.CorrelationId.Returns(correlationId);
             
-            var mockServiceProvider = Substitute.For<IServiceProvider>();
-            mockServiceProvider.GetService(typeof(ICorrelationContext)).Returns(correlationContext);
+            // Create a new service collection that includes both the original services and the mock correlation context
+            var mockServices = new ServiceCollection();
+            mockServices.AddLogging();
+            mockServices.AddSingleton<IEnumerable<ICustomExceptionHandler>>(Enumerable.Empty<ICustomExceptionHandler>());
+            mockServices.AddSingleton(correlationContext);
+            var mockServiceProvider = mockServices.BuildServiceProvider();
             context.RequestServices = mockServiceProvider;
 
             // Act
@@ -275,6 +285,7 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             // Arrange
             var services = new ServiceCollection();
             services.AddLogging();
+            services.AddSingleton<IEnumerable<ICustomExceptionHandler>>(Enumerable.Empty<ICustomExceptionHandler>());
             var serviceProvider = services.BuildServiceProvider();
 
             var options = new ExceptionHandlerOptions();
@@ -314,6 +325,7 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             // Arrange
             var services = new ServiceCollection();
             services.AddLogging();
+            services.AddSingleton<IEnumerable<ICustomExceptionHandler>>(Enumerable.Empty<ICustomExceptionHandler>());
             var serviceProvider = services.BuildServiceProvider();
 
             var options = new ExceptionHandlerOptions();
@@ -342,6 +354,7 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             // Arrange
             var services = new ServiceCollection();
             services.AddLogging();
+            services.AddSingleton<IEnumerable<ICustomExceptionHandler>>(Enumerable.Empty<ICustomExceptionHandler>());
             var serviceProvider = services.BuildServiceProvider();
 
             var options = new ExceptionHandlerOptions();
@@ -380,6 +393,7 @@ namespace DfE.CoreLibs.Http.Tests.Integration
             // Arrange
             var services = new ServiceCollection();
             services.AddLogging();
+            services.AddSingleton<IEnumerable<ICustomExceptionHandler>>(Enumerable.Empty<ICustomExceptionHandler>());
             var serviceProvider = services.BuildServiceProvider();
 
             var options = new ExceptionHandlerOptions();
