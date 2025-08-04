@@ -8,9 +8,12 @@
     {
         private readonly int _maxRequests;
         private readonly TimeSpan _interval;
-        private readonly Queue<DateTime> _history;
+        private readonly RateLimitStore<TKey> _store;
         private readonly Func<DateTime> _timeProvider;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TimeBasedRateLimiter{TKey}"/> class.
+        /// </summary>
         public TimeBasedRateLimiter(
             int maxRequests,
             TimeSpan interval,
@@ -21,21 +24,26 @@
             if (interval <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(interval));
             _maxRequests = maxRequests;
             _interval = interval;
-            _history = store.Logs.GetOrAdd(default!, _ => new Queue<DateTime>());
+            _store = store ?? throw new ArgumentNullException(nameof(store));
             _timeProvider = timeProvider;
         }
 
+        /// <summary>
+        /// Determines if a request for the specified key is allowed.
+        /// </summary>
         public bool IsAllowed(TKey key)
         {
+            if (key == null) throw new ArgumentNullException(nameof(key));
             var now = _timeProvider();
-            lock (_history)
+            var history = _store.Logs.GetOrAdd(key, _ => new Queue<DateTime>());
+            lock (history)
             {
-                while (_history.Count > 0 && now - _history.Peek() >= _interval)
-                    _history.Dequeue();
+                while (history.Count > 0 && now - history.Peek() >= _interval)
+                    history.Dequeue();
 
-                if (_history.Count < _maxRequests)
+                if (history.Count < _maxRequests)
                 {
-                    _history.Enqueue(now);
+                    history.Enqueue(now);
                     return true;
                 }
                 return false;
