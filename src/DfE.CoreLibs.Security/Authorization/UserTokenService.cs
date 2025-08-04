@@ -8,15 +8,18 @@ using System.Security.Claims;
 using System.Text;
 using DfE.CoreLibs.Caching.Helpers;
 using Microsoft.Extensions.Options;
+using DfE.CoreLibs.Security.Models;
 
 namespace DfE.CoreLibs.Security.Authorization
 {
     /// <inheritdoc />
-    public class UserTokenService : IUserTokenService
+    public class UserTokenService(
+        IOptions<TokenSettings> tokenSettings,
+        IMemoryCache cache,
+        ILogger<UserTokenService> logger)
+        : IUserTokenService
     {
-        private readonly TokenSettings _tokenSettings;
-        private readonly IMemoryCache _cache;
-        private readonly ILogger<UserTokenService> _logger;
+        private readonly TokenSettings _tokenSettings = tokenSettings.Value;
 
         /// <summary>
         /// Defines the buffer time (in seconds) before the token's actual expiration
@@ -24,77 +27,81 @@ namespace DfE.CoreLibs.Security.Authorization
         /// </summary>
         private const int CacheExpirationBufferSeconds = 30;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="UserTokenService"/> class.
-        /// </summary>
-        /// <param name="tokenSettings">Settings related to token generation, such as secret key, issuer, audience, and token lifetime.</param>
-        /// <param name="cache">Memory cache used to store and retrieve cached tokens.</param>
-        /// <param name="logger">Logger instance for logging informational and error messages.</param>
-        public UserTokenService(IOptions<TokenSettings> tokenSettings, IMemoryCache cache, ILogger<UserTokenService> logger)
-        {
-            _tokenSettings = tokenSettings.Value;
-            _cache = cache;
-            _logger = logger;
-        }
-
         /// <inheritdoc />
         public Task<string> GetUserTokenAsync(ClaimsPrincipal user)
         {
+            return GetOrCreateJwtTokenAsync(user);
+        }
+
+        /// <inheritdoc />
+        public async Task<Token> GetUserTokenModelAsync(ClaimsPrincipal user)
+        {
+            var jwt = await GetOrCreateJwtTokenAsync(user);
+            var expiresInSeconds = ComputeExpiresInSeconds(jwt);
+
+            var tokenModel = new Token
+            {
+                AccessToken = jwt,
+                TokenType = "Bearer",
+                ExpiresIn = expiresInSeconds
+            };
+
+            return tokenModel;
+        }
+
+        private async Task<string> GetOrCreateJwtTokenAsync(ClaimsPrincipal user)
+        {
             ArgumentNullException.ThrowIfNull(user);
 
-            // Generate a unique cache key based on the user's unique identifier
             var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? user.Identity?.Name;
             if (string.IsNullOrEmpty(userId))
                 throw new InvalidOperationException("User does not have a valid identifier.");
 
+            var cacheKey = BuildCacheKey(userId, user);
+
+            if (cache.TryGetValue(cacheKey, out string? cachedToken))
+            {
+                logger.LogInformation("Token retrieved from cache for user: {UserId} and cache key: {CacheKey}", userId, cacheKey);
+                return cachedToken!;
+            }
+
+            var token = GenerateJwtTokenString(user);
+
+            var expiration = DateTime.UtcNow
+                .AddMinutes(_tokenSettings.TokenLifetimeMinutes)
+                .Subtract(TimeSpan.FromSeconds(CacheExpirationBufferSeconds));
+
+            var cacheEntryOptions = new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(expiration);
+
+            cache.Set(cacheKey, token, cacheEntryOptions);
+
+            logger.LogInformation("Token generated and cached for user: {UserId}", userId);
+
+            return token;
+        }
+
+        private static string BuildCacheKey(string userId, ClaimsPrincipal user)
+        {
             var claimStrings = user.Claims
                 .OrderBy(c => c.Type)
                 .Select(c => $"{c.Type}:{c.Value}")
                 .ToList();
 
             var hashed = CacheKeyHelper.GenerateHashedCacheKey(claimStrings);
-
-            var cacheKey = $"UserToken_{userId}_{hashed}";
-
-            // Try to get the token from cache
-            if (_cache.TryGetValue(cacheKey, out string? cachedToken))
-            {
-                _logger.LogInformation("Token retrieved from cache for user: {UserId} and cache key: {cacheKey}", userId, cacheKey);
-                return Task.FromResult(cachedToken!);
-            }
-
-            // Generate a new token
-            var token = GenerateToken(user);
-
-            var expiration = DateTime.UtcNow.AddMinutes(_tokenSettings.TokenLifetimeMinutes)
-                .Subtract(TimeSpan.FromSeconds(CacheExpirationBufferSeconds));
-
-            // Set cache options
-            var cacheEntryOptions = new MemoryCacheEntryOptions()
-                .SetAbsoluteExpiration(expiration);
-
-            // Save the token in cache
-            _cache.Set(cacheKey, token, cacheEntryOptions);
-
-            _logger.LogInformation("Token Generated.");
-
-            return Task.FromResult(token);
+            return $"UserToken_{userId}_{hashed}";
         }
 
         /// <summary>
-        /// Generates a new JWT token for the specified authenticated user.
+        /// Generates a new JWT token string for the specified authenticated user.
         /// </summary>
-        /// <param name="user">The authenticated user for whom the token is to be generated.</param>
-        /// <returns>The generated JWT token as a string.</returns>
-        private string GenerateToken(ClaimsPrincipal user)
+        private string GenerateJwtTokenString(ClaimsPrincipal user)
         {
             var claims = user.Claims
                 .Select(c => new Claim(c.Type, c.Value))
                 .ToList();
 
-            var key = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(_tokenSettings.SecretKey));
-
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_tokenSettings.SecretKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
@@ -105,6 +112,27 @@ namespace DfE.CoreLibs.Security.Authorization
                 signingCredentials: creds);
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        private int ComputeExpiresInSeconds(string jwtToken)
+        {
+            try
+            {
+                var handler = new JwtSecurityTokenHandler();
+                var jwt = handler.ReadJwtToken(jwtToken); // just reads, no validation
+                var remaining = (int)Math.Max(0, (jwt.ValidTo - DateTime.UtcNow).TotalSeconds);
+
+                // treat very small remaining as expired
+                if (remaining < 5)
+                    return 0;
+
+                return remaining;
+            }
+            catch
+            {
+                // Can't parse: force refresh
+                return 0;
+            }
         }
     }
 }
