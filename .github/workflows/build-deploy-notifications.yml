@@ -1,0 +1,31 @@
+name: CI & Pack DfE.CoreLibs.Notifications
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "src/DfE.CoreLibs.Notifications/**"
+      - "src/DfE.CoreLibs.Notifications.Contracts/**"
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "src/DfE.CoreLibs.Notifications/**"
+      - "src/DfE.CoreLibs.Notifications.Contracts/**"
+
+jobs:
+  build-and-test:
+    uses: ./.github/workflows/build-test-template.yml
+    with:
+      project_name: DfE.CoreLibs.Notifications
+      project_path: src/DfE.CoreLibs.Notifications
+      run_tests: false
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  pack-and-release:
+    needs: build-and-test
+    if: needs.build-and-test.result == 'success'
+    uses: ./.github/workflows/pack-template.yml
+    with:
+      project_name: DfE.CoreLibs.Notifications
+      project_path: src/DfE.CoreLibs.Notifications/DfE.CoreLibs.Notifications.csproj
