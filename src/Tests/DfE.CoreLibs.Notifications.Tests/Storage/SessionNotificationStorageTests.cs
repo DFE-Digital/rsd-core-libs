@@ -402,6 +402,51 @@ public class SessionNotificationStorageTests
         // Assert
         Assert.Null(result);
     }
+
+    [Fact]
+    public async Task GetNotificationsFromSession_WithCorruptedData_ShouldReturnEmptyList()
+    {
+        // Arrange
+        var session = new TestSession();
+        session.SetString(_options.SessionKey, "{ invalid json }");
+        
+        var mockHttpContext = Substitute.For<HttpContext>();
+        mockHttpContext.Session.Returns(session);
+        _mockHttpContextAccessor.HttpContext.Returns(mockHttpContext);
+
+        // Act
+        var result = await _storage.GetNotificationsAsync("user1");
+
+        // Assert
+        Assert.Empty(result);
+        // Session should be cleared of corrupted data
+        Assert.Null(session.GetString(_options.SessionKey));
+    }
+
+    [Fact]
+    public async Task StoreNotificationAsync_WithCorruptedExistingData_ShouldClearAndStoreNew()
+    {
+        // Arrange
+        var session = new TestSession();
+        session.SetString(_options.SessionKey, "{ invalid json }");
+        
+        var mockHttpContext = Substitute.For<HttpContext>();
+        mockHttpContext.Session.Returns(session);
+        _mockHttpContextAccessor.HttpContext.Returns(mockHttpContext);
+        
+        var notification = new Notification { Id = "new", UserId = "user1" };
+
+        // Act
+        await _storage.StoreNotificationAsync(notification);
+
+        // Assert
+        var storedData = session.GetString(_options.SessionKey);
+        Assert.NotNull(storedData);
+        
+        var notifications = JsonSerializer.Deserialize<List<Notification>>(storedData);
+        Assert.Single(notifications);
+        Assert.Equal("new", notifications![0].Id);
+    }
 }
 
 // Test implementation of ISession that mimics session behavior

@@ -509,4 +509,57 @@ public class RedisNotificationStorageTests
         // Assert
         Assert.Null(result);
     }
+
+    [Fact]
+    public async Task GetNotificationsFromRedis_WithCorruptedData_ShouldReturnEmptyListAndClearKey()
+    {
+        // Arrange
+        var corruptedJson = "{ invalid json }";
+        _mockDatabase.StringGetAsync(_options.RedisKeyPrefix + "user1")
+            .Returns(corruptedJson);
+
+        // Act
+        var result = await _storage.GetNotificationsAsync("user1");
+
+        // Assert
+        Assert.Empty(result);
+        await _mockDatabase.Received(1).KeyDeleteAsync(_options.RedisKeyPrefix + "user1");
+    }
+
+    [Fact]
+    public async Task GetNotificationAsync_WithCorruptedData_ShouldReturnNull()
+    {
+        // Arrange
+        var corruptedJson = "{ invalid json }";
+        _mockDatabase.StringGetAsync(_options.RedisKeyPrefix + "user1")
+            .Returns(corruptedJson);
+
+        // Act
+        var result = await _storage.GetNotificationAsync("test-id", "user1");
+
+        // Assert
+        Assert.Null(result);
+        await _mockDatabase.Received(1).KeyDeleteAsync(_options.RedisKeyPrefix + "user1");
+    }
+
+    [Fact]
+    public async Task StoreNotificationAsync_WithCorruptedExistingData_ShouldClearAndStoreNew()
+    {
+        // Arrange
+        var notification = new Notification { Id = "new", UserId = "user1" };
+        var corruptedJson = "{ invalid json }";
+        
+        _mockDatabase.StringGetAsync(_options.RedisKeyPrefix + "user1")
+            .Returns(corruptedJson);
+
+        // Act
+        await _storage.StoreNotificationAsync(notification);
+
+        // Assert
+        await _mockDatabase.Received(1).KeyDeleteAsync(_options.RedisKeyPrefix + "user1");
+        await _mockDatabase.Received(1).StringSetAsync(
+            _options.RedisKeyPrefix + "user1",
+            Arg.Any<RedisValue>(),
+            Arg.Any<TimeSpan?>());
+    }
 }

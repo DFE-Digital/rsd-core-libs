@@ -509,4 +509,87 @@ public class NotificationServiceTests
         await _service.GetUnreadCountAsync(customUserId);
         await _mockStorage.Received(5).GetNotificationsAsync(customUserId, Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task GetUnreadCountAsync_WhenStorageThrows_ShouldReturnZero()
+    {
+        // Arrange
+        _mockStorage.GetNotificationsAsync("test-user-123", Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IEnumerable<Notification>>(new InvalidOperationException("Storage error")));
+
+        // Act
+        var result = await _service.GetUnreadCountAsync();
+
+        // Assert
+        Assert.Equal(0, result);
+    }
+
+    [Fact]
+    public async Task ClearNotificationsByContextAsync_WhenStorageThrows_ShouldRethrow()
+    {
+        // Arrange
+        _mockStorage.RemoveNotificationsByContextAsync("context", "test-user-123", Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new InvalidOperationException("Storage error")));
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => 
+            _service.ClearNotificationsByContextAsync("context"));
+    }
+
+    [Fact]
+    public void GetUserId_WhenContextProviderUnavailable_ShouldThrowInvalidOperationException()
+    {
+        // Arrange
+        _mockContextProvider.IsContextAvailable().Returns(false);
+
+        // Act & Assert
+        Assert.ThrowsAsync<InvalidOperationException>(() => _service.GetUnreadNotificationsAsync());
+    }
+
+    [Fact]
+    public async Task AddNotificationAsync_WithNullOptions_ShouldUseTypeDefaults()
+    {
+        // Arrange
+        const string message = "Test message";
+        Notification? capturedNotification = null;
+        
+        await _mockStorage.StoreNotificationAsync(
+            Arg.Do<Notification>(n => capturedNotification = n),
+            Arg.Any<CancellationToken>());
+
+        // Act
+        await _service.AddErrorAsync(message, null); // null options should use type defaults
+
+        // Assert
+        Assert.NotNull(capturedNotification);
+        Assert.False(capturedNotification.AutoDismiss); // Error type default
+        Assert.Equal(10, capturedNotification.AutoDismissSeconds); // Error type default
+    }
+
+    [Fact]
+    public async Task AddNotificationAsync_WithPartialOptions_ShouldPreserveUserSettings()
+    {
+        // Arrange
+        const string message = "Test message";
+        var options = new NotificationOptions
+        {
+            Context = "custom-context",
+            AutoDismiss = true, // Different from Error default (false)
+            AutoDismissSeconds = 15 // Different from Error default (10)
+        };
+        
+        Notification? capturedNotification = null;
+        await _mockStorage.StoreNotificationAsync(
+            Arg.Do<Notification>(n => capturedNotification = n),
+            Arg.Any<CancellationToken>());
+
+        // Act
+        await _service.AddErrorAsync(message, options);
+
+        // Assert
+        Assert.NotNull(capturedNotification);
+        Assert.Equal("custom-context", capturedNotification.Context);
+        Assert.True(capturedNotification.AutoDismiss); // User's setting preserved
+        Assert.Equal(15, capturedNotification.AutoDismissSeconds); // User's setting preserved
+    }
 }
