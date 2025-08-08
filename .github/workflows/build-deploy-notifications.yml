@@ -16,7 +16,7 @@ jobs:
     with:
       project_name: DfE.CoreLibs.Notifications
       project_path: src/DfE.CoreLibs.Notifications
-      run_tests: false
+      run_tests: true
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
