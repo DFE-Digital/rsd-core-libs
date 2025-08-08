@@ -28,7 +28,10 @@ namespace DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
         
         [JsonPropertyName("fileName")]
         public string FileName { get; set; } = null!;
-        
+
+        [JsonPropertyName("fileSize")]
+        public long FileSize { get; set; }
+
         [JsonPropertyName("uploadedOn")]
         public DateTime UploadedOn { get; set; }
     }
