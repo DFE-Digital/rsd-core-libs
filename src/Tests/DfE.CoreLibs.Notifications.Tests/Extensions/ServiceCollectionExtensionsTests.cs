@@ -1,4 +1,4 @@
-using DfE.CoreLibs.Notifications.Contracts.Interfaces;
+using DfE.CoreLibs.Notifications.Interfaces;
 using DfE.CoreLibs.Notifications.Extensions;
 using DfE.CoreLibs.Notifications.Options;
 using DfE.CoreLibs.Notifications.Services;
@@ -177,13 +177,13 @@ public class ServiceCollectionExtensionsTests
     // Test helper classes
     private class TestStorage : INotificationStorage
     {
-        public Task StoreNotificationAsync(DfE.CoreLibs.Notifications.Contracts.Models.Notification notification, CancellationToken cancellationToken = default)
+        public Task StoreNotificationAsync(DfE.CoreLibs.Notifications.Models.Notification notification, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
 
-        public Task<IEnumerable<DfE.CoreLibs.Notifications.Contracts.Models.Notification>> GetNotificationsAsync(string userId, CancellationToken cancellationToken = default)
-            => Task.FromResult(Enumerable.Empty<DfE.CoreLibs.Notifications.Contracts.Models.Notification>());
+        public Task<IEnumerable<DfE.CoreLibs.Notifications.Models.Notification>> GetNotificationsAsync(string userId, CancellationToken cancellationToken = default)
+            => Task.FromResult(Enumerable.Empty<DfE.CoreLibs.Notifications.Models.Notification>());
 
-        public Task UpdateNotificationAsync(DfE.CoreLibs.Notifications.Contracts.Models.Notification notification, CancellationToken cancellationToken = default)
+        public Task UpdateNotificationAsync(DfE.CoreLibs.Notifications.Models.Notification notification, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
 
         public Task RemoveNotificationAsync(string notificationId, string userId, CancellationToken cancellationToken = default)
@@ -198,8 +198,8 @@ public class ServiceCollectionExtensionsTests
         public Task ClearAllNotificationsAsync(string userId, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
 
-        public Task<DfE.CoreLibs.Notifications.Contracts.Models.Notification?> GetNotificationAsync(string notificationId, string userId, CancellationToken cancellationToken = default)
-            => Task.FromResult<DfE.CoreLibs.Notifications.Contracts.Models.Notification?>(null);
+        public Task<DfE.CoreLibs.Notifications.Models.Notification?> GetNotificationAsync(string notificationId, string userId, CancellationToken cancellationToken = default)
+            => Task.FromResult<DfE.CoreLibs.Notifications.Models.Notification?>(null);
     }
 
     private class TestContextProvider : IUserContextProvider

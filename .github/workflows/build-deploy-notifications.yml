@@ -5,12 +5,10 @@ on:
     branches: [ main ]
     paths:
       - "src/DfE.CoreLibs.Notifications/**"
-      - "src/DfE.CoreLibs.Notifications.Contracts/**"
   pull_request:
     branches: [ main ]
     paths:
       - "src/DfE.CoreLibs.Notifications/**"
-      - "src/DfE.CoreLibs.Notifications.Contracts/**"
 
 jobs:
   build-and-test:

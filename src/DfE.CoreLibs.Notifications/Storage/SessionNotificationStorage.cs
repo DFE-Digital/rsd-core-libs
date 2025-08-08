@@ -1,6 +1,6 @@
 using System.Text.Json;
-using DfE.CoreLibs.Notifications.Contracts.Interfaces;
-using DfE.CoreLibs.Notifications.Contracts.Models;
+using DfE.CoreLibs.Notifications.Interfaces;
+using DfE.CoreLibs.Notifications.Models;
 using DfE.CoreLibs.Notifications.Options;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;

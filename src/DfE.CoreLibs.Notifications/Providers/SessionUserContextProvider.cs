@@ -1,4 +1,4 @@
-using DfE.CoreLibs.Notifications.Contracts.Interfaces;
+using DfE.CoreLibs.Notifications.Interfaces;
 using Microsoft.AspNetCore.Http;
 
 namespace DfE.CoreLibs.Notifications.Providers;

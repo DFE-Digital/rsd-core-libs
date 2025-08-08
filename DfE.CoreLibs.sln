@@ -35,8 +35,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.CoreLibs.FileStorage.Te
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.CoreLibs.TestPackage", "src\DfE.CoreLibs.TestPackage\DfE.CoreLibs.TestPackage.csproj", "{4A462F11-4D5B-4AF4-864C-0964362F5345}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.CoreLibs.Notifications.Contracts", "src\DfE.CoreLibs.Notifications.Contracts\DfE.CoreLibs.Notifications.Contracts.csproj", "{6B1F8C8E-7A5D-4F9E-9B3A-1C2D3E4F5A6B}"
-EndProject
+
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.CoreLibs.Notifications", "src\DfE.CoreLibs.Notifications\DfE.CoreLibs.Notifications.csproj", "{7C2F9D9F-8B6E-5A0F-AC4B-2D3E4F5A6B7C}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.CoreLibs.Notifications.Tests", "src\Tests\DfE.CoreLibs.Notifications.Tests\DfE.CoreLibs.Notifications.Tests.csproj", "{8D3F0E0F-9C7F-6B1F-BD5C-3E4F5A6B7C8D}"
@@ -106,10 +105,7 @@ Global
 		{4A462F11-4D5B-4AF4-864C-0964362F5345}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4A462F11-4D5B-4AF4-864C-0964362F5345}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4A462F11-4D5B-4AF4-864C-0964362F5345}.Release|Any CPU.Build.0 = Release|Any CPU
-		{6B1F8C8E-7A5D-4F9E-9B3A-1C2D3E4F5A6B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6B1F8C8E-7A5D-4F9E-9B3A-1C2D3E4F5A6B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6B1F8C8E-7A5D-4F9E-9B3A-1C2D3E4F5A6B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{6B1F8C8E-7A5D-4F9E-9B3A-1C2D3E4F5A6B}.Release|Any CPU.Build.0 = Release|Any CPU
+
 		{7C2F9D9F-8B6E-5A0F-AC4B-2D3E4F5A6B7C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{7C2F9D9F-8B6E-5A0F-AC4B-2D3E4F5A6B7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7C2F9D9F-8B6E-5A0F-AC4B-2D3E4F5A6B7C}.Release|Any CPU.ActiveCfg = Release|Any CPU

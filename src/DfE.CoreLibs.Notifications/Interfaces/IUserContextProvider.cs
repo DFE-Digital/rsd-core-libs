@@ -1,4 +1,4 @@
-namespace DfE.CoreLibs.Notifications.Contracts.Interfaces;
+namespace DfE.CoreLibs.Notifications.Interfaces;
 
 /// <summary>
 /// Provides user context for notification operations

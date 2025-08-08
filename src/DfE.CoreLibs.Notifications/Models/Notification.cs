@@ -1,4 +1,4 @@
-namespace DfE.CoreLibs.Notifications.Contracts.Models;
+namespace DfE.CoreLibs.Notifications.Models;
 
 /// <summary>
 /// Represents a user notification that can be displayed in the UI

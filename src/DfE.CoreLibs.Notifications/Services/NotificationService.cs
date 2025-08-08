@@ -1,5 +1,5 @@
-using DfE.CoreLibs.Notifications.Contracts.Interfaces;
-using DfE.CoreLibs.Notifications.Contracts.Models;
+using DfE.CoreLibs.Notifications.Interfaces;
+using DfE.CoreLibs.Notifications.Models;
 using DfE.CoreLibs.Notifications.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

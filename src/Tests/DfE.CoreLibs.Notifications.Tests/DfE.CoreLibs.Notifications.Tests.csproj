@@ -22,7 +22,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\DfE.CoreLibs.Notifications\DfE.CoreLibs.Notifications.csproj" />
-    <ProjectReference Include="..\..\DfE.CoreLibs.Notifications.Contracts\DfE.CoreLibs.Notifications.Contracts.csproj" />
     <ProjectReference Include="..\..\DfE.CoreLibs.Testing\DfE.CoreLibs.Testing.csproj" />
   </ItemGroup>
 

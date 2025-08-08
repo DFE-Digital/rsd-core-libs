@@ -36,9 +36,7 @@
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\DfE.CoreLibs.Notifications.Contracts\DfE.CoreLibs.Notifications.Contracts.csproj" />
-  </ItemGroup>
+
 
   <ItemGroup>
     <None Update="readme.md">

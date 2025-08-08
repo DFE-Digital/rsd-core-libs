@@ -1,4 +1,4 @@
-using DfE.CoreLibs.Notifications.Contracts.Models;
+using DfE.CoreLibs.Notifications.Models;
 using DfE.CoreLibs.Notifications.Options;
 using DfE.CoreLibs.Notifications.Storage;
 using Microsoft.AspNetCore.Http;

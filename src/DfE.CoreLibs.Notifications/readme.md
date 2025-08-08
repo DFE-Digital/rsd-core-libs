@@ -32,6 +32,8 @@ services.AddNotificationServices();
 ### 3. Use in Controllers/Services
 
 ```csharp
+using DfE.CoreLibs.Notifications.Interfaces;
+
 public class HomeController : Controller
 {
     private readonly INotificationService _notificationService;
@@ -133,6 +135,8 @@ services.AddNotificationServicesWithCustomProviders<MyCustomStorage, MyCustomCon
 ### Custom Notification Options
 
 ```csharp
+using DfE.CoreLibs.Notifications.Models;
+
 var options = new NotificationOptions
 {
     Context = "file-upload-123", // Prevents duplicates
@@ -199,6 +203,8 @@ async function markAsRead(notificationId) {
 ### API Controller Example
 
 ```csharp
+using DfE.CoreLibs.Notifications.Interfaces;
+
 [ApiController]
 [Route("api/[controller]")]
 public class NotificationsController : ControllerBase

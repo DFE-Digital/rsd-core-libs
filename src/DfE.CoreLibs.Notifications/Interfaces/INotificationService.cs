@@ -1,6 +1,6 @@
-using DfE.CoreLibs.Notifications.Contracts.Models;
+using DfE.CoreLibs.Notifications.Models;
 
-namespace DfE.CoreLibs.Notifications.Contracts.Interfaces;
+namespace DfE.CoreLibs.Notifications.Interfaces;
 
 /// <summary>
 /// Service for managing user notifications with support for multiple storage providers

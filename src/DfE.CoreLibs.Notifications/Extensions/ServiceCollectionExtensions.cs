@@ -1,4 +1,4 @@
-using DfE.CoreLibs.Notifications.Contracts.Interfaces;
+using DfE.CoreLibs.Notifications.Interfaces;
 using DfE.CoreLibs.Notifications.Options;
 using DfE.CoreLibs.Notifications.Providers;
 using DfE.CoreLibs.Notifications.Services;

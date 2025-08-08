@@ -1,6 +1,6 @@
-using DfE.CoreLibs.Notifications.Contracts.Models;
+using DfE.CoreLibs.Notifications.Models;
 
-namespace DfE.CoreLibs.Notifications.Contracts.Interfaces;
+namespace DfE.CoreLibs.Notifications.Interfaces;
 
 /// <summary>
 /// Abstraction for notification storage providers (session, Redis, database, etc.)

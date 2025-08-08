@@ -1,4 +1,4 @@
-namespace DfE.CoreLibs.Notifications.Contracts.Models;
+namespace DfE.CoreLibs.Notifications.Models;
 
 /// <summary>
 /// Types of notifications
