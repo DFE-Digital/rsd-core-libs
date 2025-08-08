@@ -20,25 +20,27 @@ public class SessionUserContextProvider : IUserContextProvider
     }
 
     /// <summary>
-    /// Get the current session ID as the user identifier
+    /// Get the current user ID from the HTTP context user identity
     /// </summary>
-    /// <returns>Session ID</returns>
-    /// <exception cref="InvalidOperationException">Thrown when session is not available</exception>
+    /// <returns>User name from identity or "default" if not available</returns>
     public string GetCurrentUserId()
     {
-        var session = _httpContextAccessor.HttpContext?.Session;
-        if (session == null)
-            throw new InvalidOperationException("Session is not available");
+        var httpContext = _httpContextAccessor.HttpContext;
+        if (httpContext?.User?.Identity?.Name != null)
+        {
+            return httpContext.User.Identity.Name;
+        }
 
-        return session.Id;
+        return "default";
     }
 
     /// <summary>
-    /// Check if session context is available
+    /// Check if user context is available
     /// </summary>
-    /// <returns>True if session is available, false otherwise</returns>
+    /// <returns>True if user identity with name is available, false otherwise</returns>
     public bool IsContextAvailable()
     {
-        return _httpContextAccessor.HttpContext?.Session != null;
+        var httpContext = _httpContextAccessor.HttpContext;
+        return httpContext?.User?.Identity?.Name != null;
     }
 }

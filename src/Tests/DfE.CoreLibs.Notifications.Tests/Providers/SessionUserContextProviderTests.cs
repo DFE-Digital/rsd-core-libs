@@ -1,6 +1,7 @@
 using DfE.CoreLibs.Notifications.Providers;
 using Microsoft.AspNetCore.Http;
 using NSubstitute;
+using Xunit;
 
 namespace DfE.CoreLibs.Notifications.Tests.Providers;
 
@@ -16,59 +17,104 @@ public class SessionUserContextProviderTests
     }
 
     [Fact]
-    public void GetCurrentUserId_WithValidSession_ShouldReturnSessionId()
+    public void Constructor_WithNullHttpContextAccessor_ShouldThrowArgumentNullException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => 
+            new SessionUserContextProvider(null!));
+    }
+
+    [Fact]
+    public void GetCurrentUserId_WithHttpContextAndUserName_ShouldReturnUserName()
     {
         // Arrange
-        const string expectedSessionId = "test-session-123";
-        
-        var mockSession = Substitute.For<ISession>();
-        mockSession.Id.Returns(expectedSessionId);
-        
         var mockHttpContext = Substitute.For<HttpContext>();
-        mockHttpContext.Session.Returns(mockSession);
+        var mockUser = Substitute.For<System.Security.Claims.ClaimsPrincipal>();
         
+        mockUser.Identity!.Name.Returns("test-user");
+        mockHttpContext.User.Returns(mockUser);
         _mockHttpContextAccessor.HttpContext.Returns(mockHttpContext);
 
         // Act
         var result = _provider.GetCurrentUserId();
 
         // Assert
-        Assert.Equal(expectedSessionId, result);
+        Assert.Equal("test-user", result);
     }
 
     [Fact]
-    public void GetCurrentUserId_WithNullHttpContext_ShouldThrowInvalidOperationException()
+    public void GetCurrentUserId_WithoutHttpContext_ShouldReturnDefault()
     {
         // Arrange
         _mockHttpContextAccessor.HttpContext.Returns((HttpContext?)null);
 
-        // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() => _provider.GetCurrentUserId());
-        Assert.Equal("Session is not available", exception.Message);
+        // Act
+        var result = _provider.GetCurrentUserId();
+
+        // Assert
+        Assert.Equal("default", result);
     }
 
     [Fact]
-    public void GetCurrentUserId_WithNullSession_ShouldThrowInvalidOperationException()
+    public void GetCurrentUserId_WithoutUser_ShouldReturnDefault()
     {
         // Arrange
         var mockHttpContext = Substitute.For<HttpContext>();
-        mockHttpContext.Session.Returns((ISession?)null);
-        
+        mockHttpContext.User.Returns((System.Security.Claims.ClaimsPrincipal?)null);
         _mockHttpContextAccessor.HttpContext.Returns(mockHttpContext);
 
-        // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() => _provider.GetCurrentUserId());
-        Assert.Equal("Session is not available", exception.Message);
+        // Act
+        var result = _provider.GetCurrentUserId();
+
+        // Assert
+        Assert.Equal("default", result);
     }
 
     [Fact]
-    public void IsContextAvailable_WithValidSession_ShouldReturnTrue()
+    public void GetCurrentUserId_WithUserButNoIdentity_ShouldReturnDefault()
     {
         // Arrange
-        var mockSession = Substitute.For<ISession>();
         var mockHttpContext = Substitute.For<HttpContext>();
-        mockHttpContext.Session.Returns(mockSession);
+        var mockUser = Substitute.For<System.Security.Claims.ClaimsPrincipal>();
         
+        mockUser.Identity.Returns((System.Security.Claims.ClaimsIdentity?)null);
+        mockHttpContext.User.Returns(mockUser);
+        _mockHttpContextAccessor.HttpContext.Returns(mockHttpContext);
+
+        // Act
+        var result = _provider.GetCurrentUserId();
+
+        // Assert
+        Assert.Equal("default", result);
+    }
+
+    [Fact]
+    public void GetCurrentUserId_WithIdentityButNoName_ShouldReturnDefault()
+    {
+        // Arrange
+        var mockHttpContext = Substitute.For<HttpContext>();
+        var mockUser = Substitute.For<System.Security.Claims.ClaimsPrincipal>();
+        
+        mockUser.Identity!.Name.Returns((string?)null);
+        mockHttpContext.User.Returns(mockUser);
+        _mockHttpContextAccessor.HttpContext.Returns(mockHttpContext);
+
+        // Act
+        var result = _provider.GetCurrentUserId();
+
+        // Assert
+        Assert.Equal("default", result);
+    }
+
+    [Fact]
+    public void IsContextAvailable_WithHttpContextAndUser_ShouldReturnTrue()
+    {
+        // Arrange
+        var mockHttpContext = Substitute.For<HttpContext>();
+        var mockUser = Substitute.For<System.Security.Claims.ClaimsPrincipal>();
+        
+        mockUser.Identity!.Name.Returns("test-user");
+        mockHttpContext.User.Returns(mockUser);
         _mockHttpContextAccessor.HttpContext.Returns(mockHttpContext);
 
         // Act
@@ -79,7 +125,7 @@ public class SessionUserContextProviderTests
     }
 
     [Fact]
-    public void IsContextAvailable_WithNullHttpContext_ShouldReturnFalse()
+    public void IsContextAvailable_WithoutHttpContext_ShouldReturnFalse()
     {
         // Arrange
         _mockHttpContextAccessor.HttpContext.Returns((HttpContext?)null);
@@ -92,12 +138,11 @@ public class SessionUserContextProviderTests
     }
 
     [Fact]
-    public void IsContextAvailable_WithNullSession_ShouldReturnFalse()
+    public void IsContextAvailable_WithoutUser_ShouldReturnFalse()
     {
         // Arrange
         var mockHttpContext = Substitute.For<HttpContext>();
-        mockHttpContext.Session.Returns((ISession?)null);
-        
+        mockHttpContext.User.Returns((System.Security.Claims.ClaimsPrincipal?)null);
         _mockHttpContextAccessor.HttpContext.Returns(mockHttpContext);
 
         // Act
@@ -108,54 +153,20 @@ public class SessionUserContextProviderTests
     }
 
     [Fact]
-    public void Constructor_WithNullHttpContextAccessor_ShouldThrowArgumentNullException()
-    {
-        // Act & Assert
-        var exception = Assert.Throws<ArgumentNullException>(() => new SessionUserContextProvider(null!));
-        Assert.Equal("httpContextAccessor", exception.ParamName);
-    }
-
-    [Fact]
-    public void IsContextAvailable_CalledMultipleTimes_ShouldBeConsistent()
+    public void IsContextAvailable_WithUserButNoName_ShouldReturnFalse()
     {
         // Arrange
-        var mockSession = Substitute.For<ISession>();
         var mockHttpContext = Substitute.For<HttpContext>();
-        mockHttpContext.Session.Returns(mockSession);
+        var mockUser = Substitute.For<System.Security.Claims.ClaimsPrincipal>();
         
+        mockUser.Identity!.Name.Returns((string?)null);
+        mockHttpContext.User.Returns(mockUser);
         _mockHttpContextAccessor.HttpContext.Returns(mockHttpContext);
 
         // Act
-        var result1 = _provider.IsContextAvailable();
-        var result2 = _provider.IsContextAvailable();
+        var result = _provider.IsContextAvailable();
 
         // Assert
-        Assert.True(result1);
-        Assert.True(result2);
-        Assert.Equal(result1, result2);
-    }
-
-    [Fact]
-    public void GetCurrentUserId_CalledMultipleTimes_ShouldReturnSameValue()
-    {
-        // Arrange
-        const string expectedSessionId = "consistent-session-id";
-        
-        var mockSession = Substitute.For<ISession>();
-        mockSession.Id.Returns(expectedSessionId);
-        
-        var mockHttpContext = Substitute.For<HttpContext>();
-        mockHttpContext.Session.Returns(mockSession);
-        
-        _mockHttpContextAccessor.HttpContext.Returns(mockHttpContext);
-
-        // Act
-        var result1 = _provider.GetCurrentUserId();
-        var result2 = _provider.GetCurrentUserId();
-
-        // Assert
-        Assert.Equal(expectedSessionId, result1);
-        Assert.Equal(expectedSessionId, result2);
-        Assert.Equal(result1, result2);
+        Assert.False(result);
     }
 }

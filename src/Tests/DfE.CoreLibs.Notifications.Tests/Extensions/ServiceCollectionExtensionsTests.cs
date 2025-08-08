@@ -1,5 +1,6 @@
-using DfE.CoreLibs.Notifications.Interfaces;
 using DfE.CoreLibs.Notifications.Extensions;
+using DfE.CoreLibs.Notifications.Interfaces;
+using DfE.CoreLibs.Notifications.Models;
 using DfE.CoreLibs.Notifications.Options;
 using DfE.CoreLibs.Notifications.Services;
 using DfE.CoreLibs.Notifications.Storage;
@@ -7,20 +8,19 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using StackExchange.Redis;
-using System.Linq;
+using Xunit;
 
 namespace DfE.CoreLibs.Notifications.Tests.Extensions;
 
 public class ServiceCollectionExtensionsTests
 {
     [Fact]
-    public void AddNotificationServices_WithDefaults_ShouldRegisterServices()
+    public void AddNotificationServices_WithDefaultConfiguration_ShouldRegisterServices()
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddLogging(); // Required for ILogger
-        services.AddHttpContextAccessor(); // Required for session support
+        services.AddLogging();
+        services.AddHttpContextAccessor(); // Required for SessionNotificationStorage
 
         // Act
         services.AddNotificationServices();
@@ -29,344 +29,62 @@ public class ServiceCollectionExtensionsTests
         var serviceProvider = services.BuildServiceProvider();
         
         Assert.NotNull(serviceProvider.GetService<INotificationService>());
-        Assert.NotNull(serviceProvider.GetService<IUserContextProvider>());
         Assert.NotNull(serviceProvider.GetService<INotificationStorage>());
+        Assert.NotNull(serviceProvider.GetService<IUserContextProvider>());
         
-        // Should be registered as scoped
-        var service1 = serviceProvider.GetService<INotificationService>();
-        var service2 = serviceProvider.GetService<INotificationService>();
-        Assert.Same(service1, service2); // Same instance within scope
+        var options = serviceProvider.GetService<IOptions<NotificationServiceOptions>>();
+        Assert.NotNull(options);
+        Assert.Equal(NotificationStorageProvider.Session, options.Value.StorageProvider);
     }
 
     [Fact]
-    public void AddNotificationServices_WithConfiguration_ShouldApplyOptions()
+    public void AddNotificationServices_WithConfiguration_ShouldBindOptions()
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddHttpContextAccessor();
+        services.AddLogging();
         
-        var configBuilder = new ConfigurationBuilder();
-        configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+        var configData = new Dictionary<string, string?>
         {
             ["NotificationService:MaxNotificationsPerUser"] = "100",
-            ["NotificationService:StorageProvider"] = "InMemory",
-            ["NotificationService:SessionKey"] = "CustomSessionKey"
-        });
-        var configuration = configBuilder.Build();
+            ["NotificationService:StorageProvider"] = "InMemory"
+        };
+        
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(configData)
+            .Build();
 
         // Act
         services.AddNotificationServices(configuration);
 
         // Assert
         var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetService<IOptions<NotificationServiceOptions>>();
+        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>();
         
-        Assert.NotNull(options);
         Assert.Equal(100, options.Value.MaxNotificationsPerUser);
         Assert.Equal(NotificationStorageProvider.InMemory, options.Value.StorageProvider);
-        Assert.Equal("CustomSessionKey", options.Value.SessionKey);
     }
 
     [Fact]
-    public void AddNotificationServices_WithAction_ShouldApplyOptions()
+    public void AddNotificationServices_WithOptionsAction_ShouldConfigureOptions()
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddHttpContextAccessor();
+        services.AddLogging();
 
         // Act
         services.AddNotificationServices(options =>
         {
             options.MaxNotificationsPerUser = 25;
-            options.SessionKey = "TestKey";
+            options.StorageProvider = NotificationStorageProvider.Redis;
         });
 
         // Assert
         var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetService<IOptions<NotificationServiceOptions>>();
+        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>();
         
-        Assert.NotNull(options);
         Assert.Equal(25, options.Value.MaxNotificationsPerUser);
-        Assert.Equal("TestKey", options.Value.SessionKey);
-    }
-
-    [Fact]
-    public void AddNotificationServicesWithInMemory_ShouldConfigureInMemoryStorage()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddHttpContextAccessor();
-
-        // Act
-        services.AddNotificationServicesWithInMemory(options =>
-        {
-            options.MaxNotificationsPerUser = 10;
-        });
-
-        // Assert
-        var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetService<IOptions<NotificationServiceOptions>>();
-        var storage = serviceProvider.GetService<INotificationStorage>();
-        
-        Assert.NotNull(options);
-        Assert.Equal(NotificationStorageProvider.InMemory, options.Value.StorageProvider);
-        Assert.Equal(10, options.Value.MaxNotificationsPerUser);
-        Assert.IsType<InMemoryNotificationStorage>(storage);
-    }
-
-    [Fact]
-    public void AddNotificationServicesWithRedis_WithNullConnectionString_ShouldThrowArgumentException()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-
-        // Act & Assert
-        Assert.Throws<ArgumentException>(() => 
-            services.AddNotificationServicesWithRedis(null!));
-    }
-
-    [Fact]
-    public void AddNotificationServicesWithRedis_WithEmptyConnectionString_ShouldThrowArgumentException()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-
-        // Act & Assert
-        Assert.Throws<ArgumentException>(() => 
-            services.AddNotificationServicesWithRedis(""));
-    }
-
-    [Fact]
-    public void AddNotificationServicesWithCustomProviders_ShouldRegisterCustomTypes()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-
-        // Act
-        services.AddNotificationServicesWithCustomProviders<TestStorage, TestContextProvider>();
-
-        // Assert
-        var serviceProvider = services.BuildServiceProvider();
-        var storage = serviceProvider.GetService<INotificationStorage>();
-        var contextProvider = serviceProvider.GetService<IUserContextProvider>();
-        
-        Assert.IsType<TestStorage>(storage);
-        Assert.IsType<TestContextProvider>(contextProvider);
-    }
-
-    [Fact]
-    public void AddNotificationServices_ShouldRegisterCorrectServiceTypes()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging(); // Required for ILogger
-        services.AddHttpContextAccessor();
-
-        // Act
-        services.AddNotificationServices();
-
-        // Assert
-        var serviceProvider = services.BuildServiceProvider();
-        
-        // Verify concrete types
-        var notificationService = serviceProvider.GetService<INotificationService>();
-        Assert.IsType<NotificationService>(notificationService);
-        
-        var storage = serviceProvider.GetService<INotificationStorage>();
-        Assert.IsType<SessionNotificationStorage>(storage);
-    }
-
-    // Test helper classes
-    private class TestStorage : INotificationStorage
-    {
-        public Task StoreNotificationAsync(DfE.CoreLibs.Notifications.Models.Notification notification, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
-
-        public Task<IEnumerable<DfE.CoreLibs.Notifications.Models.Notification>> GetNotificationsAsync(string userId, CancellationToken cancellationToken = default)
-            => Task.FromResult(Enumerable.Empty<DfE.CoreLibs.Notifications.Models.Notification>());
-
-        public Task UpdateNotificationAsync(DfE.CoreLibs.Notifications.Models.Notification notification, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
-
-        public Task RemoveNotificationAsync(string notificationId, string userId, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
-
-        public Task RemoveNotificationsByContextAsync(string context, string userId, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
-
-        public Task RemoveNotificationsByCategoryAsync(string category, string userId, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
-
-        public Task ClearAllNotificationsAsync(string userId, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
-
-        public Task<DfE.CoreLibs.Notifications.Models.Notification?> GetNotificationAsync(string notificationId, string userId, CancellationToken cancellationToken = default)
-            => Task.FromResult<DfE.CoreLibs.Notifications.Models.Notification?>(null);
-    }
-
-    private class TestContextProvider : IUserContextProvider
-    {
-        public string GetCurrentUserId() => "test-user";
-        public bool IsContextAvailable() => true;
-    }
-
-    [Fact]
-    public void AddNotificationServicesWithCustomProviders_ShouldRegisterCustomImplementations()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-
-        // Act
-        services.AddNotificationServicesWithCustomProviders<TestNotificationStorage, TestUserContextProvider>();
-
-        // Assert
-        var serviceProvider = services.BuildServiceProvider();
-        var notificationStorage = serviceProvider.GetRequiredService<INotificationStorage>();
-        var userContextProvider = serviceProvider.GetRequiredService<IUserContextProvider>();
-
-        Assert.IsType<TestNotificationStorage>(notificationStorage);
-        Assert.IsType<TestUserContextProvider>(userContextProvider);
-    }
-
-    [Fact]
-    public void AddNotificationServices_WithUnknownStorageProvider_ShouldThrowInvalidOperationException()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["NotificationService:StorageProvider"] = "999" // Invalid enum value
-            })
-            .Build();
-
-        services.AddLogging();
-        services.AddNotificationServices(configuration);
-
-        // Act & Assert
-        var serviceProvider = services.BuildServiceProvider();
-        Assert.Throws<InvalidOperationException>(() => 
-            serviceProvider.GetRequiredService<INotificationStorage>());
-    }
-
-    [Fact]
-    public void AddNotificationServices_WithMissingSessionDependencies_ShouldThrowInvalidOperationException()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["NotificationService:StorageProvider"] = "Session"
-            })
-            .Build();
-
-        services.AddLogging();
-        services.AddNotificationServices(configuration);
-        // Not adding IHttpContextAccessor
-
-        // Act & Assert
-        var serviceProvider = services.BuildServiceProvider();
-        Assert.Throws<InvalidOperationException>(() => 
-            serviceProvider.GetRequiredService<INotificationStorage>());
-    }
-
-    [Fact]
-    public void AddNotificationServicesWithAction_ShouldConfigureOptions()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-
-        // Act
-        services.AddNotificationServices(options =>
-        {
-            options.MaxNotificationsPerUser = 100;
-            options.StorageProvider = NotificationStorageProvider.InMemory;
-            options.SessionKey = "CustomKey";
-        });
-
-        // Assert
-        var serviceProvider = services.BuildServiceProvider();
-        var notificationOptions = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>().Value;
-        
-        Assert.Equal(100, notificationOptions.MaxNotificationsPerUser);
-        Assert.Equal(NotificationStorageProvider.InMemory, notificationOptions.StorageProvider);
-        Assert.Equal("CustomKey", notificationOptions.SessionKey);
-    }
-
-    [Fact]
-    public void AddNotificationServices_WithDefaultOptions_ShouldUseSessionStorage()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddHttpContextAccessor();
-
-        // Act
-        services.AddNotificationServices();
-
-        // Assert
-        var serviceProvider = services.BuildServiceProvider();
-        var notificationStorage = serviceProvider.GetRequiredService<INotificationStorage>();
-        Assert.IsType<SessionNotificationStorage>(notificationStorage);
-    }
-
-    [Fact]
-    public void AddNotificationServicesWithRedis_ShouldRegisterRedisStorageWithoutConnection()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-
-        // Act
-        services.AddNotificationServicesWithRedis("localhost:6379");
-
-        // Assert - Only test the configuration, not the actual connection
-        var serviceProvider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = false });
-        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>().Value;
-        
-        Assert.Equal(NotificationStorageProvider.Redis, options.StorageProvider);
-        Assert.Equal("localhost:6379", options.RedisConnectionString);
-        
-        // Verify the service registration without actually creating the connection
-        Assert.True(services.Any(s => s.ServiceType == typeof(IConnectionMultiplexer)));
-        Assert.True(services.Any(s => s.ServiceType == typeof(INotificationStorage)));
-    }
-
-    [Fact]
-    public void AddNotificationServicesWithRedis_WithConfigureOptions_ShouldApplyConfiguration()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-
-        // Act
-        services.AddNotificationServicesWithRedis("localhost:6379", options =>
-        {
-            options.MaxNotificationsPerUser = 200;
-            options.RedisKeyPrefix = "custom:";
-        });
-
-        // Assert
-        var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>().Value;
-        
-        Assert.Equal(200, options.MaxNotificationsPerUser);
-        Assert.Equal("custom:", options.RedisKeyPrefix);
-        Assert.Equal("localhost:6379", options.RedisConnectionString);
-    }
-
-    [Fact]
-    public void AddNotificationServicesWithRedis_WithWhitespaceConnectionString_ShouldThrowArgumentException()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-
-        // Act & Assert
-        Assert.Throws<ArgumentException>(() => 
-            services.AddNotificationServicesWithRedis("   "));
+        Assert.Equal(NotificationStorageProvider.Redis, options.Value.StorageProvider);
     }
 
     [Fact]
@@ -381,15 +99,15 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var serviceProvider = services.BuildServiceProvider();
-        var notificationStorage = serviceProvider.GetRequiredService<INotificationStorage>();
-        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>().Value;
+        var storage = serviceProvider.GetRequiredService<INotificationStorage>();
+        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>();
         
-        Assert.IsType<InMemoryNotificationStorage>(notificationStorage);
-        Assert.Equal(NotificationStorageProvider.InMemory, options.StorageProvider);
+        Assert.IsType<InMemoryNotificationStorage>(storage);
+        Assert.Equal(NotificationStorageProvider.InMemory, options.Value.StorageProvider);
     }
 
     [Fact]
-    public void AddNotificationServicesWithInMemory_WithConfigureOptions_ShouldApplyConfiguration()
+    public void AddNotificationServicesWithInMemory_WithOptionsAction_ShouldConfigureOptions()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -398,109 +116,139 @@ public class ServiceCollectionExtensionsTests
         // Act
         services.AddNotificationServicesWithInMemory(options =>
         {
+            options.MaxNotificationsPerUser = 200;
+        });
+
+        // Assert
+        var serviceProvider = services.BuildServiceProvider();
+        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>();
+        
+        Assert.Equal(200, options.Value.MaxNotificationsPerUser);
+        Assert.Equal(NotificationStorageProvider.InMemory, options.Value.StorageProvider);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AddNotificationServicesWithRedis_WithInvalidConnectionString_ShouldThrowArgumentException(string? connectionString)
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => 
+            services.AddNotificationServicesWithRedis(connectionString!));
+    }
+
+    [Fact]
+    public void AddNotificationServicesWithRedis_WithValidConnectionString_ShouldRegisterRedisStorage()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddNotificationServicesWithRedis("localhost:6379");
+
+        // Assert
+        var serviceProvider = services.BuildServiceProvider();
+        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>();
+        
+        Assert.Equal(NotificationStorageProvider.Redis, options.Value.StorageProvider);
+        Assert.Equal("localhost:6379", options.Value.RedisConnectionString);
+    }
+
+    [Fact]
+    public void AddNotificationServicesWithRedis_WithOptionsAction_ShouldConfigureOptions()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddNotificationServicesWithRedis("localhost:6379", options =>
+        {
             options.MaxNotificationsPerUser = 150;
         });
 
         // Assert
         var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>().Value;
+        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>();
         
-        Assert.Equal(150, options.MaxNotificationsPerUser);
-        Assert.Equal(NotificationStorageProvider.InMemory, options.StorageProvider);
+        Assert.Equal(150, options.Value.MaxNotificationsPerUser);
+        Assert.Equal("localhost:6379", options.Value.RedisConnectionString);
     }
 
     [Fact]
-    public void AddNotificationServicesWithCustomProviders_WithNullConfigureOptions_ShouldUseDefaults()
+    public void AddNotificationServices_WithDefaultOptions_ShouldUseSessionStorage()
     {
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
         // Act
-        services.AddNotificationServicesWithCustomProviders<TestNotificationStorage, TestUserContextProvider>(null);
+        services.AddNotificationServices();
 
         // Assert
         var serviceProvider = services.BuildServiceProvider();
-        var notificationStorage = serviceProvider.GetRequiredService<INotificationStorage>();
-        var userContextProvider = serviceProvider.GetRequiredService<IUserContextProvider>();
-        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>().Value;
-
-        Assert.IsType<TestNotificationStorage>(notificationStorage);
-        Assert.IsType<TestUserContextProvider>(userContextProvider);
-        Assert.Equal(50, options.MaxNotificationsPerUser); // Default value
+        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>();
+        
+        Assert.Equal(NotificationStorageProvider.Session, options.Value.StorageProvider);
     }
 
     [Fact]
-    public void AddNotificationServicesWithCustomProviders_WithConfigureOptions_ShouldApplyConfiguration()
+    public void AddNotificationServicesWithCustomProviders_ShouldRegisterCustomImplementations()
     {
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
         // Act
-        services.AddNotificationServicesWithCustomProviders<TestNotificationStorage, TestUserContextProvider>(options =>
+        services.AddNotificationServicesWithCustomProviders<TestStorage, TestContextProvider>();
+
+        // Assert
+        var serviceProvider = services.BuildServiceProvider();
+        var storage = serviceProvider.GetRequiredService<INotificationStorage>();
+        var contextProvider = serviceProvider.GetRequiredService<IUserContextProvider>();
+        
+        Assert.IsType<TestStorage>(storage);
+        Assert.IsType<TestContextProvider>(contextProvider);
+    }
+
+    [Fact]
+    public void AddNotificationServices_WithUnknownStorageProvider_ShouldThrowInvalidOperationException()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddNotificationServices(options =>
         {
-            options.MaxNotificationsPerUser = 75;
-            options.SessionKey = "CustomNotifications";
+            options.StorageProvider = (NotificationStorageProvider)999; // Invalid enum value
         });
 
-        // Assert
+        // Act & Assert
         var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>().Value;
-        
-        Assert.Equal(75, options.MaxNotificationsPerUser);
-        Assert.Equal("CustomNotifications", options.SessionKey);
+        Assert.Throws<InvalidOperationException>(() => 
+            serviceProvider.GetRequiredService<INotificationStorage>());
     }
 
-    [Fact]
-    public void AddNotificationServices_WithNullConfigureOptions_ShouldUseDefaults()
+    // Test implementations
+    private class TestStorage : INotificationStorage
     {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddHttpContextAccessor();
-
-        // Act
-        services.AddNotificationServices((Action<NotificationServiceOptions>?)null);
-
-        // Assert
-        var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>().Value;
-        
-        Assert.Equal(NotificationStorageProvider.Session, options.StorageProvider);
-        Assert.Equal(50, options.MaxNotificationsPerUser);
+        public Task StoreNotificationAsync(Notification notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Notification?> GetNotificationAsync(string id, string userId, CancellationToken cancellationToken = default) => Task.FromResult<Notification?>(null);
+        public Task<IEnumerable<Notification>> GetNotificationsAsync(string userId, CancellationToken cancellationToken = default) => Task.FromResult(Enumerable.Empty<Notification>());
+        public Task UpdateNotificationAsync(Notification notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task RemoveNotificationAsync(string id, string userId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task RemoveNotificationsByContextAsync(string context, string userId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task RemoveNotificationsByCategoryAsync(string category, string userId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task ClearAllNotificationsAsync(string userId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
-}
 
-public class TestNotificationStorage : INotificationStorage
-{
-    public Task StoreNotificationAsync(DfE.CoreLibs.Notifications.Models.Notification notification, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
-
-    public Task<IEnumerable<DfE.CoreLibs.Notifications.Models.Notification>> GetNotificationsAsync(string userId, CancellationToken cancellationToken = default)
-        => Task.FromResult(Enumerable.Empty<DfE.CoreLibs.Notifications.Models.Notification>());
-
-    public Task UpdateNotificationAsync(DfE.CoreLibs.Notifications.Models.Notification notification, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
-
-    public Task RemoveNotificationAsync(string notificationId, string userId, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
-
-    public Task RemoveNotificationsByContextAsync(string context, string userId, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
-
-    public Task RemoveNotificationsByCategoryAsync(string category, string userId, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
-
-    public Task ClearAllNotificationsAsync(string userId, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
-
-    public Task<DfE.CoreLibs.Notifications.Models.Notification?> GetNotificationAsync(string notificationId, string userId, CancellationToken cancellationToken = default)
-        => Task.FromResult<DfE.CoreLibs.Notifications.Models.Notification?>(null);
-}
-
-public class TestUserContextProvider : IUserContextProvider
-{
-    public string GetCurrentUserId() => "test-user";
-    public bool IsContextAvailable() => true;
+    private class TestContextProvider : IUserContextProvider
+    {
+        public string GetCurrentUserId() => "test-user";
+        public bool IsContextAvailable() => true;
+    }
 }

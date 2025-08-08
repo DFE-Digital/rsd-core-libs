@@ -386,9 +386,6 @@ public class NotificationService : INotificationService
         if (!string.IsNullOrEmpty(explicitUserId))
             return explicitUserId;
 
-        if (!_userContextProvider.IsContextAvailable())
-            throw new InvalidOperationException("User context is not available");
-
         return _userContextProvider.GetCurrentUserId();
     }
 

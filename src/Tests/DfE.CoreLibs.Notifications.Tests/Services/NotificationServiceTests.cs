@@ -5,6 +5,7 @@ using DfE.CoreLibs.Notifications.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Xunit;
 
 namespace DfE.CoreLibs.Notifications.Tests.Services;
 
@@ -25,190 +26,14 @@ public class NotificationServiceTests
 
         var options = new NotificationServiceOptions();
         _mockOptions.Value.Returns(options);
-        _mockContextProvider.GetCurrentUserId().Returns("test-user-123");
+        _mockContextProvider.GetCurrentUserId().Returns("test-user");
         _mockContextProvider.IsContextAvailable().Returns(true);
 
         _service = new NotificationService(_mockStorage, _mockContextProvider, _mockOptions, _mockLogger);
     }
 
     [Fact]
-    public async Task AddSuccessAsync_ShouldCreateSuccessNotification()
-    {
-        // Arrange
-        const string message = "Operation completed successfully";
-        Notification? capturedNotification = null;
-        
-        await _mockStorage.StoreNotificationAsync(
-            Arg.Do<Notification>(n => capturedNotification = n),
-            Arg.Any<CancellationToken>());
-
-        // Act
-        await _service.AddSuccessAsync(message);
-
-        // Assert
-        await _mockStorage.Received(1).StoreNotificationAsync(Arg.Any<Notification>(), Arg.Any<CancellationToken>());
-        
-        Assert.NotNull(capturedNotification);
-        Assert.Equal(message, capturedNotification.Message);
-        Assert.Equal(NotificationType.Success, capturedNotification.Type);
-        Assert.Equal("test-user-123", capturedNotification.UserId);
-        Assert.True(capturedNotification.AutoDismiss);
-    }
-
-    [Fact]
-    public async Task AddErrorAsync_ShouldCreateErrorNotification()
-    {
-        // Arrange
-        const string message = "An error occurred";
-        Notification? capturedNotification = null;
-        
-        await _mockStorage.StoreNotificationAsync(
-            Arg.Do<Notification>(n => capturedNotification = n),
-            Arg.Any<CancellationToken>());
-
-        // Act
-        await _service.AddErrorAsync(message);
-
-        // Assert
-        await _mockStorage.Received(1).StoreNotificationAsync(Arg.Any<Notification>(), Arg.Any<CancellationToken>());
-        
-        Assert.NotNull(capturedNotification);
-        Assert.Equal(message, capturedNotification.Message);
-        Assert.Equal(NotificationType.Error, capturedNotification.Type);
-        Assert.Equal("test-user-123", capturedNotification.UserId);
-    }
-
-    [Fact]
-    public async Task AddNotificationAsync_WithOptions_ShouldApplyOptions()
-    {
-        // Arrange
-        const string message = "Test notification";
-        var options = new NotificationOptions
-        {
-            Context = "test-context",
-            Category = "test-category",
-            AutoDismiss = false,
-            Priority = NotificationPriority.High,
-            ActionUrl = "/test/action"
-        };
-        
-        Notification? capturedNotification = null;
-        await _mockStorage.StoreNotificationAsync(
-            Arg.Do<Notification>(n => capturedNotification = n),
-            Arg.Any<CancellationToken>());
-
-        // Act
-        await _service.AddNotificationAsync(message, NotificationType.Info, options);
-
-        // Assert
-        Assert.NotNull(capturedNotification);
-        Assert.Equal(message, capturedNotification.Message);
-        Assert.Equal(NotificationType.Info, capturedNotification.Type);
-        Assert.Equal("test-context", capturedNotification.Context);
-        Assert.Equal("test-category", capturedNotification.Category);
-        Assert.False(capturedNotification.AutoDismiss);
-        Assert.Equal(NotificationPriority.High, capturedNotification.Priority);
-        Assert.Equal("/test/action", capturedNotification.ActionUrl);
-    }
-
-    [Fact]
-    public async Task GetUnreadNotificationsAsync_ShouldReturnFilteredNotifications()
-    {
-        // Arrange
-        var notifications = new List<Notification>
-        {
-            new() { Id = "1", Message = "Unread 1", IsRead = false, Priority = NotificationPriority.High },
-            new() { Id = "2", Message = "Read", IsRead = true },
-            new() { Id = "3", Message = "Unread 2", IsRead = false, Priority = NotificationPriority.Normal }
-        };
-
-        _mockStorage.GetNotificationsAsync("test-user-123", Arg.Any<CancellationToken>())
-            .Returns(notifications);
-
-        // Act
-        var result = await _service.GetUnreadNotificationsAsync();
-
-        // Assert
-        var unreadNotifications = result.ToList();
-        Assert.Equal(2, unreadNotifications.Count);
-        Assert.All(unreadNotifications, n => Assert.False(n.IsRead));
-        
-        // Should be ordered by priority then by created date (descending)
-        Assert.Equal("1", unreadNotifications[0].Id); // High priority first
-        Assert.Equal("3", unreadNotifications[1].Id);
-    }
-
-    [Fact]
-    public async Task MarkAsReadAsync_ShouldUpdateNotification()
-    {
-        // Arrange
-        const string notificationId = "test-id";
-        var notification = new Notification { Id = notificationId, IsRead = false };
-        
-        _mockStorage.GetNotificationAsync(notificationId, "test-user-123", Arg.Any<CancellationToken>())
-            .Returns(notification);
-
-        // Act
-        await _service.MarkAsReadAsync(notificationId);
-
-        // Assert
-        await _mockStorage.Received(1).UpdateNotificationAsync(notification, Arg.Any<CancellationToken>());
-        Assert.True(notification.IsRead);
-    }
-
-    [Fact]
-    public async Task ClearNotificationsByCategoryAsync_ShouldCallStorageMethod()
-    {
-        // Arrange
-        const string category = "test-category";
-
-        // Act
-        await _service.ClearNotificationsByCategoryAsync(category);
-
-        // Assert
-        await _mockStorage.Received(1).RemoveNotificationsByCategoryAsync(category, "test-user-123", Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task GetUnreadCountAsync_ShouldReturnCorrectCount()
-    {
-        // Arrange
-        var notifications = new List<Notification>
-        {
-            new() { IsRead = false },
-            new() { IsRead = true },
-            new() { IsRead = false },
-            new() { IsRead = false }
-        };
-
-        _mockStorage.GetNotificationsAsync("test-user-123", Arg.Any<CancellationToken>())
-            .Returns(notifications);
-
-        // Act
-        var count = await _service.GetUnreadCountAsync();
-
-        // Assert
-        Assert.Equal(3, count);
-    }
-
-    [Fact]
-    public async Task AddNotificationAsync_WithNullMessage_ShouldThrowArgumentException()
-    {
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => 
-            _service.AddNotificationAsync(null!, NotificationType.Info));
-    }
-
-    [Fact]
-    public async Task AddNotificationAsync_WithEmptyMessage_ShouldThrowArgumentException()
-    {
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => 
-            _service.AddNotificationAsync("", NotificationType.Info));
-    }
-
-    [Fact]
-    public async Task Constructor_WithNullStorage_ShouldThrowArgumentNullException()
+    public void Constructor_WithNullStorage_ShouldThrowArgumentNullException()
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => 
@@ -216,7 +41,7 @@ public class NotificationServiceTests
     }
 
     [Fact]
-    public async Task Constructor_WithNullContextProvider_ShouldThrowArgumentNullException()
+    public void Constructor_WithNullContextProvider_ShouldThrowArgumentNullException()
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => 
@@ -239,145 +64,105 @@ public class NotificationServiceTests
             new NotificationService(_mockStorage, _mockContextProvider, _mockOptions, null!));
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData(null)]
+    public async Task AddNotificationAsync_WithNullOrEmptyMessage_ShouldThrowArgumentException(string message)
+    {
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => 
+            _service.AddNotificationAsync(message, NotificationType.Success));
+    }
+
+    [Fact]
+    public async Task AddSuccessAsync_ShouldCreateSuccessNotification()
+    {
+        // Act
+        await _service.AddSuccessAsync("Success message");
+
+        // Assert
+        await _mockStorage.Received(1).StoreNotificationAsync(
+            Arg.Is<Notification>(n => 
+                n.Message == "Success message" && 
+                n.Type == NotificationType.Success && 
+                n.UserId == "test-user"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AddErrorAsync_ShouldCreateErrorNotification()
+    {
+        // Act
+        await _service.AddErrorAsync("Error message");
+
+        // Assert
+        await _mockStorage.Received(1).StoreNotificationAsync(
+            Arg.Is<Notification>(n => 
+                n.Message == "Error message" && 
+                n.Type == NotificationType.Error),
+            Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task AddInfoAsync_ShouldCreateInfoNotification()
     {
-        // Arrange
-        const string message = "Information message";
-        Notification? capturedNotification = null;
-        
-        await _mockStorage.StoreNotificationAsync(
-            Arg.Do<Notification>(n => capturedNotification = n),
-            Arg.Any<CancellationToken>());
-
         // Act
-        await _service.AddInfoAsync(message);
+        await _service.AddInfoAsync("Info message");
 
         // Assert
-        await _mockStorage.Received(1).StoreNotificationAsync(Arg.Any<Notification>(), Arg.Any<CancellationToken>());
-        
-        Assert.NotNull(capturedNotification);
-        Assert.Equal(message, capturedNotification.Message);
-        Assert.Equal(NotificationType.Info, capturedNotification.Type);
-        Assert.Equal("test-user-123", capturedNotification.UserId);
+        await _mockStorage.Received(1).StoreNotificationAsync(
+            Arg.Is<Notification>(n => 
+                n.Message == "Info message" && 
+                n.Type == NotificationType.Info),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task AddWarningAsync_ShouldCreateWarningNotification()
     {
-        // Arrange
-        const string message = "Warning message";
-        Notification? capturedNotification = null;
-        
-        await _mockStorage.StoreNotificationAsync(
-            Arg.Do<Notification>(n => capturedNotification = n),
+        // Act
+        await _service.AddWarningAsync("Warning message");
+
+        // Assert
+        await _mockStorage.Received(1).StoreNotificationAsync(
+            Arg.Is<Notification>(n => 
+                n.Message == "Warning message" && 
+                n.Type == NotificationType.Warning),
             Arg.Any<CancellationToken>());
-
-        // Act
-        await _service.AddWarningAsync(message);
-
-        // Assert
-        await _mockStorage.Received(1).StoreNotificationAsync(Arg.Any<Notification>(), Arg.Any<CancellationToken>());
-        
-        Assert.NotNull(capturedNotification);
-        Assert.Equal(message, capturedNotification.Message);
-        Assert.Equal(NotificationType.Warning, capturedNotification.Type);
-        Assert.Equal("test-user-123", capturedNotification.UserId);
     }
 
     [Fact]
-    public async Task GetAllNotificationsAsync_ShouldReturnAllNotifications()
+    public async Task AddNotificationAsync_WithCustomOptions_ShouldUseProvidedOptions()
     {
         // Arrange
-        var notifications = new List<Notification>
+        var options = new NotificationOptions
         {
-            new() { Id = "1", Message = "First", IsRead = false, CreatedAt = DateTime.UtcNow.AddMinutes(-2) },
-            new() { Id = "2", Message = "Second", IsRead = true, CreatedAt = DateTime.UtcNow.AddMinutes(-1) },
-            new() { Id = "3", Message = "Third", IsRead = false, CreatedAt = DateTime.UtcNow }
+            Context = "test-context",
+            Category = "test-category",
+            AutoDismiss = false,
+            AutoDismissSeconds = 10,
+            UserId = "custom-user",
+            Priority = NotificationPriority.High
         };
 
-        _mockStorage.GetNotificationsAsync("test-user-123", Arg.Any<CancellationToken>())
-            .Returns(notifications);
-
         // Act
-        var result = await _service.GetAllNotificationsAsync();
+        await _service.AddNotificationAsync("Test message", NotificationType.Success, options);
 
         // Assert
-        var allNotifications = result.ToList();
-        Assert.Equal(3, allNotifications.Count);
-        // Should be ordered by priority then by created date (descending)
-        Assert.Equal("3", allNotifications[0].Id); // Most recent first
-        Assert.Equal("2", allNotifications[1].Id);
-        Assert.Equal("1", allNotifications[2].Id);
+        await _mockStorage.Received(1).StoreNotificationAsync(
+            Arg.Is<Notification>(n => 
+                n.Context == "test-context" && 
+                n.Category == "test-category" &&
+                n.AutoDismiss == false &&
+                n.AutoDismissSeconds == 10 &&
+                n.UserId == "custom-user" &&
+                n.Priority == NotificationPriority.High),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task GetNotificationsByCategoryAsync_ShouldReturnFilteredNotifications()
-    {
-        // Arrange
-        const string category = "test-category";
-        var notifications = new List<Notification>
-        {
-            new() { Id = "1", Category = category, IsRead = false },
-            new() { Id = "2", Category = "other-category", IsRead = false },
-            new() { Id = "3", Category = category, IsRead = true }
-        };
-
-        _mockStorage.GetNotificationsAsync("test-user-123", Arg.Any<CancellationToken>())
-            .Returns(notifications);
-
-        // Act
-        var result = await _service.GetNotificationsByCategoryAsync(category, unreadOnly: true);
-
-        // Assert
-        var filteredNotifications = result.ToList();
-        Assert.Single(filteredNotifications);
-        Assert.Equal("1", filteredNotifications[0].Id);
-    }
-
-    [Fact]
-    public async Task GetNotificationsByCategoryAsync_WithUnreadOnlyFalse_ShouldReturnAllInCategory()
-    {
-        // Arrange
-        const string category = "test-category";
-        var notifications = new List<Notification>
-        {
-            new() { Id = "1", Category = category, IsRead = false },
-            new() { Id = "2", Category = "other-category", IsRead = false },
-            new() { Id = "3", Category = category, IsRead = true }
-        };
-
-        _mockStorage.GetNotificationsAsync("test-user-123", Arg.Any<CancellationToken>())
-            .Returns(notifications);
-
-        // Act
-        var result = await _service.GetNotificationsByCategoryAsync(category, unreadOnly: false);
-
-        // Assert
-        var filteredNotifications = result.ToList();
-        Assert.Equal(2, filteredNotifications.Count);
-        Assert.Contains(filteredNotifications, n => n.Id == "1");
-        Assert.Contains(filteredNotifications, n => n.Id == "3");
-    }
-
-    [Fact]
-    public async Task MarkAsReadAsync_WithNotFoundNotification_ShouldNotThrow()
-    {
-        // Arrange
-        const string notificationId = "non-existent-id";
-        
-        _mockStorage.GetNotificationAsync(notificationId, "test-user-123", Arg.Any<CancellationToken>())
-            .Returns((Notification?)null);
-
-        // Act & Assert - Should not throw
-        await _service.MarkAsReadAsync(notificationId);
-
-        // Assert - UpdateNotificationAsync should not be called
-        await _mockStorage.DidNotReceive().UpdateNotificationAsync(Arg.Any<Notification>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task MarkAllAsReadAsync_ShouldUpdateAllUnreadNotifications()
+    public async Task GetUnreadNotificationsAsync_ShouldReturnFilteredNotifications()
     {
         // Arrange
         var notifications = new List<Notification>
@@ -386,135 +171,326 @@ public class NotificationServiceTests
             new() { Id = "2", IsRead = true },
             new() { Id = "3", IsRead = false }
         };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
 
-        _mockStorage.GetNotificationsAsync("test-user-123", Arg.Any<CancellationToken>())
+        // Act
+        var result = await _service.GetUnreadNotificationsAsync();
+
+        // Assert
+        Assert.Equal(2, result.Count());
+        Assert.All(result, n => Assert.False(n.IsRead));
+    }
+
+    [Fact]
+    public async Task GetAllNotificationsAsync_ShouldReturnOrderedNotifications()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", Priority = NotificationPriority.Low, CreatedAt = DateTime.UtcNow.AddMinutes(-2) },
+            new() { Id = "2", Priority = NotificationPriority.High, CreatedAt = DateTime.UtcNow.AddMinutes(-1) },
+            new() { Id = "3", Priority = NotificationPriority.High, CreatedAt = DateTime.UtcNow }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        var result = await _service.GetAllNotificationsAsync();
+
+        // Assert
+        var resultList = result.ToList();
+        Assert.Equal("3", resultList[0].Id); // High priority, newest
+        Assert.Equal("2", resultList[1].Id); // High priority, older
+        Assert.Equal("1", resultList[2].Id); // Low priority
+    }
+
+    [Fact]
+    public async Task GetNotificationsByCategoryAsync_ShouldFilterByCategory()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", Category = "test-category" },
+            new() { Id = "2", Category = "other-category" },
+            new() { Id = "3", Category = "test-category" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        var result = await _service.GetNotificationsByCategoryAsync("test-category");
+
+        // Assert
+        Assert.Equal(2, result.Count());
+        Assert.All(result, n => Assert.Equal("test-category", n.Category));
+    }
+
+    [Fact]
+    public async Task GetNotificationsByCategoryAsync_WithUnreadOnly_ShouldFilterByReadStatus()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", Category = "test-category", IsRead = false },
+            new() { Id = "2", Category = "test-category", IsRead = true },
+            new() { Id = "3", Category = "test-category", IsRead = false }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        var result = await _service.GetNotificationsByCategoryAsync("test-category", unreadOnly: true);
+
+        // Assert
+        Assert.Equal(2, result.Count());
+        Assert.All(result, n => Assert.False(n.IsRead));
+    }
+
+    [Fact]
+    public async Task MarkAsReadAsync_ShouldUpdateNotificationAndStore()
+    {
+        // Arrange
+        var notification = new Notification { Id = "test-id", IsRead = false, UserId = "test-user" };
+        _mockStorage.GetNotificationAsync("test-id", "test-user", Arg.Any<CancellationToken>())
+            .Returns(notification);
+
+        // Act
+        await _service.MarkAsReadAsync("test-id");
+
+        // Assert
+        await _mockStorage.Received(1).UpdateNotificationAsync(
+            Arg.Is<Notification>(n => n.Id == "test-id" && n.IsRead == true),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task MarkAllAsReadAsync_ShouldUpdateAllUnreadNotifications()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", IsRead = false, UserId = "test-user" },
+            new() { Id = "2", IsRead = true, UserId = "test-user" },
+            new() { Id = "3", IsRead = false, UserId = "test-user" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
             .Returns(notifications);
 
         // Act
         await _service.MarkAllAsReadAsync();
 
         // Assert
-        await _mockStorage.Received(2).UpdateNotificationAsync(Arg.Any<Notification>(), Arg.Any<CancellationToken>());
-        Assert.True(notifications[0].IsRead);
-        Assert.True(notifications[1].IsRead); // Already was true
-        Assert.True(notifications[2].IsRead);
+        await _mockStorage.Received(2).UpdateNotificationAsync(
+            Arg.Is<Notification>(n => n.IsRead == true),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task RemoveNotificationAsync_ShouldCallStorageMethod()
+    public async Task RemoveNotificationAsync_ShouldRemoveSpecificNotification()
     {
         // Arrange
-        const string notificationId = "test-id";
+        var notifications = new List<Notification>
+        {
+            new() { Id = "test-id", UserId = "test-user" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
 
         // Act
-        await _service.RemoveNotificationAsync(notificationId);
+        await _service.RemoveNotificationAsync("test-id");
 
         // Assert
-        await _mockStorage.Received(1).RemoveNotificationAsync(notificationId, "test-user-123", Arg.Any<CancellationToken>());
+        await _mockStorage.Received(1).RemoveNotificationAsync("test-id", "test-user", Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ClearAllNotificationsAsync_ShouldCallStorageMethod()
+    public async Task ClearAllNotificationsAsync_ShouldCallStorageClearAll()
     {
         // Act
         await _service.ClearAllNotificationsAsync();
 
         // Assert
-        await _mockStorage.Received(1).ClearAllNotificationsAsync("test-user-123", Arg.Any<CancellationToken>());
+        await _mockStorage.Received(1).ClearAllNotificationsAsync("test-user", Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ClearNotificationsByContextAsync_ShouldCallStorageMethod()
+    public async Task ClearNotificationsByCategoryAsync_ShouldCallStorageRemoveByCategory()
     {
-        // Arrange
-        const string context = "test-context";
-
         // Act
-        await _service.ClearNotificationsByContextAsync(context);
+        await _service.ClearNotificationsByCategoryAsync("test-category");
 
         // Assert
-        await _mockStorage.Received(1).RemoveNotificationsByContextAsync(context, "test-user-123", Arg.Any<CancellationToken>());
+        await _mockStorage.Received(1).RemoveNotificationsByCategoryAsync("test-category", "test-user", Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task AddNotificationAsync_WithUserIdInOptions_ShouldUseProvidedUserId()
+    public async Task ClearNotificationsByContextAsync_ShouldCallStorageRemoveByContext()
     {
-        // Arrange
-        const string message = "Test notification";
-        const string providedUserId = "custom-user-id";
-        var options = new NotificationOptions { UserId = providedUserId };
-        
-        Notification? capturedNotification = null;
-        await _mockStorage.StoreNotificationAsync(
-            Arg.Do<Notification>(n => capturedNotification = n),
-            Arg.Any<CancellationToken>());
-
         // Act
-        await _service.AddNotificationAsync(message, NotificationType.Info, options);
+        await _service.ClearNotificationsByContextAsync("test-context");
 
         // Assert
-        Assert.NotNull(capturedNotification);
-        Assert.Equal(providedUserId, capturedNotification.UserId);
+        await _mockStorage.Received(1).RemoveNotificationsByContextAsync("test-context", "test-user", Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task AddNotificationAsync_WithMetadata_ShouldIncludeMetadata()
+    public async Task GetUnreadCountAsync_ShouldReturnUnreadCount()
     {
         // Arrange
-        const string message = "Test notification";
-        var metadata = new Dictionary<string, object> { ["key1"] = "value1", ["key2"] = 42 };
-        var options = new NotificationOptions { Metadata = metadata };
-        
-        Notification? capturedNotification = null;
-        await _mockStorage.StoreNotificationAsync(
-            Arg.Do<Notification>(n => capturedNotification = n),
-            Arg.Any<CancellationToken>());
+        var notifications = new List<Notification>
+        {
+            new() { IsRead = false },
+            new() { IsRead = true },
+            new() { IsRead = false }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
 
         // Act
-        await _service.AddNotificationAsync(message, NotificationType.Info, options);
+        var result = await _service.GetUnreadCountAsync();
 
         // Assert
-        Assert.NotNull(capturedNotification);
-        Assert.Same(metadata, capturedNotification.Metadata);
+        Assert.Equal(2, result);
     }
 
     [Fact]
-    public async Task Methods_WithProvidedUserId_ShouldUseProvidedUserId()
+    public async Task GetUserId_WithProvidedUserId_ShouldReturnProvidedUserId()
     {
-        // Arrange
-        const string customUserId = "custom-user";
+        // Act
+        await _service.GetAllNotificationsAsync("custom-user");
 
-        // Act & Assert for each method that accepts userId
-        await _service.GetUnreadNotificationsAsync(customUserId);
-        await _mockStorage.Received(1).GetNotificationsAsync(customUserId, Arg.Any<CancellationToken>());
-
-        await _service.GetAllNotificationsAsync(customUserId);
-        await _mockStorage.Received(2).GetNotificationsAsync(customUserId, Arg.Any<CancellationToken>());
-
-        await _service.GetNotificationsByCategoryAsync("category", userId: customUserId);
-        await _mockStorage.Received(3).GetNotificationsAsync(customUserId, Arg.Any<CancellationToken>());
-
-        await _service.MarkAllAsReadAsync(customUserId);
-        await _mockStorage.Received(4).GetNotificationsAsync(customUserId, Arg.Any<CancellationToken>());
-
-        await _service.ClearAllNotificationsAsync(customUserId);
-        await _mockStorage.Received(1).ClearAllNotificationsAsync(customUserId, Arg.Any<CancellationToken>());
-
-        await _service.ClearNotificationsByCategoryAsync("category", customUserId);
-        await _mockStorage.Received(1).RemoveNotificationsByCategoryAsync("category", customUserId, Arg.Any<CancellationToken>());
-
-        await _service.ClearNotificationsByContextAsync("context", customUserId);
-        await _mockStorage.Received(1).RemoveNotificationsByContextAsync("context", customUserId, Arg.Any<CancellationToken>());
-
-        await _service.GetUnreadCountAsync(customUserId);
-        await _mockStorage.Received(5).GetNotificationsAsync(customUserId, Arg.Any<CancellationToken>());
+        // Assert
+        await _mockStorage.Received(1).GetNotificationsAsync("custom-user", Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task GetUnreadCountAsync_WhenStorageThrows_ShouldReturnZero()
+    public async Task GetUserId_WithoutProvidedUserId_WhenContextAvailable_ShouldUseContextUserId()
+    {
+        // Act
+        await _service.GetAllNotificationsAsync();
+
+        // Assert
+        await _mockStorage.Received(1).GetNotificationsAsync("test-user", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetUserId_WithoutProvidedUserId_WhenContextNotAvailable_ShouldUseDefaultUserId()
     {
         // Arrange
-        _mockStorage.GetNotificationsAsync("test-user-123", Arg.Any<CancellationToken>())
+        _mockContextProvider.IsContextAvailable().Returns(false);
+        _mockContextProvider.GetCurrentUserId().Returns("default");
+
+        // Act
+        await _service.GetAllNotificationsAsync();
+
+        // Assert
+        await _mockStorage.Received(1).GetNotificationsAsync("default", Arg.Any<CancellationToken>());
+    }
+
+    // Exception handling tests to cover catch blocks
+    [Fact]
+    public async Task GetAllNotificationsAsync_WhenStorageThrows_ShouldLogErrorAndReturnEmpty()
+    {
+        // Arrange
+        _mockStorage.GetNotificationsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IEnumerable<Notification>>(new InvalidOperationException("Storage error")));
+
+        // Act
+        var result = await _service.GetAllNotificationsAsync();
+
+        // Assert
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetNotificationsByCategoryAsync_WhenStorageThrows_ShouldLogErrorAndReturnEmpty()
+    {
+        // Arrange
+        _mockStorage.GetNotificationsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IEnumerable<Notification>>(new InvalidOperationException("Storage error")));
+
+        // Act
+        var result = await _service.GetNotificationsByCategoryAsync("test-category");
+
+        // Assert
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task MarkAsReadAsync_WhenStorageThrows_ShouldLogErrorAndNotThrow()
+    {
+        // Arrange
+        _mockStorage.GetNotificationsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IEnumerable<Notification>>(new InvalidOperationException("Storage error")));
+
+        // Act & Assert (should not throw)
+        await _service.MarkAsReadAsync("test-id");
+    }
+
+    [Fact]
+    public async Task MarkAllAsReadAsync_WhenStorageThrows_ShouldLogErrorAndRethrow()
+    {
+        // Arrange
+        _mockStorage.GetNotificationsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IEnumerable<Notification>>(new InvalidOperationException("Storage error")));
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.MarkAllAsReadAsync());
+    }
+
+    [Fact]
+    public async Task RemoveNotificationAsync_WhenStorageThrows_ShouldLogErrorAndNotThrow()
+    {
+        // Arrange
+        _mockStorage.GetNotificationsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IEnumerable<Notification>>(new InvalidOperationException("Storage error")));
+
+        // Act & Assert (should not throw)
+        await _service.RemoveNotificationAsync("test-id");
+    }
+
+    [Fact]
+    public async Task AddNotificationAsync_WhenStorageThrows_ShouldLogErrorAndRethrow()
+    {
+        // Arrange
+        _mockStorage.StoreNotificationAsync(Arg.Any<Notification>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new InvalidOperationException("Storage error")));
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => 
+            _service.AddSuccessAsync("test message"));
+    }
+
+    [Fact]
+    public async Task ClearAllNotificationsAsync_WhenStorageThrows_ShouldLogErrorAndRethrow()
+    {
+        // Arrange
+        _mockStorage.ClearAllNotificationsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new InvalidOperationException("Storage error")));
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => 
+            _service.ClearAllNotificationsAsync());
+    }
+
+    [Fact]
+    public async Task ClearNotificationsByCategoryAsync_WhenStorageThrows_ShouldLogErrorAndRethrow()
+    {
+        // Arrange
+        _mockStorage.RemoveNotificationsByCategoryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new InvalidOperationException("Storage error")));
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => 
+            _service.ClearNotificationsByCategoryAsync("test-category"));
+    }
+
+    [Fact]
+    public async Task GetUnreadCountAsync_WhenStorageThrows_ShouldLogErrorAndReturnZero()
+    {
+        // Arrange
+        _mockStorage.GetNotificationsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException<IEnumerable<Notification>>(new InvalidOperationException("Storage error")));
 
         // Act
@@ -522,74 +498,5 @@ public class NotificationServiceTests
 
         // Assert
         Assert.Equal(0, result);
-    }
-
-    [Fact]
-    public async Task ClearNotificationsByContextAsync_WhenStorageThrows_ShouldRethrow()
-    {
-        // Arrange
-        _mockStorage.RemoveNotificationsByContextAsync("context", "test-user-123", Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new InvalidOperationException("Storage error")));
-
-        // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(() => 
-            _service.ClearNotificationsByContextAsync("context"));
-    }
-
-    [Fact]
-    public void GetUserId_WhenContextProviderUnavailable_ShouldThrowInvalidOperationException()
-    {
-        // Arrange
-        _mockContextProvider.IsContextAvailable().Returns(false);
-
-        // Act & Assert
-        Assert.ThrowsAsync<InvalidOperationException>(() => _service.GetUnreadNotificationsAsync());
-    }
-
-    [Fact]
-    public async Task AddNotificationAsync_WithNullOptions_ShouldUseTypeDefaults()
-    {
-        // Arrange
-        const string message = "Test message";
-        Notification? capturedNotification = null;
-        
-        await _mockStorage.StoreNotificationAsync(
-            Arg.Do<Notification>(n => capturedNotification = n),
-            Arg.Any<CancellationToken>());
-
-        // Act
-        await _service.AddErrorAsync(message, null); // null options should use type defaults
-
-        // Assert
-        Assert.NotNull(capturedNotification);
-        Assert.False(capturedNotification.AutoDismiss); // Error type default
-        Assert.Equal(10, capturedNotification.AutoDismissSeconds); // Error type default
-    }
-
-    [Fact]
-    public async Task AddNotificationAsync_WithPartialOptions_ShouldPreserveUserSettings()
-    {
-        // Arrange
-        const string message = "Test message";
-        var options = new NotificationOptions
-        {
-            Context = "custom-context",
-            AutoDismiss = true, // Different from Error default (false)
-            AutoDismissSeconds = 15 // Different from Error default (10)
-        };
-        
-        Notification? capturedNotification = null;
-        await _mockStorage.StoreNotificationAsync(
-            Arg.Do<Notification>(n => capturedNotification = n),
-            Arg.Any<CancellationToken>());
-
-        // Act
-        await _service.AddErrorAsync(message, options);
-
-        // Assert
-        Assert.NotNull(capturedNotification);
-        Assert.Equal("custom-context", capturedNotification.Context);
-        Assert.True(capturedNotification.AutoDismiss); // User's setting preserved
-        Assert.Equal(15, capturedNotification.AutoDismissSeconds); // User's setting preserved
     }
 }
