@@ -1,8 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace DfE.CoreLibs.Notifications.Options;
 
 /// <summary>
 /// Configuration options for the notification service
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class NotificationServiceOptions
 {
     /// <summary>

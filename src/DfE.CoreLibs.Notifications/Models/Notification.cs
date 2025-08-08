@@ -1,8 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace DfE.CoreLibs.Notifications.Models;
 
 /// <summary>
 /// Represents a user notification that can be displayed in the UI
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class Notification
 {
     /// <summary>
