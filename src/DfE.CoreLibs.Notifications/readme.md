@@ -248,17 +248,6 @@ public class NotificationsController : ControllerBase
 5. **Use Categories**: Group related notifications for better management
 6. **Consider Priority**: Use priority levels for important notifications
 
-## Migration from Existing Code
-
-If you have existing notification code similar to the example you provided:
-
-1. Replace direct session access with `INotificationService`
-2. Use the async methods (`AddSuccessAsync`, etc.)
-3. Configure the service with `AddNotificationServices()`
-4. Update frontend code to handle the new JSON structure
-
-The service maintains backward compatibility with your existing notification structure while adding flexibility and async support.
-
 ## Important Setup Note
 
 **When using session storage (the default), you MUST register `IHttpContextAccessor` in your application:**

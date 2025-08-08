@@ -207,4 +207,140 @@ public class ServiceCollectionExtensionsTests
         public string GetCurrentUserId() => "test-user";
         public bool IsContextAvailable() => true;
     }
+
+    [Fact]
+    public void AddNotificationServicesWithCustomProviders_ShouldRegisterCustomImplementations()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddNotificationServicesWithCustomProviders<TestNotificationStorage, TestUserContextProvider>();
+
+        // Assert
+        var serviceProvider = services.BuildServiceProvider();
+        var notificationStorage = serviceProvider.GetRequiredService<INotificationStorage>();
+        var userContextProvider = serviceProvider.GetRequiredService<IUserContextProvider>();
+
+        Assert.IsType<TestNotificationStorage>(notificationStorage);
+        Assert.IsType<TestUserContextProvider>(userContextProvider);
+    }
+
+    [Fact]
+    public void AddNotificationServices_WithUnknownStorageProvider_ShouldThrowInvalidOperationException()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["NotificationService:StorageProvider"] = "999" // Invalid enum value
+            })
+            .Build();
+
+        services.AddLogging();
+        services.AddNotificationServices(configuration);
+
+        // Act & Assert
+        var serviceProvider = services.BuildServiceProvider();
+        Assert.Throws<InvalidOperationException>(() => 
+            serviceProvider.GetRequiredService<INotificationStorage>());
+    }
+
+    [Fact]
+    public void AddNotificationServices_WithMissingSessionDependencies_ShouldThrowInvalidOperationException()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["NotificationService:StorageProvider"] = "Session"
+            })
+            .Build();
+
+        services.AddLogging();
+        services.AddNotificationServices(configuration);
+        // Not adding IHttpContextAccessor
+
+        // Act & Assert
+        var serviceProvider = services.BuildServiceProvider();
+        Assert.Throws<InvalidOperationException>(() => 
+            serviceProvider.GetRequiredService<INotificationStorage>());
+    }
+
+    [Fact]
+    public void AddNotificationServicesWithAction_ShouldConfigureOptions()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddNotificationServices(options =>
+        {
+            options.MaxNotificationsPerUser = 100;
+            options.StorageProvider = NotificationStorageProvider.InMemory;
+            options.SessionKey = "CustomKey";
+        });
+
+        // Assert
+        var serviceProvider = services.BuildServiceProvider();
+        var notificationOptions = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>().Value;
+        
+        Assert.Equal(100, notificationOptions.MaxNotificationsPerUser);
+        Assert.Equal(NotificationStorageProvider.InMemory, notificationOptions.StorageProvider);
+        Assert.Equal("CustomKey", notificationOptions.SessionKey);
+    }
+
+    [Fact]
+    public void AddNotificationServices_WithDefaultOptions_ShouldUseSessionStorage()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddHttpContextAccessor();
+
+        // Act
+        services.AddNotificationServices();
+
+        // Assert
+        var serviceProvider = services.BuildServiceProvider();
+        var notificationStorage = serviceProvider.GetRequiredService<INotificationStorage>();
+        Assert.IsType<SessionNotificationStorage>(notificationStorage);
+    }
+}
+
+public class TestNotificationStorage : INotificationStorage
+{
+    public Task StoreNotificationAsync(DfE.CoreLibs.Notifications.Models.Notification notification, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task<IEnumerable<DfE.CoreLibs.Notifications.Models.Notification>> GetNotificationsAsync(string userId, CancellationToken cancellationToken = default)
+        => Task.FromResult(Enumerable.Empty<DfE.CoreLibs.Notifications.Models.Notification>());
+
+    public Task UpdateNotificationAsync(DfE.CoreLibs.Notifications.Models.Notification notification, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task RemoveNotificationAsync(string notificationId, string userId, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task RemoveNotificationsByContextAsync(string context, string userId, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task RemoveNotificationsByCategoryAsync(string category, string userId, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task ClearAllNotificationsAsync(string userId, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task<DfE.CoreLibs.Notifications.Models.Notification?> GetNotificationAsync(string notificationId, string userId, CancellationToken cancellationToken = default)
+        => Task.FromResult<DfE.CoreLibs.Notifications.Models.Notification?>(null);
+}
+
+public class TestUserContextProvider : IUserContextProvider
+{
+    public string GetCurrentUserId() => "test-user";
+    public bool IsContextAvailable() => true;
 }

@@ -437,4 +437,76 @@ public class RedisNotificationStorageTests
         // Assert
         await _mockDatabase.DidNotReceive().KeyExpireAsync(Arg.Any<RedisKey>(), Arg.Any<TimeSpan>());
     }
+
+    [Fact]
+    public async Task StoreNotificationAsync_WithNullUserId_ShouldUseDefaultUserId()
+    {
+        // Arrange
+        var notification = new Notification { Id = "1", UserId = null };
+
+        // Act
+        await _storage.StoreNotificationAsync(notification);
+
+        // Assert
+        await _mockDatabase.Received(1).StringSetAsync(
+            _options.RedisKeyPrefix + "default",
+            Arg.Any<RedisValue>(),
+            Arg.Any<TimeSpan?>());
+    }
+
+    [Fact]
+    public async Task RemoveNotificationsByContextAsync_WithNonExistentUser_ShouldNotThrow()
+    {
+        // Act & Assert - should not throw
+        await _storage.RemoveNotificationsByContextAsync("context", "non-existent-user");
+    }
+
+    [Fact]
+    public async Task RemoveNotificationsByCategoryAsync_WithNonExistentUser_ShouldNotThrow()
+    {
+        // Act & Assert - should not throw
+        await _storage.RemoveNotificationsByCategoryAsync("category", "non-existent-user");
+    }
+
+    [Fact]
+    public async Task ClearAllNotificationsAsync_WithNonExistentUser_ShouldNotThrow()
+    {
+        // Act & Assert - should not throw
+        await _storage.ClearAllNotificationsAsync("non-existent-user");
+    }
+
+    [Fact]
+    public async Task RemoveNotificationAsync_WithNonExistentUser_ShouldNotThrow()
+    {
+        // Act & Assert - should not throw
+        await _storage.RemoveNotificationAsync("notification-id", "non-existent-user");
+    }
+
+    [Fact]
+    public async Task StoreNotificationAsync_WithEmptyContext_ShouldNotRemoveExistingNotifications()
+    {
+        // Arrange
+        var notification1 = new Notification { Id = "1", UserId = "user1", Context = "context1" };
+        var notification2 = new Notification { Id = "2", UserId = "user1", Context = "" };
+
+        // Act
+        await _storage.StoreNotificationAsync(notification1);
+        await _storage.StoreNotificationAsync(notification2);
+
+        // Assert
+        await _mockDatabase.Received(2).StringSetAsync(
+            _options.RedisKeyPrefix + "user1",
+            Arg.Any<RedisValue>(),
+            Arg.Any<TimeSpan?>());
+    }
+
+    [Fact]
+    public async Task GetNotificationAsync_WithNonExistentNotification_ShouldReturnNull()
+    {
+        // Act
+        var result = await _storage.GetNotificationAsync("non-existent", "user1");
+
+        // Assert
+        Assert.Null(result);
+    }
 }

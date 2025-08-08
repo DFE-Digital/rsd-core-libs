@@ -266,4 +266,95 @@ public class InMemoryNotificationStorageTests
         // Assert
         Assert.Empty(notifications);
     }
+
+    [Fact]
+    public void Constructor_WithNullOptions_ShouldThrowArgumentNullException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => new InMemoryNotificationStorage(null!));
+    }
+
+    [Fact]
+    public async Task StoreNotificationAsync_WithNullUserId_ShouldUseDefaultUserId()
+    {
+        // Arrange
+        var notification = new Notification { Id = "1", UserId = null };
+
+        // Act
+        await _storage.StoreNotificationAsync(notification);
+
+        // Assert
+        var notifications = await _storage.GetNotificationsAsync("default");
+        Assert.Single(notifications);
+    }
+
+    [Fact]
+    public async Task RemoveNotificationsByContextAsync_WithNonExistentUser_ShouldNotThrow()
+    {
+        // Act & Assert - should not throw
+        await _storage.RemoveNotificationsByContextAsync("context", "non-existent-user");
+    }
+
+    [Fact]
+    public async Task RemoveNotificationsByCategoryAsync_WithNonExistentUser_ShouldNotThrow()
+    {
+        // Act & Assert - should not throw
+        await _storage.RemoveNotificationsByCategoryAsync("category", "non-existent-user");
+    }
+
+    [Fact]
+    public async Task ClearAllNotificationsAsync_WithNonExistentUser_ShouldNotThrow()
+    {
+        // Act & Assert - should not throw
+        await _storage.ClearAllNotificationsAsync("non-existent-user");
+    }
+
+    [Fact]
+    public async Task RemoveNotificationAsync_WithNonExistentUser_ShouldNotThrow()
+    {
+        // Act & Assert - should not throw
+        await _storage.RemoveNotificationAsync("notification-id", "non-existent-user");
+    }
+
+    [Fact]
+    public async Task UpdateNotificationAsync_WithNonExistentNotification_ShouldNotThrow()
+    {
+        // Arrange
+        var notification = new Notification { Id = "non-existent", UserId = "user1" };
+
+        // Act & Assert - should not throw
+        await _storage.UpdateNotificationAsync(notification);
+    }
+
+    [Fact]
+    public async Task StoreNotificationAsync_WithEmptyContext_ShouldNotRemoveExistingNotifications()
+    {
+        // Arrange
+        var notification1 = new Notification { Id = "1", UserId = "user1", Context = "context1" };
+        var notification2 = new Notification { Id = "2", UserId = "user1", Context = "" };
+
+        // Act
+        await _storage.StoreNotificationAsync(notification1);
+        await _storage.StoreNotificationAsync(notification2);
+
+        // Assert
+        var notifications = await _storage.GetNotificationsAsync("user1");
+        Assert.Equal(2, notifications.Count());
+    }
+
+    [Fact]
+    public async Task StoreNotificationAsync_WithWhitespaceContext_ShouldNotRemoveExistingNotifications()
+    {
+        // Arrange
+        var notification1 = new Notification { Id = "1", UserId = "user1", Context = "context1" };
+        var notification2 = new Notification { Id = "2", UserId = "user1", Context = "   " };
+
+        // Act
+        await _storage.StoreNotificationAsync(notification1);
+        await _storage.StoreNotificationAsync(notification2);
+
+        // Assert
+        var notifications = await _storage.GetNotificationsAsync("user1");
+        Assert.Equal(2, notifications.Count());
+    }
 }
