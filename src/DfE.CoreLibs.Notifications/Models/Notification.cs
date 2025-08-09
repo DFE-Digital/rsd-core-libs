@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using DfE.CoreLibs.Contracts.ExternalApplications.Enums;
 
 namespace DfE.CoreLibs.Notifications.Models;
 

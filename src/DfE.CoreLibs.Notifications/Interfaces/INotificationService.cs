@@ -1,3 +1,4 @@
+using DfE.CoreLibs.Contracts.ExternalApplications.Enums;
 using DfE.CoreLibs.Notifications.Models;
 
 namespace DfE.CoreLibs.Notifications.Interfaces;
