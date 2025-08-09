@@ -1,4 +1,4 @@
-namespace DfE.CoreLibs.Contracts.ExternalApplications.Enums
+namespace DfE.CoreLibs.Contracts.ExternalApplications.Enums;
 
 /// <summary>
 /// Priority levels for notifications
