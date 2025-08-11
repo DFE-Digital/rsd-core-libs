@@ -31,7 +31,7 @@ public static class ServiceCollectionExtensions
         // Ensure HttpContextAccessor is registered for SessionUserContextProvider
         services.AddHttpContextAccessor();
 
-        // Configure Redis connection
+        // Configure Redis connection - lazy connection to avoid connection issues during startup
         services.AddSingleton<IConnectionMultiplexer>(serviceProvider =>
         {
             var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>().Value;
@@ -45,7 +45,13 @@ public static class ServiceCollectionExtensions
                     ?? throw new InvalidOperationException("Redis connection string not found in configuration. Please set it in appsettings.json under 'ConnectionStrings:Redis' or 'Redis:ConnectionString' or 'NotificationService:RedisConnectionString'");
             }
 
-            return ConnectionMultiplexer.Connect(connectionString);
+            // Use lazy connection with retry options for better reliability
+            var configOptions = ConfigurationOptions.Parse(connectionString);
+            configOptions.AbortOnConnectFail = false;
+            configOptions.ConnectRetry = 3;
+            configOptions.ReconnectRetryPolicy = new ExponentialRetry(5000);
+            
+            return ConnectionMultiplexer.Connect(configOptions);
         });
 
         // Register core services
