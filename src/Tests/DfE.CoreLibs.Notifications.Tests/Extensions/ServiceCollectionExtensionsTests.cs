@@ -4,10 +4,12 @@ using DfE.CoreLibs.Notifications.Models;
 using DfE.CoreLibs.Notifications.Options;
 using DfE.CoreLibs.Notifications.Services;
 using DfE.CoreLibs.Notifications.Storage;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 using Xunit;
 
 namespace DfE.CoreLibs.Notifications.Tests.Extensions;
@@ -15,15 +17,91 @@ namespace DfE.CoreLibs.Notifications.Tests.Extensions;
 public class ServiceCollectionExtensionsTests
 {
     [Fact]
-    public void AddNotificationServices_WithDefaultConfiguration_ShouldRegisterServices()
+    public void AddNotificationServicesWithRedis_WithConfiguration_ShouldRegisterServices()
     {
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddHttpContextAccessor(); // Required for SessionNotificationStorage
+        
+        var configData = new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:Redis"] = "localhost:6379",
+            ["NotificationService:MaxNotificationsPerUser"] = "100",
+            ["NotificationService:StorageProvider"] = "Redis"
+        };
+        
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(configData)
+            .Build();
 
         // Act
-        services.AddNotificationServices();
+        services.AddNotificationServicesWithRedis(configuration);
+
+        // Assert
+        var serviceProvider = services.BuildServiceProvider();
+        
+        Assert.NotNull(serviceProvider.GetService<INotificationService>());
+        Assert.NotNull(serviceProvider.GetService<INotificationStorage>());
+        Assert.NotNull(serviceProvider.GetService<IUserContextProvider>());
+        Assert.NotNull(serviceProvider.GetService<IConnectionMultiplexer>());
+        
+        var options = serviceProvider.GetService<IOptions<NotificationServiceOptions>>();
+        Assert.NotNull(options);
+        Assert.Equal(100, options.Value.MaxNotificationsPerUser);
+    }
+
+    [Fact]
+    public void AddNotificationServicesWithSession_WithConfiguration_ShouldRegisterServices()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        
+        var configData = new Dictionary<string, string?>
+        {
+            ["NotificationService:MaxNotificationsPerUser"] = "50",
+            ["NotificationService:StorageProvider"] = "Session"
+        };
+        
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(configData)
+            .Build();
+
+        // Act
+        services.AddNotificationServicesWithSession(configuration);
+
+        // Assert
+        var serviceProvider = services.BuildServiceProvider();
+        
+        Assert.NotNull(serviceProvider.GetService<INotificationService>());
+        Assert.NotNull(serviceProvider.GetService<INotificationStorage>());
+        Assert.NotNull(serviceProvider.GetService<IUserContextProvider>());
+        Assert.NotNull(serviceProvider.GetService<IHttpContextAccessor>());
+        
+        var options = serviceProvider.GetService<IOptions<NotificationServiceOptions>>();
+        Assert.NotNull(options);
+        Assert.Equal(50, options.Value.MaxNotificationsPerUser);
+    }
+
+    [Fact]
+    public void AddNotificationServicesWithInMemory_WithConfiguration_ShouldRegisterServices()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        
+        var configData = new Dictionary<string, string?>
+        {
+            ["NotificationService:MaxNotificationsPerUser"] = "25",
+            ["NotificationService:StorageProvider"] = "InMemory"
+        };
+        
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(configData)
+            .Build();
+
+        // Act
+        services.AddNotificationServicesWithInMemory(configuration);
 
         // Assert
         var serviceProvider = services.BuildServiceProvider();
@@ -34,49 +112,21 @@ public class ServiceCollectionExtensionsTests
         
         var options = serviceProvider.GetService<IOptions<NotificationServiceOptions>>();
         Assert.NotNull(options);
-        Assert.Equal(NotificationStorageProvider.Session, options.Value.StorageProvider);
+        Assert.Equal(25, options.Value.MaxNotificationsPerUser);
     }
 
     [Fact]
-    public void AddNotificationServices_WithConfiguration_ShouldBindOptions()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-        
-        var configData = new Dictionary<string, string?>
-        {
-            ["NotificationService:MaxNotificationsPerUser"] = "100",
-            ["NotificationService:StorageProvider"] = "InMemory"
-        };
-        
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(configData)
-            .Build();
-
-        // Act
-        services.AddNotificationServices(configuration);
-
-        // Assert
-        var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>();
-        
-        Assert.Equal(100, options.Value.MaxNotificationsPerUser);
-        Assert.Equal(NotificationStorageProvider.InMemory, options.Value.StorageProvider);
-    }
-
-    [Fact]
-    public void AddNotificationServices_WithOptionsAction_ShouldConfigureOptions()
+    public void AddNotificationServicesWithSession_WithOptionsAction_ShouldConfigureOptions()
     {
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
         // Act
-        services.AddNotificationServices(options =>
+        services.AddNotificationServicesWithSession(options =>
         {
             options.MaxNotificationsPerUser = 25;
-            options.StorageProvider = NotificationStorageProvider.Redis;
+            options.StorageProvider = NotificationStorageProvider.Session;
         });
 
         // Assert
@@ -84,7 +134,7 @@ public class ServiceCollectionExtensionsTests
         var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>();
         
         Assert.Equal(25, options.Value.MaxNotificationsPerUser);
-        Assert.Equal(NotificationStorageProvider.Redis, options.Value.StorageProvider);
+        Assert.Equal(NotificationStorageProvider.Session, options.Value.StorageProvider);
     }
 
     [Fact]
@@ -181,31 +231,23 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddNotificationServices_WithDefaultOptions_ShouldUseSessionStorage()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-
-        // Act
-        services.AddNotificationServices();
-
-        // Assert
-        var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>();
-        
-        Assert.Equal(NotificationStorageProvider.Session, options.Value.StorageProvider);
-    }
-
-    [Fact]
     public void AddNotificationServicesWithCustomProviders_ShouldRegisterCustomImplementations()
     {
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
+        
+        var configData = new Dictionary<string, string?>
+        {
+            ["NotificationService:MaxNotificationsPerUser"] = "50"
+        };
+        
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(configData)
+            .Build();
 
         // Act
-        services.AddNotificationServicesWithCustomProviders<TestStorage, TestContextProvider>();
+        services.AddNotificationServicesWithCustomProviders<TestStorage, TestContextProvider>(configuration);
 
         // Assert
         var serviceProvider = services.BuildServiceProvider();
@@ -217,20 +259,29 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddNotificationServices_WithUnknownStorageProvider_ShouldThrowInvalidOperationException()
+    public void AddNotificationServicesWithRedis_WithMissingConnectionString_ShouldThrowInvalidOperationException()
     {
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddNotificationServices(options =>
+        
+        var configData = new Dictionary<string, string?>
         {
-            options.StorageProvider = (NotificationStorageProvider)999; // Invalid enum value
-        });
+            ["NotificationService:MaxNotificationsPerUser"] = "50"
+            // No Redis connection string
+        };
+        
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(configData)
+            .Build();
 
-        // Act & Assert
+        // Act
+        services.AddNotificationServicesWithRedis(configuration);
         var serviceProvider = services.BuildServiceProvider();
+
+        // Assert - Exception should be thrown when trying to resolve IConnectionMultiplexer
         Assert.Throws<InvalidOperationException>(() => 
-            serviceProvider.GetRequiredService<INotificationStorage>());
+            serviceProvider.GetRequiredService<IConnectionMultiplexer>());
     }
 
     // Test implementations

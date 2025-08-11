@@ -1,86 +1,38 @@
 # DfE.CoreLibs.Notifications
 
-A flexible notification service library supporting multiple storage providers including session, Redis, in-memory, and database storage.
+A flexible notification system for ASP.NET Core applications that supports multiple storage backends.
 
 ## Features
 
-- **Multiple Storage Providers**: Session (default), Redis, In-Memory, or custom implementations
-- **Flexible Configuration**: Easy setup with dependency injection and configuration
-- **Type-safe Notifications**: Strongly typed notification models with enums
-- **Context Management**: Support for user-scoped notifications and context deduplication
-- **Priority System**: Notification prioritization for better UX
-- **Auto-dismiss**: Configurable auto-dismiss functionality
-- **Async/Await Support**: Full async API with cancellation token support
-- **Logging Integration**: Built-in logging for debugging and monitoring
+- Multiple storage providers (Redis, Session, In-Memory)
+- User-specific notifications
+- Auto-dismiss functionality
+- Category and context-based organization
+- Configurable notification limits and cleanup
+- Type-safe notification creation
 
 ## Quick Start
 
-### 1. Install Package
+### 1. Add the package to your project
 
 ```bash
 dotnet add package DfE.CoreLibs.Notifications
 ```
 
-### 2. Configure Services (Session Storage - Default)
-
-```csharp
-// Program.cs or Startup.cs
-services.AddSession(); // Required for session storage
-services.AddNotificationServices();
-```
-
-### 3. Use in Controllers/Services
-
-```csharp
-using DfE.CoreLibs.Notifications.Interfaces;
-
-public class HomeController : Controller
-{
-    private readonly INotificationService _notificationService;
-    
-    public HomeController(INotificationService notificationService)
-    {
-        _notificationService = notificationService;
-    }
-    
-    public async Task<IActionResult> Upload()
-    {
-        try
-        {
-            // Your upload logic here...
-            
-            await _notificationService.AddSuccessAsync("File uploaded successfully!");
-            return RedirectToAction("Index");
-        }
-        catch (Exception ex)
-        {
-            await _notificationService.AddErrorAsync($"Upload failed: {ex.Message}");
-            return View();
-        }
-    }
-    
-    public async Task<IActionResult> GetNotifications()
-    {
-        var notifications = await _notificationService.GetUnreadNotificationsAsync();
-        return Json(notifications);
-    }
-}
-```
-
-## Configuration Options
-
-### appsettings.json
+### 2. Configure in appsettings.json
 
 ```json
 {
+  "ConnectionStrings": {
+    "Redis": "localhost:6379"
+  },
   "NotificationService": {
-    "StorageProvider": "Session", // Session, Redis, InMemory
+    "StorageProvider": "Redis",
     "MaxNotificationsPerUser": 50,
     "AutoCleanupIntervalMinutes": 60,
     "MaxNotificationAgeHours": 24,
-    "SessionKey": "UserNotifications",
-    "RedisConnectionString": "localhost:6379",
     "RedisKeyPrefix": "notifications:",
+    "SessionKey": "UserNotifications",
     "TypeDefaults": {
       "Success": {
         "AutoDismiss": true,
@@ -103,160 +55,201 @@ public class HomeController : Controller
 }
 ```
 
-## Storage Providers
+### 3. Register services in Program.cs
 
-### Session Storage (Default)
+Choose one of the following based on your storage preference:
 
+#### Redis Storage (Recommended for production)
 ```csharp
-services.AddSession();
-services.AddNotificationServices();
-```
+// Using configuration from appsettings.json
+services.AddNotificationServicesWithRedis(configuration);
 
-### Redis Storage
-
-```csharp
+// Or with explicit connection string
 services.AddNotificationServicesWithRedis("localhost:6379");
 ```
 
-### In-Memory Storage
-
+#### Session Storage (Good for development)
 ```csharp
-services.AddNotificationServicesWithInMemory();
-```
+// Using configuration from appsettings.json
+services.AddNotificationServicesWithSession(configuration);
 
-### Custom Storage
-
-```csharp
-services.AddNotificationServicesWithCustomProviders<MyCustomStorage, MyCustomContextProvider>();
-```
-
-## Advanced Usage
-
-### Custom Notification Options
-
-```csharp
-using DfE.CoreLibs.Notifications.Models;
-
-var options = new NotificationOptions
+// Or with explicit configuration
+services.AddNotificationServicesWithSession(options =>
 {
-    Context = "file-upload-123", // Prevents duplicates
-    Category = "uploads",
-    AutoDismiss = false,
-    Priority = NotificationPriority.High,
-    ActionUrl = "/files/123",
-    Metadata = new Dictionary<string, object>
-    {
-        ["fileName"] = "document.pdf",
-        ["fileSize"] = 1024000
-    }
-};
-
-await _notificationService.AddSuccessAsync("File uploaded", options);
+    options.MaxNotificationsPerUser = 25;
+    options.SessionKey = "MyNotifications";
+});
 ```
 
-### Filtering and Management
+#### In-Memory Storage (For testing only)
+```csharp
+// Using configuration from appsettings.json
+services.AddNotificationServicesWithInMemory(configuration);
+
+// Or with explicit configuration
+services.AddNotificationServicesWithInMemory(options =>
+{
+    options.MaxNotificationsPerUser = 10;
+});
+```
+
+### 4. Use in your controllers or services
 
 ```csharp
-// Get notifications by category
-var uploadNotifications = await _notificationService.GetNotificationsByCategoryAsync("uploads");
-
-// Clear specific categories
-await _notificationService.ClearNotificationsByCategoryAsync("uploads");
-
-// Clear by context (useful for preventing duplicates)
-await _notificationService.ClearNotificationsByContextAsync("file-upload-123");
-
-// Mark all as read
-await _notificationService.MarkAllAsReadAsync();
-
-// Get unread count for badges
-var count = await _notificationService.GetUnreadCountAsync();
-```
-
-## Frontend Integration
-
-### JavaScript Example
-
-```javascript
-// Get notifications
-async function loadNotifications() {
-    const response = await fetch('/api/notifications');
-    const notifications = await response.json();
-    
-    notifications.forEach(notification => {
-        showNotification(notification);
-        
-        if (notification.autoDismiss) {
-            setTimeout(() => {
-                dismissNotification(notification.id);
-            }, notification.autoDismissSeconds * 1000);
-        }
-    });
-}
-
-// Mark as read
-async function markAsRead(notificationId) {
-    await fetch(`/api/notifications/${notificationId}/read`, { method: 'POST' });
-}
-```
-
-### API Controller Example
-
-```csharp
-using DfE.CoreLibs.Notifications.Interfaces;
-
-[ApiController]
-[Route("api/[controller]")]
-public class NotificationsController : ControllerBase
+public class HomeController : Controller
 {
     private readonly INotificationService _notificationService;
-    
-    public NotificationsController(INotificationService notificationService)
+
+    public HomeController(INotificationService notificationService)
     {
         _notificationService = notificationService;
     }
-    
-    [HttpGet]
-    public async Task<IActionResult> Get()
+
+    public async Task<IActionResult> Index()
     {
-        var notifications = await _notificationService.GetUnreadNotificationsAsync();
-        return Ok(notifications);
-    }
-    
-    [HttpPost("{id}/read")]
-    public async Task<IActionResult> MarkAsRead(string id)
-    {
-        await _notificationService.MarkAsReadAsync(id);
-        return Ok();
-    }
-    
-    [HttpGet("count")]
-    public async Task<IActionResult> GetCount()
-    {
-        var count = await _notificationService.GetUnreadCountAsync();
-        return Ok(new { count });
+        // Add a success notification
+        await _notificationService.AddSuccessAsync("Welcome to the application!");
+
+        // Add an error notification
+        await _notificationService.AddErrorAsync("Something went wrong!");
+
+        // Add a custom notification
+        await _notificationService.AddNotificationAsync(
+            "Custom message",
+            NotificationType.Info,
+            new NotificationOptions
+            {
+                Category = "System",
+                Context = "HomePage",
+                AutoDismiss = true,
+                AutoDismissSeconds = 3
+            });
+
+        return View();
     }
 }
 ```
 
-## Best Practices
+## Configuration Options
 
-1. **Use Context**: Always provide context for related operations to prevent duplicates
-2. **Choose Appropriate Storage**: Use Session for simple scenarios, Redis for distributed apps
-3. **Set Reasonable Limits**: Configure `MaxNotificationsPerUser` to prevent storage bloat
-4. **Handle Errors Gracefully**: The service includes error handling but always wrap in try-catch
-5. **Use Categories**: Group related notifications for better management
-6. **Consider Priority**: Use priority levels for important notifications
+### NotificationServiceOptions
 
-## Important Setup Note
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| StorageProvider | NotificationStorageProvider | Session | Storage backend to use |
+| MaxNotificationsPerUser | int | 50 | Maximum notifications per user |
+| AutoCleanupIntervalMinutes | int | 60 | Auto-cleanup interval (0 = disabled) |
+| MaxNotificationAgeHours | int | 24 | Maximum age before cleanup (0 = disabled) |
+| RedisConnectionString | string | null | Redis connection string |
+| RedisKeyPrefix | string | "notifications:" | Redis key prefix |
+| SessionKey | string | "UserNotifications" | Session key for storage |
+| TypeDefaults | NotificationTypeDefaults | Defaults | Default settings per notification type |
 
-**When using session storage (the default), you MUST register `IHttpContextAccessor` in your application:**
+### Storage Providers
+
+#### Redis
+- **Pros**: Scalable, persistent, supports multiple application instances
+- **Cons**: Requires Redis server
+- **Best for**: Production environments
+
+#### Session
+- **Pros**: Simple, no external dependencies
+- **Cons**: Not shared between application instances, lost on session expiry
+- **Best for**: Development, single-instance applications
+
+#### In-Memory
+- **Pros**: Fastest, no external dependencies
+- **Cons**: Data lost on application restart, not shared between instances
+- **Best for**: Testing only
+
+## API Reference
+
+### INotificationService
+
+#### Convenience Methods
+- `AddSuccessAsync(message, options, cancellationToken)`
+- `AddErrorAsync(message, options, cancellationToken)`
+- `AddInfoAsync(message, options, cancellationToken)`
+- `AddWarningAsync(message, options, cancellationToken)`
+
+#### Core Methods
+- `AddNotificationAsync(message, type, options, cancellationToken)`
+- `GetAllNotificationsAsync(userId, cancellationToken)`
+- `GetUnreadNotificationsAsync(userId, cancellationToken)`
+- `GetNotificationsByCategoryAsync(category, unreadOnly, userId, cancellationToken)`
+- `MarkAsReadAsync(notificationId, cancellationToken)`
+- `MarkAllAsReadAsync(userId, cancellationToken)`
+- `RemoveNotificationAsync(notificationId, cancellationToken)`
+- `ClearAllNotificationsAsync(userId, cancellationToken)`
+- `ClearNotificationsByCategoryAsync(category, userId, cancellationToken)`
+- `ClearNotificationsByContextAsync(context, userId, cancellationToken)`
+- `GetUnreadCountAsync(userId, cancellationToken)`
+
+### NotificationOptions
+
+| Property | Type | Description |
+|----------|------|-------------|
+| Category | string | Optional category for grouping |
+| Context | string | Optional context for replacing similar notifications |
+| AutoDismiss | bool | Whether to auto-dismiss |
+| AutoDismissSeconds | int | Auto-dismiss timeout in seconds |
+| UserId | string | Explicit user ID (optional) |
+
+## Examples
+
+### Custom User Context Provider
 
 ```csharp
-// In Program.cs or Startup.cs
-services.AddHttpContextAccessor(); // Required for session-based notifications
-services.AddSession(); // Required for session storage
-services.AddNotificationServices();
+public class CustomUserContextProvider : IUserContextProvider
+{
+    public string GetCurrentUserId()
+    {
+        // Your custom logic to get user ID
+        return "custom-user-id";
+    }
+}
+
+// Register with custom providers
+services.AddNotificationServicesWithCustomProviders<RedisNotificationStorage, CustomUserContextProvider>(configuration);
 ```
 
-This is required because the notification service needs access to the HTTP session to store and retrieve notifications.
+### Notification with Category and Context
+
+```csharp
+await _notificationService.AddNotificationAsync(
+    "Your profile has been updated",
+    NotificationType.Success,
+    new NotificationOptions
+    {
+        Category = "Profile",
+        Context = "ProfileUpdate",
+        AutoDismiss = true,
+        AutoDismissSeconds = 5
+    });
+```
+
+### Batch Operations
+
+```csharp
+// Mark all notifications as read
+await _notificationService.MarkAllAsReadAsync();
+
+// Clear all notifications in a category
+await _notificationService.ClearNotificationsByCategoryAsync("System");
+
+// Get unread count
+var unreadCount = await _notificationService.GetUnreadCountAsync();
+```
+
+## Migration from Previous Versions
+
+If you were using the old `AddNotificationServices` method, replace it with the specific storage method:
+
+```csharp
+choose one:
+services.AddNotificationServicesWithRedis(configuration);
+services.AddNotificationServicesWithSession(configuration);
+services.AddNotificationServicesWithInMemory(configuration);
+```
+
+The new methods are more explicit and configure all necessary dependencies automatically.

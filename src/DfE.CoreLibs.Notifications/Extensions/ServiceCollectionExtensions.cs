@@ -17,97 +17,38 @@ namespace DfE.CoreLibs.Notifications.Extensions;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Add notification services with configuration
+    /// Add notification services with Redis storage
+    /// Reads configuration from appsettings.json under "NotificationService" section
     /// </summary>
     /// <param name="services">Service collection</param>
     /// <param name="configuration">Configuration</param>
     /// <returns>Service collection for chaining</returns>
-    public static IServiceCollection AddNotificationServices(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddNotificationServicesWithRedis(this IServiceCollection services, IConfiguration configuration)
     {
-        // Configure options
+        // Configure options from configuration
         services.Configure<NotificationServiceOptions>(configuration.GetSection(NotificationServiceOptions.SectionName));
 
-        // Register core services
-        services.AddScoped<INotificationService, NotificationService>();
-        services.AddScoped<IUserContextProvider, SessionUserContextProvider>();
+        // Ensure HttpContextAccessor is registered for SessionUserContextProvider
+        services.AddHttpContextAccessor();
 
-        // Register storage based on configuration
-        services.AddScoped<INotificationStorage>(serviceProvider =>
+        // Configure Redis connection
+        services.AddSingleton<IConnectionMultiplexer>(serviceProvider =>
         {
             var options = serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>().Value;
+            var connectionString = options.RedisConnectionString;
             
-            return options.StorageProvider switch
+            if (string.IsNullOrWhiteSpace(connectionString))
             {
-                NotificationStorageProvider.Session => new SessionNotificationStorage(
-                    serviceProvider.GetRequiredService<IHttpContextAccessor>(),
-                    serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>()),
-                
-                NotificationStorageProvider.Redis => new RedisNotificationStorage(
-                    serviceProvider.GetRequiredService<IConnectionMultiplexer>(),
-                    serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>()),
-                
-                NotificationStorageProvider.InMemory => new InMemoryNotificationStorage(
-                    serviceProvider.GetRequiredService<IOptions<NotificationServiceOptions>>()),
-                
-                _ => throw new InvalidOperationException($"Unsupported storage provider: {options.StorageProvider}")
-            };
+                // Try to get from configuration if not set in options
+                connectionString = configuration.GetConnectionString("Redis") 
+                    ?? configuration.GetValue<string>("Redis:ConnectionString")
+                    ?? throw new InvalidOperationException("Redis connection string not found in configuration. Please set it in appsettings.json under 'ConnectionStrings:Redis' or 'Redis:ConnectionString' or 'NotificationService:RedisConnectionString'");
+            }
+
+            return ConnectionMultiplexer.Connect(connectionString);
         });
 
-        return services;
-    }
-
-    /// <summary>
-    /// Add notification services with session storage
-    /// </summary>
-    /// <param name="services">Service collection</param>
-    /// <param name="configureOptions">Configuration action</param>
-    /// <returns>Service collection for chaining</returns>
-    public static IServiceCollection AddNotificationServices(this IServiceCollection services, Action<NotificationServiceOptions>? configureOptions = null)
-    {
-        
-        if (configureOptions != null)
-        {
-            services.Configure(configureOptions);
-        }
-        else
-        {
-            services.Configure<NotificationServiceOptions>(options => { });
-        }
-
-        services.AddScoped<INotificationService, NotificationService>();
-        services.AddScoped<IUserContextProvider, SessionUserContextProvider>();
-        services.AddScoped<INotificationStorage, SessionNotificationStorage>();
-
-        return services;
-    }
-
-    /// <summary>
-    /// Add notification services with Redis storage
-    /// </summary>
-    /// <param name="services">Service collection</param>
-    /// <param name="redisConnectionString">Redis connection string</param>
-    /// <param name="configureOptions">Optional configuration action</param>
-    /// <returns>Service collection for chaining</returns>
-    public static IServiceCollection AddNotificationServicesWithRedis(this IServiceCollection services, string redisConnectionString, Action<NotificationServiceOptions>? configureOptions = null)
-    {
-        if (string.IsNullOrWhiteSpace(redisConnectionString))
-            throw new ArgumentException("Redis connection string cannot be null or empty", nameof(redisConnectionString));
-
-        // Configure Redis
-        services.AddSingleton<IConnectionMultiplexer>(sp =>
-            ConnectionMultiplexer.Connect(redisConnectionString));
-
-        // Configure options
-        services.Configure<NotificationServiceOptions>(options =>
-        {
-            options.StorageProvider = NotificationStorageProvider.Redis;
-            options.RedisConnectionString = redisConnectionString;
-            configureOptions?.Invoke(options);
-        });
-
-
-
-        // Register services
+        // Register core services
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IUserContextProvider, SessionUserContextProvider>();
         services.AddScoped<INotificationStorage, RedisNotificationStorage>();
@@ -116,20 +57,44 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Add notification services with in-memory storage
+    /// Add notification services with session storage
+    /// Reads configuration from appsettings.json under "NotificationService" section
     /// </summary>
     /// <param name="services">Service collection</param>
-    /// <param name="configureOptions">Optional configuration action</param>
+    /// <param name="configuration">Configuration</param>
     /// <returns>Service collection for chaining</returns>
-    public static IServiceCollection AddNotificationServicesWithInMemory(this IServiceCollection services, Action<NotificationServiceOptions>? configureOptions = null)
+    public static IServiceCollection AddNotificationServicesWithSession(this IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<NotificationServiceOptions>(options =>
-        {
-            options.StorageProvider = NotificationStorageProvider.InMemory;
-            configureOptions?.Invoke(options);
-        });
+        // Configure options from configuration
+        services.Configure<NotificationServiceOptions>(configuration.GetSection(NotificationServiceOptions.SectionName));
 
+        // Ensure HttpContextAccessor is registered for session storage
+        services.AddHttpContextAccessor();
 
+        // Register core services
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IUserContextProvider, SessionUserContextProvider>();
+        services.AddScoped<INotificationStorage, SessionNotificationStorage>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Add notification services with in-memory storage
+    /// Reads configuration from appsettings.json under "NotificationService" section
+    /// </summary>
+    /// <param name="services">Service collection</param>
+    /// <param name="configuration">Configuration</param>
+    /// <returns>Service collection for chaining</returns>
+    public static IServiceCollection AddNotificationServicesWithInMemory(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Configure options from configuration
+        services.Configure<NotificationServiceOptions>(configuration.GetSection(NotificationServiceOptions.SectionName));
+
+        // Ensure HttpContextAccessor is registered for SessionUserContextProvider
+        services.AddHttpContextAccessor();
+
+        // Register core services
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IUserContextProvider, SessionUserContextProvider>();
         services.AddSingleton<INotificationStorage, InMemoryNotificationStorage>();
@@ -143,26 +108,111 @@ public static class ServiceCollectionExtensions
     /// <typeparam name="TStorage">Custom storage implementation</typeparam>
     /// <typeparam name="TContextProvider">Custom context provider implementation</typeparam>
     /// <param name="services">Service collection</param>
-    /// <param name="configureOptions">Optional configuration action</param>
+    /// <param name="configuration">Configuration</param>
     /// <returns>Service collection for chaining</returns>
     public static IServiceCollection AddNotificationServicesWithCustomProviders<TStorage, TContextProvider>(
         this IServiceCollection services, 
-        Action<NotificationServiceOptions>? configureOptions = null)
+        IConfiguration configuration)
         where TStorage : class, INotificationStorage
         where TContextProvider : class, IUserContextProvider
     {
-        if (configureOptions != null)
-        {
-            services.Configure(configureOptions);
-        }
-        else
-        {
-            services.Configure<NotificationServiceOptions>(options => { });
-        }
+        // Configure options from configuration
+        services.Configure<NotificationServiceOptions>(configuration.GetSection(NotificationServiceOptions.SectionName));
 
+        // Ensure HttpContextAccessor is registered (in case custom providers need it)
+        services.AddHttpContextAccessor();
+
+        // Register core services
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IUserContextProvider, TContextProvider>();
         services.AddScoped<INotificationStorage, TStorage>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Add notification services with Redis storage using explicit configuration
+    /// </summary>
+    /// <param name="services">Service collection</param>
+    /// <param name="redisConnectionString">Redis connection string</param>
+    /// <param name="configureOptions">Optional configuration action</param>
+    /// <returns>Service collection for chaining</returns>
+    public static IServiceCollection AddNotificationServicesWithRedis(this IServiceCollection services, string redisConnectionString, Action<NotificationServiceOptions>? configureOptions = null)
+    {
+        if (string.IsNullOrWhiteSpace(redisConnectionString))
+            throw new ArgumentException("Redis connection string cannot be null or empty", nameof(redisConnectionString));
+
+        // Ensure HttpContextAccessor is registered for SessionUserContextProvider
+        services.AddHttpContextAccessor();
+
+        // Configure Redis connection
+        services.AddSingleton<IConnectionMultiplexer>(sp =>
+            ConnectionMultiplexer.Connect(redisConnectionString));
+
+        // Configure options
+        services.Configure<NotificationServiceOptions>(options =>
+        {
+            options.StorageProvider = NotificationStorageProvider.Redis;
+            options.RedisConnectionString = redisConnectionString;
+            configureOptions?.Invoke(options);
+        });
+
+        // Register core services
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IUserContextProvider, SessionUserContextProvider>();
+        services.AddScoped<INotificationStorage, RedisNotificationStorage>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Add notification services with session storage using explicit configuration
+    /// </summary>
+    /// <param name="services">Service collection</param>
+    /// <param name="configureOptions">Optional configuration action</param>
+    /// <returns>Service collection for chaining</returns>
+    public static IServiceCollection AddNotificationServicesWithSession(this IServiceCollection services, Action<NotificationServiceOptions>? configureOptions = null)
+    {
+        // Ensure HttpContextAccessor is registered for session storage
+        services.AddHttpContextAccessor();
+
+        // Configure options
+        services.Configure<NotificationServiceOptions>(options =>
+        {
+            options.StorageProvider = NotificationStorageProvider.Session;
+            configureOptions?.Invoke(options);
+        });
+
+        // Register core services
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IUserContextProvider, SessionUserContextProvider>();
+        services.AddScoped<INotificationStorage, SessionNotificationStorage>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Add notification services with in-memory storage using explicit configuration
+    /// </summary>
+    /// <param name="services">Service collection</param>
+    /// <param name="configureOptions">Optional configuration action</param>
+    /// <returns>Service collection for chaining</returns>
+    public static IServiceCollection AddNotificationServicesWithInMemory(this IServiceCollection services, Action<NotificationServiceOptions>? configureOptions = null)
+    {
+        // Ensure HttpContextAccessor is registered for SessionUserContextProvider
+        services.AddHttpContextAccessor();
+
+        // Configure options
+        services.Configure<NotificationServiceOptions>(options =>
+        {
+            options.StorageProvider = NotificationStorageProvider.InMemory;
+            configureOptions?.Invoke(options);
+        });
+
+        // Register core services
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IUserContextProvider, SessionUserContextProvider>();
+        services.AddSingleton<INotificationStorage, InMemoryNotificationStorage>();
 
         return services;
     }
