@@ -10,7 +10,10 @@ namespace Microsoft.Extensions.DependencyInjection
         public static IServiceCollection AddServiceCaching(
             this IServiceCollection services, IConfiguration config)
         {
-            services.Configure<CacheSettings>(config.GetSection("CacheSettings"));
+            services.AddOptions<CacheSettings>()
+                .Bind(config.GetSection("CacheSettings"))
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
             services.AddSingleton<ICacheService<IMemoryCacheType>, MemoryCacheService>();
 
             return services;
