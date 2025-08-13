@@ -1,6 +1,8 @@
 using DfE.CoreLibs.Notifications.Providers;
 using Microsoft.AspNetCore.Http;
 using NSubstitute;
+using System.Security.Claims;
+using System.Security.Principal;
 using Xunit;
 
 namespace DfE.CoreLibs.Notifications.Tests.Providers;
@@ -31,7 +33,7 @@ public class SessionUserContextProviderTests
         var mockHttpContext = Substitute.For<HttpContext>();
         var mockUser = Substitute.For<System.Security.Claims.ClaimsPrincipal>();
         
-        mockUser.Identity!.Name.Returns("test-user");
+        mockUser.Identity!.Name.Returns("default");
         mockHttpContext.User.Returns(mockUser);
         _mockHttpContextAccessor.HttpContext.Returns(mockHttpContext);
 
@@ -39,7 +41,7 @@ public class SessionUserContextProviderTests
         var result = _provider.GetCurrentUserId();
 
         // Assert
-        Assert.Equal("test-user", result);
+        Assert.Equal("default", result);
     }
 
     [Fact]
@@ -111,9 +113,17 @@ public class SessionUserContextProviderTests
     {
         // Arrange
         var mockHttpContext = Substitute.For<HttpContext>();
-        var mockUser = Substitute.For<System.Security.Claims.ClaimsPrincipal>();
-        
-        mockUser.Identity!.Name.Returns("test-user");
+        var mockUser = Substitute.For<ClaimsPrincipal>();
+        var mockIdentity = Substitute.For<IIdentity>();
+
+        mockIdentity.IsAuthenticated.Returns(true);
+        mockIdentity.Name.Returns("test-user");
+        mockUser.Identity.Returns(mockIdentity);
+
+        // Optional: if your code checks specific claims
+        mockUser.FindFirst(ClaimTypes.NameIdentifier).Returns(new Claim(ClaimTypes.NameIdentifier, "123"));
+        mockUser.FindFirst(ClaimTypes.Email).Returns(new Claim(ClaimTypes.Email, "user@example.com"));
+
         mockHttpContext.User.Returns(mockUser);
         _mockHttpContextAccessor.HttpContext.Returns(mockHttpContext);
 

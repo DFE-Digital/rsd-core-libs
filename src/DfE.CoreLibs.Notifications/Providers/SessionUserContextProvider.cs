@@ -1,5 +1,6 @@
 using DfE.CoreLibs.Notifications.Interfaces;
 using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 
 namespace DfE.CoreLibs.Notifications.Providers;
 
@@ -20,27 +21,39 @@ public class SessionUserContextProvider : IUserContextProvider
     }
 
     /// <summary>
-    /// Get the current user ID from the HTTP context user identity
+    /// Gets the current user ID, preferring:
+    /// 1) NameIdentifier (or "sub"), 2) Email, 3) Identity.Name. Falls back to "default".
     /// </summary>
-    /// <returns>User name from identity or "default" if not available</returns>
     public string GetCurrentUserId()
     {
-        var httpContext = _httpContextAccessor.HttpContext;
-        if (httpContext?.User?.Identity?.Name != null)
-        {
-            return httpContext.User.Identity.Name;
-        }
+        var user = _httpContextAccessor.HttpContext?.User;
 
-        return "default";
+        if (user?.Identity?.IsAuthenticated != true)
+            return "default";
+
+        var id =
+            user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? user.FindFirst("sub")?.Value
+            ?? user.FindFirst(ClaimTypes.Email)?.Value
+            ?? user.Identity?.Name;
+
+        return string.IsNullOrWhiteSpace(id) ? "default" : id;
     }
 
     /// <summary>
-    /// Check if user context is available
+    /// True if any of Identifier / Email / Name is available on the current principal.
     /// </summary>
-    /// <returns>True if user identity with name is available, false otherwise</returns>
     public bool IsContextAvailable()
     {
-        var httpContext = _httpContextAccessor.HttpContext;
-        return httpContext?.User?.Identity?.Name != null;
+        var user = _httpContextAccessor.HttpContext?.User;
+
+        if (user?.Identity?.IsAuthenticated != true)
+            return false;
+
+        return
+            !string.IsNullOrWhiteSpace(user.FindFirst(ClaimTypes.NameIdentifier)?.Value) ||
+            !string.IsNullOrWhiteSpace(user.FindFirst("sub")?.Value) ||
+            !string.IsNullOrWhiteSpace(user.FindFirst(ClaimTypes.Email)?.Value) ||
+            !string.IsNullOrWhiteSpace(user.Identity?.Name);
     }
 }
