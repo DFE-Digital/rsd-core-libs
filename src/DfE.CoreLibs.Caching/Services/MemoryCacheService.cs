@@ -34,7 +34,7 @@ namespace DfE.CoreLibs.Caching.Services
             return result;
         }
 
-        public async Task<T?> GetAsync<T>(string cacheKey, string methodName)
+        public async Task<T?> GetAsync<T>(string cacheKey)
         {
             await Task.CompletedTask; // Keep async signature for interface consistency
             

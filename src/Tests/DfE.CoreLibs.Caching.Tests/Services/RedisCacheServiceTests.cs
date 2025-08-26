@@ -298,7 +298,7 @@ namespace DfE.CoreLibs.Caching.Tests.Services
             _database.StringGetAsync(fullKey).Returns(new RedisValue(serializedValue));
 
             // Act
-            var result = await _cacheService.GetAsync<string>(cacheKey, methodName);
+            var result = await _cacheService.GetAsync<string>(cacheKey);
 
             // Assert
             Assert.Equal(expectedValue, result);
@@ -320,7 +320,7 @@ namespace DfE.CoreLibs.Caching.Tests.Services
             _database.StringGetAsync(fullKey).Returns(RedisValue.Null);
 
             // Act
-            var result = await _cacheService.GetAsync<string>(cacheKey, methodName);
+            var result = await _cacheService.GetAsync<string>(cacheKey);
 
             // Assert
             Assert.Null(result);
@@ -342,7 +342,7 @@ namespace DfE.CoreLibs.Caching.Tests.Services
             _database.StringGetAsync(fullKey).Returns(Task.FromException<RedisValue>(new RedisException("Redis connection failed")));
 
             // Act
-            var result = await _cacheService.GetAsync<string>(cacheKey, methodName);
+            var result = await _cacheService.GetAsync<string>(cacheKey);
 
             // Assert
             Assert.Null(result);
@@ -365,7 +365,7 @@ namespace DfE.CoreLibs.Caching.Tests.Services
             _database.StringGetAsync(fullKey).Returns(new RedisValue(invalidJson));
 
             // Act
-            var result = await _cacheService.GetAsync<string>(cacheKey, methodName);
+            var result = await _cacheService.GetAsync<string>(cacheKey);
 
             // Assert
             Assert.Null(result);

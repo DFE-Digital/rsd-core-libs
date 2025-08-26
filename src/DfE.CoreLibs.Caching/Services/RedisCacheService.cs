@@ -63,7 +63,7 @@ namespace DfE.CoreLibs.Caching.Services
             }
         }
 
-        public async Task<T?> GetAsync<T>(string cacheKey, string methodName)
+        public async Task<T?> GetAsync<T>(string cacheKey)
         {
             var fullKey = GetFullKey(cacheKey);
 

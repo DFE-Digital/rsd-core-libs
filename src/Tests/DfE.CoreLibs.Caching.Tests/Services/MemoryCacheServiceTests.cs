@@ -97,7 +97,7 @@ namespace DfE.CoreLibs.Caching.Tests.Services
                 });
 
             // Act
-            var result = await _cacheService.GetAsync<string>(cacheKey, methodName);
+            var result = await _cacheService.GetAsync<string>(cacheKey);
 
             // Assert
             Assert.Equal(expectedValue, result);
@@ -119,7 +119,7 @@ namespace DfE.CoreLibs.Caching.Tests.Services
                 .Returns(false);
 
             // Act
-            var result = await _cacheService.GetAsync<string>(cacheKey, methodName);
+            var result = await _cacheService.GetAsync<string>(cacheKey);
 
             // Assert
             Assert.Null(result);
