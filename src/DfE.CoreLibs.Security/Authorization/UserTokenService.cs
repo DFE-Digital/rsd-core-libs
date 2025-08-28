@@ -1,12 +1,10 @@
 ﻿using DfE.CoreLibs.Security.Configurations;
 using DfE.CoreLibs.Security.Interfaces;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using DfE.CoreLibs.Caching.Helpers;
 using Microsoft.Extensions.Options;
 using DfE.CoreLibs.Security.Models;
 
@@ -15,28 +13,21 @@ namespace DfE.CoreLibs.Security.Authorization
     /// <inheritdoc />
     public class UserTokenService(
         IOptions<TokenSettings> tokenSettings,
-        IMemoryCache cache,
         ILogger<UserTokenService> logger)
         : IUserTokenService
     {
         private readonly TokenSettings _tokenSettings = tokenSettings.Value;
 
-        /// <summary>
-        /// Defines the buffer time (in seconds) before the token's actual expiration
-        /// to renew the token proactively.
-        /// </summary>
-        private const int CacheExpirationBufferSeconds = 30;
-
         /// <inheritdoc />
         public Task<string> GetUserTokenAsync(ClaimsPrincipal user)
         {
-            return GetOrCreateJwtTokenAsync(user);
+            return GenerateJwtTokenAsync(user);
         }
 
         /// <inheritdoc />
         public async Task<Token> GetUserTokenModelAsync(ClaimsPrincipal user)
         {
-            var jwt = await GetOrCreateJwtTokenAsync(user);
+            var jwt = await GenerateJwtTokenAsync(user);
             var expiresInSeconds = ComputeExpiresInSeconds(jwt);
 
             var tokenModel = new Token
@@ -49,7 +40,7 @@ namespace DfE.CoreLibs.Security.Authorization
             return tokenModel;
         }
 
-        private async Task<string> GetOrCreateJwtTokenAsync(ClaimsPrincipal user)
+        private Task<string> GenerateJwtTokenAsync(ClaimsPrincipal user)
         {
             ArgumentNullException.ThrowIfNull(user);
 
@@ -57,39 +48,11 @@ namespace DfE.CoreLibs.Security.Authorization
             if (string.IsNullOrEmpty(userId))
                 throw new InvalidOperationException("User does not have a valid identifier.");
 
-            var cacheKey = BuildCacheKey(userId, user);
-
-            if (cache.TryGetValue(cacheKey, out string? cachedToken))
-            {
-                logger.LogInformation("Token retrieved from cache for user: {UserId} and cache key: {CacheKey}", userId, cacheKey);
-                return cachedToken!;
-            }
-
             var token = GenerateJwtTokenString(user);
 
-            var expiration = DateTime.UtcNow
-                .AddMinutes(_tokenSettings.TokenLifetimeMinutes)
-                .Subtract(TimeSpan.FromSeconds(CacheExpirationBufferSeconds));
+            logger.LogInformation("Token generated for user: {UserId}", userId);
 
-            var cacheEntryOptions = new MemoryCacheEntryOptions()
-                .SetAbsoluteExpiration(expiration);
-
-            cache.Set(cacheKey, token, cacheEntryOptions);
-
-            logger.LogInformation("Token generated and cached for user: {UserId}", userId);
-
-            return token;
-        }
-
-        private static string BuildCacheKey(string userId, ClaimsPrincipal user)
-        {
-            var claimStrings = user.Claims
-                .OrderBy(c => c.Type)
-                .Select(c => $"{c.Type}:{c.Value}")
-                .ToList();
-
-            var hashed = CacheKeyHelper.GenerateHashedCacheKey(claimStrings);
-            return $"UserToken_{userId}_{hashed}";
+            return Task.FromResult(token);
         }
 
         /// <summary>
