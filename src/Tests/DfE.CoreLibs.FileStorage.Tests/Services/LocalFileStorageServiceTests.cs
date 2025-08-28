@@ -686,4 +686,251 @@ public class LocalFileStorageServiceTests : IDisposable
             service.UploadAsync("file.txt", content)).Result;
         Assert.Contains("File extension 'txt' is not allowed", exception.Message);
     }
+
+    [Fact]
+    public async Task UploadAsync_WithAllowedFileNamePattern_ShouldAllowValidFileNames()
+    {
+        // Arrange
+        var pattern = "^[a-zA-Z0-9_-]+$"; // Only letters, numbers, underscore, and hyphens
+        var service = new LocalFileStorageService(_testBaseDirectory, allowedFileNamePattern: pattern);
+        var content = TestHelpers.CreateTestStream("test content");
+
+        // Act & Assert - Should allow valid filenames
+        await service.UploadAsync("test.txt", content);
+        await service.UploadAsync("Test_File.pdf", content);
+        await service.UploadAsync("file-name.jpg", content);
+        await service.UploadAsync("MyFile123.docx", content);
+        await service.UploadAsync("FILE_NAME_2.png", content);
+        await service.UploadAsync("a123_test-file.txt", content);
+
+        // Verify files were created
+        Assert.True(await service.ExistsAsync("test.txt"));
+        Assert.True(await service.ExistsAsync("Test_File.pdf"));
+        Assert.True(await service.ExistsAsync("file-name.jpg"));
+        Assert.True(await service.ExistsAsync("MyFile123.docx"));
+        Assert.True(await service.ExistsAsync("FILE_NAME_2.png"));
+        Assert.True(await service.ExistsAsync("a123_test-file.txt"));
+    }
+
+    [Fact]
+    public async Task UploadAsync_WithAllowedFileNamePattern_ShouldRejectInvalidFileNames()
+    {
+        // Arrange
+        var pattern = "^[a-zA-Z0-9_-]+$"; // Only letters, numbers, underscore, and hyphens
+        var service = new LocalFileStorageService(_testBaseDirectory, allowedFileNamePattern: pattern);
+        var content = TestHelpers.CreateTestStream("test content");
+
+        // Act & Assert - Should reject invalid filenames
+        var exception1 = await Assert.ThrowsAsync<FileStorageException>(() => 
+            service.UploadAsync("file with spaces.txt", content));
+        Assert.Contains("does not match the allowed pattern", exception1.Message);
+        Assert.Contains("file with spaces", exception1.Message);
+
+        var exception2 = await Assert.ThrowsAsync<FileStorageException>(() => 
+            service.UploadAsync("file@symbol.pdf", content));
+        Assert.Contains("does not match the allowed pattern", exception2.Message);
+        Assert.Contains("file@symbol", exception2.Message);
+
+        var exception3 = await Assert.ThrowsAsync<FileStorageException>(() => 
+            service.UploadAsync("file.with.dots.jpg", content));
+        Assert.Contains("does not match the allowed pattern", exception3.Message);
+        Assert.Contains("file.with.dots", exception3.Message);
+
+        var exception4 = await Assert.ThrowsAsync<FileStorageException>(() => 
+            service.UploadAsync("file%percent.txt", content));
+        Assert.Contains("does not match the allowed pattern", exception4.Message);
+
+        var exception5 = await Assert.ThrowsAsync<FileStorageException>(() => 
+            service.UploadAsync("file(brackets).txt", content));
+        Assert.Contains("does not match the allowed pattern", exception5.Message);
+    }
+
+    [Fact]
+    public async Task UploadAsync_WithNullFileNamePattern_ShouldAllowAllFileNames()
+    {
+        // Arrange
+        var service = new LocalFileStorageService(_testBaseDirectory, allowedFileNamePattern: null);
+        var content = TestHelpers.CreateTestStream("test content");
+
+        // Act & Assert - Should allow any filename when no pattern is set
+        await service.UploadAsync("file with spaces.txt", content);
+        await service.UploadAsync("file@symbol.pdf", content);
+        await service.UploadAsync("file.with.dots.jpg", content);
+        await service.UploadAsync("file%percent.txt", content);
+        await service.UploadAsync("file(brackets).txt", content);
+        await service.UploadAsync("file-name_123.txt", content);
+
+        // Verify files were created
+        Assert.True(await service.ExistsAsync("file with spaces.txt"));
+        Assert.True(await service.ExistsAsync("file@symbol.pdf"));
+        Assert.True(await service.ExistsAsync("file.with.dots.jpg"));
+        Assert.True(await service.ExistsAsync("file%percent.txt"));
+        Assert.True(await service.ExistsAsync("file(brackets).txt"));
+        Assert.True(await service.ExistsAsync("file-name_123.txt"));
+    }
+
+    [Fact]
+    public async Task UploadAsync_WithEmptyFileNamePattern_ShouldAllowAllFileNames()
+    {
+        // Arrange
+        var service = new LocalFileStorageService(_testBaseDirectory, allowedFileNamePattern: "");
+        var content = TestHelpers.CreateTestStream("test content");
+
+        // Act & Assert - Should allow any filename when pattern is empty
+        await service.UploadAsync("file with spaces.txt", content);
+        await service.UploadAsync("file@symbol.pdf", content);
+        await service.UploadAsync("file.with.dots.jpg", content);
+
+        // Verify files were created
+        Assert.True(await service.ExistsAsync("file with spaces.txt"));
+        Assert.True(await service.ExistsAsync("file@symbol.pdf"));
+        Assert.True(await service.ExistsAsync("file.with.dots.jpg"));
+    }
+
+    [Fact]
+    public async Task UploadAsync_WithFileNamePattern_ShouldRejectFilesWithoutFileName()
+    {
+        // Arrange
+        var pattern = "^[a-zA-Z0-9_-]+$";
+        var service = new LocalFileStorageService(_testBaseDirectory, allowedFileNamePattern: pattern);
+        var content = TestHelpers.CreateTestStream("test content");
+
+        // Act & Assert - Should reject files with only extension
+        var exception = await Assert.ThrowsAsync<FileStorageException>(() => 
+            service.UploadAsync(".txt", content));
+        Assert.Contains("Filename is required when filename pattern validation is enabled", exception.Message);
+    }
+
+    [Fact]
+    public async Task UploadAsync_WithFileNamePattern_ShouldHandleSubdirectories()
+    {
+        // Arrange
+        var pattern = "^[a-zA-Z0-9_-]+$";
+        var service = new LocalFileStorageService(_testBaseDirectory, allowedFileNamePattern: pattern);
+        var content = TestHelpers.CreateTestStream("test content");
+
+        // Act & Assert - Should validate only the filename part, not directory path
+        await service.UploadAsync("subdir/valid_file-name.txt", content);
+        await service.UploadAsync("sub dir/valid_file.txt", content); // Space in directory is OK
+        await service.UploadAsync("sub@dir/valid_file.txt", content); // Symbol in directory is OK
+
+        var exception = await Assert.ThrowsAsync<FileStorageException>(() => 
+            service.UploadAsync("subdir/invalid file name.txt", content));
+        Assert.Contains("does not match the allowed pattern", exception.Message);
+        Assert.Contains("invalid file name", exception.Message);
+
+        // Verify valid files were created
+        Assert.True(await service.ExistsAsync("subdir/valid_file-name.txt"));
+        Assert.True(await service.ExistsAsync("sub dir/valid_file.txt"));
+        Assert.True(await service.ExistsAsync("sub@dir/valid_file.txt"));
+    }
+
+    [Fact]
+    public async Task UploadAsync_WithCustomFileNamePattern_ShouldRespectCustomPattern()
+    {
+        // Arrange
+        var pattern = "^[A-Z]{2}[0-9]{3}$"; // Pattern for 2 uppercase letters followed by 3 digits
+        var service = new LocalFileStorageService(_testBaseDirectory, allowedFileNamePattern: pattern);
+        var content = TestHelpers.CreateTestStream("test content");
+
+        // Act & Assert - Should allow files matching custom pattern
+        await service.UploadAsync("AB123.txt", content);
+        await service.UploadAsync("XY789.pdf", content);
+
+        // Should reject files not matching custom pattern
+        var exception1 = await Assert.ThrowsAsync<FileStorageException>(() => 
+            service.UploadAsync("abc123.txt", content)); // lowercase letters
+        Assert.Contains("does not match the allowed pattern", exception1.Message);
+
+        var exception2 = await Assert.ThrowsAsync<FileStorageException>(() => 
+            service.UploadAsync("AB1234.txt", content)); // too many digits
+        Assert.Contains("does not match the allowed pattern", exception2.Message);
+
+        var exception3 = await Assert.ThrowsAsync<FileStorageException>(() => 
+            service.UploadAsync("A123.txt", content)); // too few letters
+        Assert.Contains("does not match the allowed pattern", exception3.Message);
+
+        // Verify valid files were created
+        Assert.True(await service.ExistsAsync("AB123.txt"));
+        Assert.True(await service.ExistsAsync("XY789.pdf"));
+    }
+
+    [Fact]
+    public void Constructor_WithInvalidFileNamePattern_ShouldThrowFileStorageConfigurationException()
+    {
+        // Arrange
+        var invalidPattern = "[unclosed"; // Invalid regex pattern
+        var options = new FileStorageOptions
+        {
+            Provider = "Local",
+            Local = new LocalFileStorageOptions
+            {
+                BaseDirectory = _testBaseDirectory,
+                AllowedFileNamePattern = invalidPattern
+            }
+        };
+
+        // Act & Assert
+        var exception = Assert.Throws<FileStorageConfigurationException>(() => 
+            new LocalFileStorageService(options));
+        Assert.Contains("Invalid filename pattern", exception.Message);
+        Assert.Contains(invalidPattern, exception.Message);
+    }
+
+    [Fact]
+    public void Constructor_WithInvalidFileNamePattern_InternalConstructor_ShouldThrowFileStorageConfigurationException()
+    {
+        // Arrange
+        var invalidPattern = "*+"; // Invalid regex pattern
+
+        // Act & Assert
+        var exception = Assert.Throws<FileStorageConfigurationException>(() => 
+            new LocalFileStorageService(_testBaseDirectory, allowedFileNamePattern: invalidPattern));
+        Assert.Contains("Invalid filename pattern", exception.Message);
+        Assert.Contains(invalidPattern, exception.Message);
+    }
+
+    [Fact]
+    public async Task UploadAsync_WithBothExtensionAndFileNamePattern_ShouldValidateBoth()
+    {
+        // Arrange
+        var allowedExtensions = new[] { "txt", "pdf" };
+        var pattern = "^[a-zA-Z0-9_-]+$";
+        var options = new FileStorageOptions
+        {
+            Provider = "Local",
+            Local = new LocalFileStorageOptions
+            {
+                BaseDirectory = _testBaseDirectory,
+                AllowedExtensions = allowedExtensions,
+                AllowedFileNamePattern = pattern
+            }
+        };
+        var service = new LocalFileStorageService(options);
+        var content = TestHelpers.CreateTestStream("test content");
+
+        // Act & Assert - Should allow valid filename and extension
+        await service.UploadAsync("valid_file.txt", content);
+        await service.UploadAsync("another-file.pdf", content);
+
+        // Should reject invalid extension even with valid filename
+        var exception1 = await Assert.ThrowsAsync<FileStorageException>(() => 
+            service.UploadAsync("valid_file.jpg", content));
+        Assert.Contains("File extension 'jpg' is not allowed", exception1.Message);
+
+        // Should reject invalid filename even with valid extension
+        var exception2 = await Assert.ThrowsAsync<FileStorageException>(() => 
+            service.UploadAsync("invalid file.txt", content));
+        Assert.Contains("does not match the allowed pattern", exception2.Message);
+
+        // Should reject both invalid filename and extension
+        var exception3 = await Assert.ThrowsAsync<FileStorageException>(() => 
+            service.UploadAsync("invalid file.jpg", content));
+        // Extension validation comes first, so should get extension error
+        Assert.Contains("File extension 'jpg' is not allowed", exception3.Message);
+
+        // Verify valid files were created
+        Assert.True(await service.ExistsAsync("valid_file.txt"));
+        Assert.True(await service.ExistsAsync("another-file.pdf"));
+    }
 } 

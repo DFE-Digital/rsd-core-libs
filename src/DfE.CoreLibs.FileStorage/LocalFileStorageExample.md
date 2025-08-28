@@ -14,7 +14,8 @@ This guide shows how to use the Local File Storage provider in the DfE.CoreLibs.
       "CreateDirectoryIfNotExists": true,
       "AllowOverwrite": true,
       "MaxFileSizeBytes": 104857600,
-      "AllowedExtensions": ["jpg", "png", "pdf", "docx", "xlsx"]
+      "AllowedExtensions": ["jpg", "png", "pdf", "docx", "xlsx"],
+      "AllowedFileNamePattern": "^[a-zA-Z0-9_-]+$"
     }
   }
 }
@@ -203,12 +204,39 @@ public class DocumentService
 - Files without extensions are rejected when `AllowedExtensions` is configured
 - The validation checks the last extension in filenames with multiple dots (e.g., "file.backup.jpg" is validated as "jpg")
 
+### Filename Pattern Examples
+
+```json
+{
+  "FileStorage": {
+    "Provider": "Local",
+    "Local": {
+      "BaseDirectory": "C:\\FileStorage",
+      "AllowedFileNamePattern": "^[a-zA-Z0-9_-]+$"
+    }
+  }
+}
+```
+
+**Filename Pattern Options**:
+- `"^[a-zA-Z0-9_-]+$"` - Only letters, numbers, underscore, and hyphens (default recommended pattern)
+- `"^[A-Z]{2}[0-9]{3}$"` - 2 uppercase letters followed by 3 digits (e.g., "AB123")
+- `"^[a-z0-9]+$"` - Only lowercase letters and numbers
+- `null` or empty - No filename pattern validation (allows all characters)
+
+**Filename Pattern Validation Notes**:
+- If `AllowedFileNamePattern` is null or empty, no filename pattern validation is applied
+- Pattern validation applies only to the filename part (without extension), not the directory path
+- Uses .NET regular expressions with compiled optimization for performance
+- Invalid regex patterns will throw `FileStorageConfigurationException` during service initialization
+
 ## Security Features
 
 - **Directory Traversal Protection**: The service prevents access to files outside the base directory
 - **Path Normalization**: All paths are normalized to prevent security issues
 - **File Size Limits**: Configurable maximum file size to prevent abuse
 - **File Extension Validation**: Restrict uploads to specific file types for security
+- **Filename Pattern Validation**: Restrict filenames to match specific patterns, preventing malicious or problematic filenames
 
 ## Error Handling
 
@@ -225,6 +253,14 @@ When file extension validation is enabled, the service will throw `FileStorageEx
 
 - **No extension**: "File extension is required. Allowed extensions: jpg, png, pdf"
 - **Invalid extension**: "File extension 'exe' is not allowed. Allowed extensions: jpg, png, pdf"
+
+### Filename Pattern Validation Errors
+
+When filename pattern validation is enabled, the service will throw `FileStorageException` with specific messages:
+
+- **Invalid filename**: "Filename 'file with spaces' does not match the allowed pattern. Pattern: ^[a-zA-Z0-9_-]+$"
+- **Missing filename**: "Filename is required when filename pattern validation is enabled. Pattern: ^[a-zA-Z0-9_-]+$"
+- **Invalid pattern at startup**: "Invalid filename pattern: [unclosed" (throws `FileStorageConfigurationException`)
 
 ## Best Practices
 
