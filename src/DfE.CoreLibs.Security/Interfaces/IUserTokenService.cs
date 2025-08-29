@@ -9,9 +9,8 @@ namespace DfE.CoreLibs.Security.Interfaces
     public interface IUserTokenService
     {
         /// <summary>
-        /// Retrieves a custom JWT token for the specified authenticated user.
-        /// If a valid token exists in the cache, it returns the cached token;
-        /// otherwise, it generates a new token, caches it, and returns it.
+        /// Generates a fresh custom JWT token for the specified authenticated user.
+        /// A new token is generated on each call.
         /// </summary>
         /// <param name="user">The authenticated user for whom the token is to be generated.</param>
         /// <returns>A task that represents the asynchronous operation. The task result contains the JWT token as a string.</returns>
@@ -20,9 +19,8 @@ namespace DfE.CoreLibs.Security.Interfaces
         Task<string> GetUserTokenAsync(ClaimsPrincipal user);
 
         /// <summary>
-        /// Retrieves a custom JWT token for the specified authenticated user.
-        /// If a valid token exists in the cache, it returns the cached token;
-        /// otherwise, it generates a new token, caches it, and returns it.
+        /// Generates a fresh custom JWT token for the specified authenticated user.
+        /// A new token is generated on each call.
         /// </summary>
         /// <param name="user">The authenticated user for whom the token is to be generated.</param>
         /// <returns>A task that represents the asynchronous operation. The task result contains the token model object.</returns>

@@ -1,7 +1,5 @@
-﻿using DfE.CoreLibs.Caching.Helpers;
-using DfE.CoreLibs.Security.Authorization;
+﻿using DfE.CoreLibs.Security.Authorization;
 using DfE.CoreLibs.Security.Configurations;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -13,8 +11,6 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
 {
     public class UserTokenServiceTests
     {
-        private readonly IMemoryCache _memoryCacheMock;    // for original tests that stub TryGetValue
-        private readonly IMemoryCache _memoryCacheReal;    // for model-returning tests
         private readonly ILogger<UserTokenService> _logger;
         private readonly IOptions<TokenSettings> _tokenSettingsOptions;
         private readonly TokenSettings _tokenSettings;
@@ -22,7 +18,6 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
 
         public UserTokenServiceTests()
         {
-            _memoryCacheMock = Substitute.For<IMemoryCache>();
             _logger = Substitute.For<ILogger<UserTokenService>>();
             
             IConfiguration configuration = new ConfigurationBuilder()
@@ -40,23 +35,12 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
                              };
             _tokenSettingsOptions = Options.Create(_tokenSettings);
 
-            _memoryCacheReal = new MemoryCache(new MemoryCacheOptions());
-
             _testUser = new ClaimsPrincipal(new ClaimsIdentity(new[]
             {
                 new Claim(ClaimTypes.NameIdentifier, "test-user-id"),
                 new Claim(ClaimTypes.Name, "TestUser"),
                 new Claim(ClaimTypes.Role, "Admin")
             }, "TestAuth"));
-        }
-
-        private string ComputeExpectedCacheKey()
-        {
-            var claimStrings = _testUser.Claims
-                .OrderBy(c => c.Type)
-                .Select(c => $"{c.Type}:{c.Value}");
-            var hash = CacheKeyHelper.GenerateHashedCacheKey(claimStrings);
-            return $"UserToken_test-user-id_{hash}";
         }
 
         private ClaimsPrincipal BuildTestUser()
@@ -70,59 +54,35 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
         }
 
         [Fact]
-        public async Task GetUserTokenAsync_ReturnsCachedToken_WhenTokenExists()
+        public async Task GetUserTokenAsync_GeneratesNewToken_OnEachCall()
         {
             // Arrange
-            var expectedKey = ComputeExpectedCacheKey();
-            _memoryCacheMock
-                .TryGetValue(expectedKey, out Arg.Any<object>()!)
-                .Returns(call =>
-                {
-                    call[1] = "cached-token";
-                    return true;
-                });
-
-            var service = new UserTokenService(_tokenSettingsOptions, _memoryCacheMock, _logger);
+            var service = new UserTokenService(_tokenSettingsOptions, _logger);
 
             // Act
-            var token = await service.GetUserTokenAsync(_testUser);
+            var token1 = await service.GetUserTokenAsync(_testUser);
+            // Add small delay to ensure different timestamps in JWT
+            await Task.Delay(1100); // Ensure at least 1 second difference for JWT timestamp
+            var token2 = await service.GetUserTokenAsync(_testUser);
 
             // Assert
-            Assert.Equal("cached-token", token);
-            _logger.Received(1).Log(
+            Assert.NotNull(token1);
+            Assert.NotNull(token2);
+            // Tokens should be different since a new one is generated each time with different timestamps
+            Assert.NotEqual(token1, token2);
+            _logger.Received(2).Log(
                 LogLevel.Information,
                 Arg.Any<EventId>(),
-                Arg.Is<object>(o => o.ToString()!.Contains("Token retrieved from cache for user: test-user-id")),
+                Arg.Is<object>(o => o.ToString()!.Contains("Token generated for user: test-user-id")),
                 Arg.Any<Exception>(),
                 Arg.Any<Func<object, Exception?, string>>());
-        }
-
-        [Fact]
-        public async Task GetUserTokenAsync_GeneratesAndCachesToken_WhenTokenNotInCache()
-        {
-            // Arrange
-            var expectedKey = ComputeExpectedCacheKey();
-            _memoryCacheMock
-                .TryGetValue(expectedKey, out Arg.Any<object>()!)
-                .Returns(false);
-
-            var cacheEntryMock = Substitute.For<ICacheEntry>();
-            _memoryCacheMock.CreateEntry(expectedKey).Returns(cacheEntryMock);
-
-            var service = new UserTokenService(_tokenSettingsOptions, _memoryCacheMock, _logger);
-
-            // Act
-            var token = await service.GetUserTokenAsync(_testUser);
-
-            // Assert
-            Assert.NotNull(token);
         }
 
         [Fact]
         public async Task GetUserTokenAsync_ThrowsException_WhenUserIsNull()
         {
             // Arrange
-            var service = new UserTokenService(_tokenSettingsOptions, _memoryCacheMock, _logger);
+            var service = new UserTokenService(_tokenSettingsOptions, _logger);
 
             // Act & Assert
             var exception = await Assert.ThrowsAsync<ArgumentNullException>(() => service.GetUserTokenAsync(null!));
@@ -134,7 +94,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
         {
             // Arrange
             var invalidUser = new ClaimsPrincipal(new ClaimsIdentity()); // No claims
-            var service = new UserTokenService(_tokenSettingsOptions, _memoryCacheMock, _logger);
+            var service = new UserTokenService(_tokenSettingsOptions, _logger);
 
             // Act & Assert
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetUserTokenAsync(invalidUser));
@@ -145,7 +105,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
         public async Task GetUserTokenAsync_CreatesValidJwtToken()
         {
             // Arrange
-            var service = new UserTokenService(_tokenSettingsOptions, _memoryCacheMock, _logger);
+            var service = new UserTokenService(_tokenSettingsOptions, _logger);
 
             // Act
             var token = await service.GetUserTokenAsync(_testUser);
@@ -164,7 +124,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
         public async Task GetUserTokenModelAsync_ReturnsTokenModel_WithValidJwtAndExpiresIn()
         {
             // Arrange
-            var service = new UserTokenService(_tokenSettingsOptions, _memoryCacheReal, _logger);
+            var service = new UserTokenService(_tokenSettingsOptions, _logger);
             var user = BuildTestUser();
 
             // Act
@@ -192,32 +152,34 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
         }
 
         [Fact]
-        public async Task GetUserTokenModelAsync_CacheHit_ReturnsSameAccessToken_WithDecreasingExpiresIn()
+        public async Task GetUserTokenModelAsync_GeneratesNewToken_OnEachCall()
         {
             // Arrange
-            var service = new UserTokenService(_tokenSettingsOptions, _memoryCacheReal, _logger);
+            var service = new UserTokenService(_tokenSettingsOptions, _logger);
             var user = BuildTestUser();
 
-            // Act - first call (populates cache)
+            // Act - multiple calls should generate different tokens
             var first = await service.GetUserTokenModelAsync(user);
-            // slight delay to ensure clock moves
-            await Task.Delay(10);
+            // Add small delay to ensure different timestamps in JWT
+            await Task.Delay(1100); // Ensure at least 1 second difference for JWT timestamp
             var second = await service.GetUserTokenModelAsync(user);
 
             // Assert
-            Assert.Equal(first.AccessToken, second.AccessToken); // cache hit returns same token
+            Assert.NotEqual(first.AccessToken, second.AccessToken); // different tokens generated
+            Assert.Equal("Bearer", first.TokenType);
             Assert.Equal("Bearer", second.TokenType);
 
-            // ExpiresIn on second call should be less than or equal to first (time has progressed)
-            Assert.True(second.ExpiresIn <= first.ExpiresIn, $"Expected second.ExpiresIn <= first.ExpiresIn but got {second.ExpiresIn} > {first.ExpiresIn}");
-            Assert.InRange(second.ExpiresIn, 0, _tokenSettings.TokenLifetimeMinutes * 60);
+            // Both tokens should have valid expiration times
+            var configuredSeconds = _tokenSettings.TokenLifetimeMinutes * 60;
+            Assert.InRange(first.ExpiresIn, 0, configuredSeconds);
+            Assert.InRange(second.ExpiresIn, 0, configuredSeconds);
         }
 
         [Fact]
         public async Task GetUserTokenModelAsync_NoIdentifier_ThrowsInvalidOperationException()
         {
             // Arrange
-            var service = new UserTokenService(_tokenSettingsOptions, _memoryCacheReal, _logger);
+            var service = new UserTokenService(_tokenSettingsOptions, _logger);
             // Build a principal without NameIdentifier or Name
             var user = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("some", "claim") }, "Test"));
 
@@ -225,13 +187,11 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
             await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetUserTokenModelAsync(user));
         }
 
-        // === New tests added ===
-
         [Fact]
         public async Task GetUserTokenModelAsync_ThrowsArgumentNullException_WhenUserIsNull()
         {
             // Arrange
-            var service = new UserTokenService(_tokenSettingsOptions, _memoryCacheReal, _logger);
+            var service = new UserTokenService(_tokenSettingsOptions, _logger);
 
             // Act & Assert
             var ex = await Assert.ThrowsAsync<ArgumentNullException>(() => service.GetUserTokenModelAsync(null!));
@@ -242,7 +202,7 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
         public async Task GetUserTokenModelAsync_ReturnsDifferentTokens_ForDifferentUsers()
         {
             // Arrange
-            var service = new UserTokenService(_tokenSettingsOptions, _memoryCacheReal, _logger);
+            var service = new UserTokenService(_tokenSettingsOptions, _logger);
             var userA = new ClaimsPrincipal(new ClaimsIdentity(new[]
             {
                 new Claim(ClaimTypes.NameIdentifier, "user-a"),
