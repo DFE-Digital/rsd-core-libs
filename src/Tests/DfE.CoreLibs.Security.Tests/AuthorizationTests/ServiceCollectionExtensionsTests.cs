@@ -26,7 +26,6 @@ namespace DfE.CoreLibs.Security.Tests.AuthorizationTests
         public void AddUserTokenService_ShouldRegisterUserTokenService()
         {
             // Act
-            _services.AddMemoryCache();
             _services.AddLogging();
             _services.AddUserTokenService(_configuration);
             var provider = _services.BuildServiceProvider();
