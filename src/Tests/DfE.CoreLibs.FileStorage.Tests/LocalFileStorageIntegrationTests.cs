@@ -252,7 +252,10 @@ public class LocalFileStorageIntegrationTests : IDisposable
             ["FileStorage:Local:MaxFileSizeBytes"] = "1024", // 1KB limit
             ["FileStorage:Local:AllowedExtensions:0"] = "jpg",
             ["FileStorage:Local:AllowedExtensions:1"] = "png",
-            ["FileStorage:Local:AllowedExtensions:2"] = "pdf"
+            ["FileStorage:Local:AllowedExtensions:2"] = "pdf",
+            ["FileStorage:Local:AllowedExtensionsFriendlyList"] = "jpg, png, pdf",
+            ["FileStorage:Local:AllowedFileNamePatternFriendlyList"] = "a-z A-Z 0-9 _ - no-space"
+
         });
 
         services.AddFileStorage(configuration);

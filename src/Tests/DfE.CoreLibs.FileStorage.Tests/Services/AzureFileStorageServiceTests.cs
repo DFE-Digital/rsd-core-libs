@@ -335,7 +335,7 @@ public class AzureFileStorageServiceTests
         _mockFileClient.DownloadAsync(cancellationToken).ThrowsAsync(new OperationCanceledException());
 
         // Act & Assert - All methods should pass the cancellation token and throw when cancelled
-        await Assert.ThrowsAsync<OperationCanceledException>(() => _service.UploadAsync(path, content, cancellationToken));
+        await Assert.ThrowsAsync<OperationCanceledException>(() => _service.UploadAsync(path, content, originalFileName: null, cancellationToken));
         await Assert.ThrowsAsync<OperationCanceledException>(() => _service.DownloadAsync(path, cancellationToken));
         await Assert.ThrowsAsync<OperationCanceledException>(() => _service.DeleteAsync(path, cancellationToken));
         await Assert.ThrowsAsync<OperationCanceledException>(() => _service.ExistsAsync(path, cancellationToken));

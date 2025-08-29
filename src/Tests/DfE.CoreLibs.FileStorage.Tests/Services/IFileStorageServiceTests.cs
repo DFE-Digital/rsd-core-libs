@@ -56,12 +56,14 @@ public class IFileStorageServiceTests
         // Assert
         Assert.NotNull(method);
         Assert.Equal(typeof(Task), method.ReturnType);
-        Assert.Equal(3, method.GetParameters().Length);
+        Assert.Equal(4, method.GetParameters().Length);
 
         var parameters = method.GetParameters();
         Assert.Equal(typeof(string), parameters[0].ParameterType);
         Assert.Equal(typeof(Stream), parameters[1].ParameterType);
-        Assert.Equal(typeof(CancellationToken), parameters[2].ParameterType);
+        Assert.Equal(typeof(string), parameters[2].ParameterType);
+        Assert.Equal(typeof(CancellationToken), parameters[3].ParameterType);
+
         Assert.True(parameters[2].HasDefaultValue);
     }
 
@@ -140,7 +142,7 @@ public class IFileStorageServiceTests
         var cancellationToken = new CancellationToken(true); // Cancelled token
 
         // Act & Assert - All methods should support cancellation
-        Assert.ThrowsAsync<OperationCanceledException>(() => service.UploadAsync("test.txt", new MemoryStream(), cancellationToken));
+        Assert.ThrowsAsync<OperationCanceledException>(() => service.UploadAsync("test.txt", new MemoryStream(), originalFileName: null, cancellationToken));
         Assert.ThrowsAsync<OperationCanceledException>(() => service.DownloadAsync("test.txt", cancellationToken));
         Assert.ThrowsAsync<OperationCanceledException>(() => service.DeleteAsync("test.txt", cancellationToken));
         Assert.ThrowsAsync<OperationCanceledException>(() => service.ExistsAsync("test.txt", cancellationToken));

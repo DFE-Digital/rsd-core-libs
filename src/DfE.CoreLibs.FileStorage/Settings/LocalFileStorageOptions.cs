@@ -33,4 +33,24 @@ public class LocalFileStorageOptions
     /// Example: ["jpg", "png", "pdf", "docx"]
     /// </summary>
     public string[] AllowedExtensions { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Friendly human-readable list of allowed file extensions.
+    /// Example: ["jpg", "png", "pdf", "docx"]
+    /// </summary>
+    public string AllowedExtensionsFriendlyList { get; set; } = "\"jpg\", \"png\", \"pdf\", \"docx\"";
+
+    /// <summary>
+    /// Regular expression pattern for allowed file names. 
+    /// If null or empty, no filename pattern validation is applied.
+    /// Default pattern allows letters, numbers, underscores, and hyphens.
+    /// Example: "^[a-zA-Z0-9_-]+$"
+    /// </summary>
+    public string? AllowedFileNamePattern { get; set; } = null;
+
+    /// <summary>
+    /// Friendly and human-readable list of allowed file name characters. 
+    /// Example: a-zA-Z0-9_-
+    /// </summary>
+    public string AllowedFileNamePatternFriendlyList { get; set; } = "a-z A-Z 0-9 _ - no-space";
 } 

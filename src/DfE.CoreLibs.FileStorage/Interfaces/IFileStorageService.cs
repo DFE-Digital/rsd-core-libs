@@ -18,13 +18,14 @@ public interface IFileStorageService
     /// </summary>
     /// <param name="path">Relative path of the file within the storage provider. Must not be null or empty.</param>
     /// <param name="content">Stream containing the data to upload. Must be readable and not null.</param>
+    /// <param name="originalFileName">Original Filename.</param>
     /// <param name="token">Optional cancellation token to cancel the operation.</param>
     /// <returns>A task that represents the asynchronous upload operation.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> or <paramref name="content"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is empty or <paramref name="content"/> is not readable.</exception>
     /// <exception cref="FileStorageException">Thrown when the upload operation fails.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the operation is cancelled via the cancellation token.</exception>
-    Task UploadAsync(string path, Stream content, CancellationToken token = default);
+    Task UploadAsync(string path, Stream content, string? originalFileName = null, CancellationToken token = default);
 
     /// <summary>
     /// Retrieves a file from the specified <paramref name="path"/>.

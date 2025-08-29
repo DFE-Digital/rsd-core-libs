@@ -2,7 +2,9 @@ using DfE.CoreLibs.FileStorage.Interfaces;
 using DfE.CoreLibs.FileStorage.Settings;
 using DfE.CoreLibs.FileStorage.Exceptions;
 using System.IO;
+using System.Text.RegularExpressions;
 using FileNotFoundException = DfE.CoreLibs.FileStorage.Exceptions.FileNotFoundException;
+using System.Xml.Linq;
 
 namespace DfE.CoreLibs.FileStorage.Services;
 
@@ -16,6 +18,9 @@ public class LocalFileStorageService : IFileStorageService
     private readonly bool _allowOverwrite;
     private readonly long _maxFileSizeBytes;
     private readonly string[] _allowedExtensions;
+    private readonly Regex? _allowedFileNamePattern;
+    private readonly string _friendlyAllowedFileNamePattern;
+    private readonly string _friendlyAllowedFileExtensionsPattern;
 
     /// <summary>
     /// Creates a new instance of the service using the provided configuration <paramref name="options"/>.
@@ -28,10 +33,25 @@ public class LocalFileStorageService : IFileStorageService
         ArgumentNullException.ThrowIfNull(options);
 
         var localOptions = options.Local;
+        _friendlyAllowedFileNamePattern = localOptions.AllowedFileNamePatternFriendlyList;
+        _friendlyAllowedFileExtensionsPattern = localOptions.AllowedExtensionsFriendlyList;
         _createDirectoryIfNotExists = localOptions.CreateDirectoryIfNotExists;
         _allowOverwrite = localOptions.AllowOverwrite;
         _maxFileSizeBytes = localOptions.MaxFileSizeBytes;
         _allowedExtensions = localOptions.AllowedExtensions ?? Array.Empty<string>();
+        
+        // Initialize filename pattern if specified
+        if (!string.IsNullOrWhiteSpace(localOptions.AllowedFileNamePattern))
+        {
+            try
+            {
+                _allowedFileNamePattern = new Regex(localOptions.AllowedFileNamePattern, RegexOptions.Compiled);
+            }
+            catch (ArgumentException ex)
+            {
+                throw new FileStorageConfigurationException($"Invalid filename pattern: {localOptions.AllowedFileNamePattern}", ex);
+            }
+        }
 
         // Determine base directory
         if (string.IsNullOrWhiteSpace(localOptions.BaseDirectory))
@@ -66,13 +86,35 @@ public class LocalFileStorageService : IFileStorageService
     /// <summary>
     /// Internal constructor used for testing with custom settings.
     /// </summary>
-    internal LocalFileStorageService(string baseDirectory, bool createDirectoryIfNotExists = true, bool allowOverwrite = true, long maxFileSizeBytes = 100 * 1024 * 1024, string[] allowedExtensions = null)
+    internal LocalFileStorageService(string baseDirectory, 
+        bool createDirectoryIfNotExists = true, 
+        bool allowOverwrite = true, 
+        long maxFileSizeBytes = 100 * 1024 * 1024, 
+        string[] allowedExtensions = null, 
+        string allowedFileNamePattern = null, 
+        string? friendlyAllowedFileNamePattern = "a-z A-Z 0-9 _ - no-space", 
+        string? friendlyAllowedFileExtensionsPattern = "\"jpg\", \"png\", \"pdf\", \"docx\"")
     {
         _baseDirectory = Path.GetFullPath(baseDirectory);
+        _friendlyAllowedFileNamePattern = friendlyAllowedFileNamePattern;
+        _friendlyAllowedFileExtensionsPattern = friendlyAllowedFileExtensionsPattern;
         _createDirectoryIfNotExists = createDirectoryIfNotExists;
         _allowOverwrite = allowOverwrite;
         _maxFileSizeBytes = maxFileSizeBytes;
         _allowedExtensions = allowedExtensions ?? Array.Empty<string>();
+        
+        // Initialize filename pattern if specified
+        if (!string.IsNullOrWhiteSpace(allowedFileNamePattern))
+        {
+            try
+            {
+                _allowedFileNamePattern = new Regex(allowedFileNamePattern, RegexOptions.Compiled);
+            }
+            catch (ArgumentException ex)
+            {
+                throw new FileStorageConfigurationException($"Invalid filename pattern: {allowedFileNamePattern}", ex);
+            }
+        }
 
         if (_createDirectoryIfNotExists && !Directory.Exists(_baseDirectory))
         {
@@ -81,7 +123,7 @@ public class LocalFileStorageService : IFileStorageService
     }
 
     /// <inheritdoc />
-    public async Task UploadAsync(string path, Stream content, CancellationToken token = default)
+    public async Task UploadAsync(string path, Stream content, string? originalFileName = null, CancellationToken token = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(content);
@@ -99,13 +141,28 @@ public class LocalFileStorageService : IFileStorageService
                 var fileExtension = Path.GetExtension(path);
                 if (string.IsNullOrEmpty(fileExtension))
                 {
-                    throw new FileStorageException($"File extension is required. Allowed extensions: {string.Join(", ", _allowedExtensions)}");
+                    throw new FileStorageException($"File extension is required. Allowed extensions: {_friendlyAllowedFileExtensionsPattern}");
                 }
 
                 var extensionWithoutDot = fileExtension.TrimStart('.');
                 if (!_allowedExtensions.Contains(extensionWithoutDot, StringComparer.OrdinalIgnoreCase))
                 {
-                    throw new FileStorageException($"File extension '{extensionWithoutDot}' is not allowed. Allowed extensions: {string.Join(", ", _allowedExtensions)}");
+                    throw new FileStorageException($"File extension '{extensionWithoutDot}' is not allowed. Allowed extensions: {_friendlyAllowedFileExtensionsPattern}");
+                }
+            }
+
+            // Validate filename pattern if configured
+            if (_allowedFileNamePattern != null && originalFileName != null)
+            {
+                var fileName = Path.GetFileNameWithoutExtension(originalFileName);
+                if (string.IsNullOrEmpty(fileName))
+                {
+                    throw new FileStorageException($"Filename is required when filename pattern validation is enabled. Pattern: {_friendlyAllowedFileNamePattern}");
+                }
+
+                if (!_allowedFileNamePattern.IsMatch(fileName))
+                {
+                    throw new FileStorageException($"Filename '{fileName}' does not match the allowed pattern. Pattern: {_friendlyAllowedFileNamePattern}");
                 }
             }
 
