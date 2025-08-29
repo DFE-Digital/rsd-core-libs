@@ -47,7 +47,7 @@ public class AzureFileStorageService : IFileStorageService
     }
 
     /// <inheritdoc />
-    public async Task UploadAsync(string path, Stream content, CancellationToken token = default)
+    public async Task UploadAsync(string path, Stream content, string? originalFileName = null,  CancellationToken token = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(content);
