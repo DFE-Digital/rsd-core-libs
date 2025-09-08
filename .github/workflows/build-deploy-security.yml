@@ -27,3 +27,5 @@ jobs:
     with:
       project_name: GovUK.Dfe.CoreLibs.Security
       project_path: src/GovUK.Dfe.CoreLibs.Security/GovUK.Dfe.CoreLibs.Security.csproj
+    secrets:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

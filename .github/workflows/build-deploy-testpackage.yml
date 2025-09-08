@@ -27,3 +27,5 @@ jobs:
     with:
       project_name: GovUK.Dfe.CoreLibs.TestPackage
       project_path: src/GovUK.Dfe.CoreLibs.TestPackage/GovUK.Dfe.CoreLibs.TestPackage.csproj
+    secrets:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

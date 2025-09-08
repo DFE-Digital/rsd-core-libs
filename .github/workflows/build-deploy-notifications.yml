@@ -27,3 +27,5 @@ jobs:
     with:
       project_name: GovUK.Dfe.CoreLibs.Notifications
       project_path: src/GovUK.Dfe.CoreLibs.Notifications/GovUK.Dfe.CoreLibs.Notifications.csproj
+    secrets:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
