@@ -1,2 +1,0 @@
-# DfE.CoreLibs.Contracts
-

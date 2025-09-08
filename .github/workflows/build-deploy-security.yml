@@ -1,22 +1,22 @@
-name: CI & Pack DfE.CoreLibs.Security
+name: CI & Pack GovUK.Dfe.CoreLibs.Security
 
 on:
   push:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.Security/**"
+      - "src/GovUK.Dfe.CoreLibs.Security/**"
   pull_request:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.Security/**"
+      - "src/GovUK.Dfe.CoreLibs.Security/**"
 
 
 jobs:
   build-and-test:
     uses: ./.github/workflows/build-test-template.yml
     with:
-      project_name: DfE.CoreLibs.Security
-      project_path: src/DfE.CoreLibs.Security
+      project_name: GovUK.Dfe.CoreLibs.Security
+      project_path: src/GovUK.Dfe.CoreLibs.Security
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
@@ -25,5 +25,5 @@ jobs:
     if: needs.build-and-test.result == 'success'
     uses: ./.github/workflows/pack-template.yml
     with:
-      project_name: DfE.CoreLibs.Security
-      project_path: src/DfE.CoreLibs.Security/DfE.CoreLibs.Security.csproj
+      project_name: GovUK.Dfe.CoreLibs.Security
+      project_path: src/GovUK.Dfe.CoreLibs.Security/GovUK.Dfe.CoreLibs.Security.csproj

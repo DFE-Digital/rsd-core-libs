@@ -2,7 +2,7 @@
 DfE Core Libraries
 ==================
 
-This repository consists of a .NET solution containing multiple class libraries, with each library published as a standalone NuGet package. The libraries follow the naming convention: `DfE.CoreLibs.{library_name}`.
+This repository consists of a .NET solution containing multiple class libraries, with each library published as a standalone NuGet package. The libraries follow the naming convention: `GovUK.Dfe.CoreLibs.{library_name}`.
 
 Deployment and versioning process
 --------------------------------------
@@ -25,24 +25,24 @@ For example, if your new library is called "FileService," name the file `build-d
 #### Example Content (Replace with your library name):
 
 ```yaml
-        name: CI & Pack DfE.CoreLibs.FileService
+        name: CI & Pack GovUK.Dfe.CoreLibs.FileService
 
         on:
           push:
             branches: [ main ]
             paths:
-              - "src/DfE.CoreLibs.FileService/**"
+              - "src/GovUK.Dfe.CoreLibs.FileService/**"
           pull_request:
             branches: [ main ]
             paths:
-              - "src/DfE.CoreLibs.FileService/**"
+              - "src/GovUK.Dfe.CoreLibs.FileService/**"
 
         jobs:
           build-and-test:
             uses: ./.github/workflows/build-test-template.yml
             with:
-              project_name: DfE.CoreLibs.FileService
-              project_path: src/DfE.CoreLibs.FileService
+              project_name: GovUK.Dfe.CoreLibs.FileService
+              project_path: src/GovUK.Dfe.CoreLibs.FileService
               run_tests: false
             secrets:
               SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -52,15 +52,15 @@ For example, if your new library is called "FileService," name the file `build-d
             if: needs.build-and-test.result == 'success'
             uses: ./.github/workflows/pack-template.yml
             with:
-              project_name: DfE.CoreLibs.FileService
-              project_path: src/DfE.CoreLibs.FileService/DfE.CoreLibs.FileService.csproj
+              project_name: GovUK.Dfe.CoreLibs.FileService
+              project_path: src/GovUK.Dfe.CoreLibs.FileService/GovUK.Dfe.CoreLibs.FileService.csproj
 
 ```
     
 
 Make sure to:
 
-*   Replace `DfE.CoreLibs.FileService` with your new library name.
+*   Replace `GovUK.Dfe.CoreLibs.FileService` with your new library name.
 *   Ensure the path to the new library is correct.
 
 
@@ -76,8 +76,8 @@ Versioning and Auto-Publishing
   A single `GitVersion.yml` at the repository root defines the versioning strategy (v5’s **ContinuousDelivery** mode). Tags of the form  
 
  ```
-DfE.CoreLibs.<LibraryName>-X.Y.Z
-DfE.CoreLibs.<LibraryName>-X.Y.Z-prerelease…
+GovUK.Dfe.CoreLibs.<LibraryName>-X.Y.Z
+GovUK.Dfe.CoreLibs.<LibraryName>-X.Y.Z-prerelease…
  ```
 
  serve as the source of truth for all version calculations.
@@ -93,7 +93,7 @@ The workflow publishes that package version to the production feed and creates a
 - **Minor or Major Version Bumps**  
 1. On the feature branch, apply a tag for the new base version:  
    ```bash
-   git tag DfE.CoreLibs.<LibraryName>-2.0.0
+   git tag GovUK.Dfe.CoreLibs.<LibraryName>-2.0.0
    git push origin feature/XYZ --tags
    ```  
 2. Open the PR: CI will package `2.0.0-prerelease-1`.  
