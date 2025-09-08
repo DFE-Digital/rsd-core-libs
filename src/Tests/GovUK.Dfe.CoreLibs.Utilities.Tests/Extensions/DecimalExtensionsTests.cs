@@ -36,17 +36,17 @@ public class DecimalExtensionsTests
 
     [Theory]
     [InlineData("1100", false, "1100.00")]
-    [InlineData("1100", true, "\\u00A31,100.00")]
+    [InlineData("1100", true, "£1,100.00")]
     [InlineData("1100.1", false, "1100.10")]
-    [InlineData("1100.1", true, "\\u00A31,100.10")]
+    [InlineData("1100.1", true, "£1,100.10")]
     [InlineData("1100.100", false, "1100.10")]
-    [InlineData("1100.100", true, "\\u00A31,100.10")]
+    [InlineData("1100.100", true, "£1,100.10")]
     [InlineData("1100.1000", false, "1100.10")]
-    [InlineData("1100.1000", true, "\\u00A31,100.10")]
+    [InlineData("1100.1000", true, "£1,100.10")]
     [InlineData("1100.1001", false, "1100.10")]
-    [InlineData("1100.1001", true, "\\u00A31,100.10")]
+    [InlineData("1100.1001", true, "£1,100.10")]
     [InlineData("1100.1001000", false, "1100.10")]
-    [InlineData("1100.1001000", true, "\\u00A31,100.10")]
+    [InlineData("1100.1001000", true, "£1,100.10")]
 
     public void ToMoneyString_With_NullableDecimal_Formats_String_Correctly(string inputDecimal, bool includePoundSign, string expectation)
     {
@@ -68,17 +68,17 @@ public class DecimalExtensionsTests
 
     [Theory]
     [InlineData("1100", false, "1100.00")]
-    [InlineData("1100", true, "\\u00A31,100.00")]
+    [InlineData("1100", true, "£1,100.00")]
     [InlineData("1100.1", false, "1100.10")]
-    [InlineData("1100.1", true, "\\u00A31,100.10")]
+    [InlineData("1100.1", true, "£1,100.10")]
     [InlineData("1100.100", false, "1100.10")]
-    [InlineData("1100.100", true, "\\u00A31,100.10")]
+    [InlineData("1100.100", true, "£1,100.10")]
     [InlineData("1100.1000", false, "1100.10")]
-    [InlineData("1100.1000", true, "\\u00A31,100.10")]
+    [InlineData("1100.1000", true, "£1,100.10")]
     [InlineData("1100.1001", false, "1100.10")]
-    [InlineData("1100.1001", true, "\\u00A31,100.10")]
+    [InlineData("1100.1001", true, "£1,100.10")]
     [InlineData("1100.1001000", false, "1100.10")]
-    [InlineData("1100.1001000", true, "\\u00A31,100.10")]
+    [InlineData("1100.1001000", true, "£1,100.10")]
 
     public void ToMoneyString_With_Decimal_Formats_String_Correctly(string inputDecimal, bool includePoundSign, string expectation)
     {
