@@ -11,6 +11,10 @@ on:
         required: true
         type: string
         description: "Relative path to the project .csproj"
+    secrets:
+      NUGET_API_KEY:
+        required: true
+        description: "NuGet.org API key"
 
 jobs:
   pack:
