@@ -1,5 +1,5 @@
 using GovUK.Dfe.CoreLibs.Testing.Authorization.Exceptions;
-using DfE.CoreLibs.Utilities.Helpers;
+using GovUK.Dfe.CoreLibs.Utilities.Helpers;
 using Microsoft.AspNetCore.Routing;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;

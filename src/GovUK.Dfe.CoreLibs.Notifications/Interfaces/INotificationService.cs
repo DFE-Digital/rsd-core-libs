@@ -1,4 +1,4 @@
-using DfE.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Notifications.Models;
 
 namespace GovUK.Dfe.CoreLibs.Notifications.Interfaces;
