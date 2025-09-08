@@ -1,21 +1,21 @@
-name: CI & Pack DfE.CoreLibs.AsyncProcessing
+name: CI & Pack GovUK.Dfe.CoreLibs.AsyncProcessing
 
 on:
   push:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.AsyncProcessing/**"
+      - "src/GovUK.Dfe.CoreLibs.AsyncProcessing/**"
   pull_request:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.AsyncProcessing/**"
+      - "src/GovUK.Dfe.CoreLibs.AsyncProcessing/**"
 
 jobs:
   build-and-test:
     uses: ./.github/workflows/build-test-template.yml
     with:
-      project_name: DfE.CoreLibs.AsyncProcessing
-      project_path: src/DfE.CoreLibs.AsyncProcessing
+      project_name: GovUK.Dfe.CoreLibs.AsyncProcessing
+      project_path: src/GovUK.Dfe.CoreLibs.AsyncProcessing
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
@@ -24,5 +24,7 @@ jobs:
     if: needs.build-and-test.result == 'success'
     uses: ./.github/workflows/pack-template.yml
     with:
-      project_name: DfE.CoreLibs.AsyncProcessing
-      project_path: src/DfE.CoreLibs.AsyncProcessing/DfE.CoreLibs.AsyncProcessing.csproj
+      project_name: GovUK.Dfe.CoreLibs.AsyncProcessing
+      project_path: src/GovUK.Dfe.CoreLibs.AsyncProcessing/GovUK.Dfe.CoreLibs.AsyncProcessing.csproj
+    secrets:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

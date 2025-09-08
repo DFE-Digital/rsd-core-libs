@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+	  <PackageReadmeFile>readme.md</PackageReadmeFile>
+	  <Title>GovUK.Dfe.CoreLibs.Http</Title>
+	  <Description>A library offering HTTP-related utilities and middleware, for building robust web services.</Description>
+	  <Authors>DFE-Digital</Authors>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<None Include="readme.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.WebUtilities" Version="8.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.0" />
+    <PackageReference Include="System.Text.Encodings.Web" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="readme.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

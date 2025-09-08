@@ -11,6 +11,10 @@ on:
         required: true
         type: string
         description: "Relative path to the project .csproj"
+    secrets:
+      NUGET_API_KEY:
+        required: true
+        description: "NuGet.org API key"
 
 jobs:
   pack:
@@ -72,6 +76,12 @@ jobs:
             --name github \
             https://nuget.pkg.github.com/DFE-Digital/index.json
 
+      - name: Add NuGet.org source
+        run: |
+          dotnet nuget add source \
+            --name nuget \
+            https://api.nuget.org/v3/index.json || true
+
       - name: Build, pack and push
         run: |
           dotnet build ${{ inputs.project_path }} -c Release
@@ -81,8 +91,8 @@ jobs:
             --no-build \
             --output ./artifacts
           dotnet nuget push ./artifacts/*.nupkg \
-            --api-key "${{ secrets.GITHUB_TOKEN }}" \
-            --source https://nuget.pkg.github.com/DFE-Digital/index.json \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
 
       - name: Extract release notes

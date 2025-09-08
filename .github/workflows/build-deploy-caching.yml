@@ -1,21 +1,21 @@
-name: CI & Pack DfE.CoreLibs.Caching
+name: CI & Pack GovUK.Dfe.CoreLibs.Caching
 
 on:
   push:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.Caching/**"
+      - "src/GovUK.Dfe.CoreLibs.Caching/**"
   pull_request:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.Caching/**"
+      - "src/GovUK.Dfe.CoreLibs.Caching/**"
 
 jobs:
   build-and-test:
     uses: ./.github/workflows/build-test-template.yml
     with:
-      project_name: DfE.CoreLibs.Caching
-      project_path: src/DfE.CoreLibs.Caching
+      project_name: GovUK.Dfe.CoreLibs.Caching
+      project_path: src/GovUK.Dfe.CoreLibs.Caching
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
@@ -24,5 +24,7 @@ jobs:
     if: needs.build-and-test.result == 'success'
     uses: ./.github/workflows/pack-template.yml
     with:
-      project_name: DfE.CoreLibs.Caching
-      project_path: src/DfE.CoreLibs.Caching/DfE.CoreLibs.Caching.csproj
+      project_name: GovUK.Dfe.CoreLibs.Caching
+      project_path: src/GovUK.Dfe.CoreLibs.Caching/GovUK.Dfe.CoreLibs.Caching.csproj
+    secrets:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

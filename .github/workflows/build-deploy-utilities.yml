@@ -1,21 +1,21 @@
-name: CI & Pack DfE.CoreLibs.Utilities
+name: CI & Pack GovUK.Dfe.CoreLibs.Utilities
 
 on:
   push:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.Utilities/**"
+      - "src/GovUK.Dfe.CoreLibs.Utilities/**"
   pull_request:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.Utilities/**"
+      - "src/GovUK.Dfe.CoreLibs.Utilities/**"
 
 jobs:
   build-and-test:
     uses: ./.github/workflows/build-test-template.yml
     with:
-      project_name: DfE.CoreLibs.Utilities
-      project_path: src/DfE.CoreLibs.Utilities
+      project_name: GovUK.Dfe.CoreLibs.Utilities
+      project_path: src/GovUK.Dfe.CoreLibs.Utilities
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
@@ -24,5 +24,7 @@ jobs:
     if: needs.build-and-test.result == 'success'
     uses: ./.github/workflows/pack-template.yml
     with:
-      project_name: DfE.CoreLibs.Utilities
-      project_path: src/DfE.CoreLibs.Utilities/DfE.CoreLibs.Utilities.csproj
+      project_name: GovUK.Dfe.CoreLibs.Utilities
+      project_path: src/GovUK.Dfe.CoreLibs.Utilities/GovUK.Dfe.CoreLibs.Utilities.csproj
+    secrets:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

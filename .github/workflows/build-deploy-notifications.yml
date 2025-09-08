@@ -1,21 +1,21 @@
-name: CI & Pack DfE.CoreLibs.Notifications
+name: CI & Pack GovUK.Dfe.CoreLibs.Notifications
 
 on:
   push:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.Notifications/**"
+      - "src/GovUK.Dfe.CoreLibs.Notifications/**"
   pull_request:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.Notifications/**"
+      - "src/GovUK.Dfe.CoreLibs.Notifications/**"
 
 jobs:
   build-and-test:
     uses: ./.github/workflows/build-test-template.yml
     with:
-      project_name: DfE.CoreLibs.Notifications
-      project_path: src/DfE.CoreLibs.Notifications
+      project_name: GovUK.Dfe.CoreLibs.Notifications
+      project_path: src/GovUK.Dfe.CoreLibs.Notifications
       run_tests: true
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -25,5 +25,7 @@ jobs:
     if: needs.build-and-test.result == 'success'
     uses: ./.github/workflows/pack-template.yml
     with:
-      project_name: DfE.CoreLibs.Notifications
-      project_path: src/DfE.CoreLibs.Notifications/DfE.CoreLibs.Notifications.csproj
+      project_name: GovUK.Dfe.CoreLibs.Notifications
+      project_path: src/GovUK.Dfe.CoreLibs.Notifications/GovUK.Dfe.CoreLibs.Notifications.csproj
+    secrets:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

@@ -1,21 +1,21 @@
-name: CI & Pack DfE.CoreLibs.Contracts
+name: CI & Pack GovUK.Dfe.CoreLibs.Contracts
 
 on:
   push:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.Contracts/**"
+      - "src/GovUK.Dfe.CoreLibs.Contracts/**"
   pull_request:
     branches: [ main ]
     paths:
-      - "src/DfE.CoreLibs.Contracts/**"
+      - "src/GovUK.Dfe.CoreLibs.Contracts/**"
 
 jobs:
   build-and-test:
     uses: ./.github/workflows/build-test-template.yml
     with:
-      project_name: DfE.CoreLibs.Contracts
-      project_path: src/DfE.CoreLibs.Contracts
+      project_name: GovUK.Dfe.CoreLibs.Contracts
+      project_path: src/GovUK.Dfe.CoreLibs.Contracts
       run_tests: false
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -25,5 +25,7 @@ jobs:
     if: needs.build-and-test.result == 'success'
     uses: ./.github/workflows/pack-template.yml
     with:
-      project_name: DfE.CoreLibs.Contracts
-      project_path: src/DfE.CoreLibs.Contracts/DfE.CoreLibs.Contracts.csproj
+      project_name: GovUK.Dfe.CoreLibs.Contracts
+      project_path: src/GovUK.Dfe.CoreLibs.Contracts/GovUK.Dfe.CoreLibs.Contracts.csproj
+    secrets:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
