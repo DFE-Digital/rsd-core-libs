@@ -467,5 +467,176 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.TokenRefreshTests.Services
                 x => x.RefreshTokenAsync(It.IsAny<TokenRefreshRequest>(), It.IsAny<CancellationToken>()), 
                 Times.Once);
         }
+
+
+        [Fact]
+        public async Task RefreshTokenAsync_WithCancellationToken_RespectsCancellation()
+        {
+            // Arrange
+            var refreshToken = "refresh_token";
+            var cancellationTokenSource = new CancellationTokenSource();
+            cancellationTokenSource.Cancel();
+
+            _tokenRefreshProviderMock
+                .Setup(x => x.RefreshTokenAsync(It.IsAny<TokenRefreshRequest>(), It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new OperationCanceledException());
+
+            // Act & Assert
+            await Assert.ThrowsAsync<TokenRefreshException>(() => 
+                _service.RefreshTokenAsync(refreshToken, cancellationTokenSource.Token));
+        }
+
+        [Fact]
+        public async Task IsRefreshTokenValidAsync_WithCancellationToken_ReturnsFalse()
+        {
+            // Arrange
+            var refreshToken = "refresh_token";
+            var cancellationTokenSource = new CancellationTokenSource();
+            cancellationTokenSource.Cancel();
+
+            _tokenIntrospectionServiceMock
+                .Setup(x => x.IsTokenActiveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new OperationCanceledException());
+
+            // Act
+            var result = await _service.IsRefreshTokenValidAsync(refreshToken, cancellationTokenSource.Token);
+
+            // Assert
+            Assert.False(result); // Service catches all exceptions and returns false
+        }
+
+        [Fact]
+        public async Task RefreshTokenIfNeededAsync_WithCancellationToken_RespectsCancellation()
+        {
+            // Arrange
+            var token = new Token
+            {
+                AccessToken = "access_token",
+                TokenType = "Bearer",
+                ExpiresIn = 300, // 5 minutes - within refresh buffer
+                RefreshToken = "refresh_token"
+            };
+
+            var cancellationTokenSource = new CancellationTokenSource();
+            cancellationTokenSource.Cancel();
+
+            // Act & Assert
+            await Assert.ThrowsAsync<TokenRefreshException>(() => 
+                _service.RefreshTokenIfNeededAsync(token, cancellationTokenSource.Token));
+        }
+
+        [Fact]
+        public void ShouldRefreshToken_WithTokenAtExactRefreshTime_ReturnsTrue()
+        {
+            // Arrange
+            var token = new Token
+            {
+                AccessToken = "access_token",
+                TokenType = "Bearer",
+                ExpiresIn = 300 // 5 minutes - exactly at refresh buffer
+            };
+
+            // Act
+            var result = _service.ShouldRefreshToken(token);
+
+            // Assert
+            Assert.True(result);
+        }
+
+        [Fact]
+        public void ShouldRefreshToken_WithTokenJustBeyondRefreshTime_ReturnsTrue()
+        {
+            // Arrange
+            var token = new Token
+            {
+                AccessToken = "access_token",
+                TokenType = "Bearer",
+                ExpiresIn = 299 // Just under 5 minutes
+            };
+
+            // Act
+            var result = _service.ShouldRefreshToken(token);
+
+            // Assert
+            Assert.True(result);
+        }
+
+        [Fact]
+        public void ShouldRefreshToken_WithTokenJustBeforeRefreshTime_ReturnsFalse()
+        {
+            // Arrange
+            var token = new Token
+            {
+                AccessToken = "access_token",
+                TokenType = "Bearer",
+                ExpiresIn = 301 // Just over 5 minutes
+            };
+
+            // Act
+            var result = _service.ShouldRefreshToken(token);
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Fact]
+        public void ShouldRefreshToken_WithKnownIssueTime_AtExactRefreshTime_ReturnsTrue()
+        {
+            // Arrange
+            var token = new Token
+            {
+                AccessToken = "access_token",
+                TokenType = "Bearer",
+                ExpiresIn = 3600 // 1 hour
+            };
+
+            var issuedAt = DateTimeOffset.UtcNow.AddMinutes(-55); // Issued 55 minutes ago, expires in 5 minutes
+
+            // Act
+            var result = _service.ShouldRefreshToken(token, issuedAt);
+
+            // Assert
+            Assert.True(result);
+        }
+
+        [Fact]
+        public void ShouldRefreshToken_WithKnownIssueTime_JustBeforeRefreshTime_ReturnsFalse()
+        {
+            // Arrange
+            var token = new Token
+            {
+                AccessToken = "access_token",
+                TokenType = "Bearer",
+                ExpiresIn = 3600 // 1 hour
+            };
+
+            var issuedAt = DateTimeOffset.UtcNow.AddMinutes(-54); // Issued 54 minutes ago, expires in 6 minutes
+
+            // Act
+            var result = _service.ShouldRefreshToken(token, issuedAt);
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Fact]
+        public void ShouldRefreshToken_WithKnownIssueTime_JustAfterRefreshTime_ReturnsTrue()
+        {
+            // Arrange
+            var token = new Token
+            {
+                AccessToken = "access_token",
+                TokenType = "Bearer",
+                ExpiresIn = 3600 // 1 hour
+            };
+
+            var issuedAt = DateTimeOffset.UtcNow.AddMinutes(-56); // Issued 56 minutes ago, expires in 4 minutes
+
+            // Act
+            var result = _service.ShouldRefreshToken(token, issuedAt);
+
+            // Assert
+            Assert.True(result);
+        }
     }
 }
