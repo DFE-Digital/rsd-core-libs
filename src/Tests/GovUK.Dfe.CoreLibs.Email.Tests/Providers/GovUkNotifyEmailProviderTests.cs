@@ -410,4 +410,298 @@ public class GovUkNotifyEmailProviderTests
     }
 
     #endregion
+
+    #region Additional Coverage Tests
+
+    [Fact]
+    public async Task GetEmailStatusAsync_WithValidId_ShouldReturnMappedResponse()
+    {
+        // Arrange
+        var mockNotification = new Notification
+        {
+            id = "test-notification-id",
+            status = "delivered",
+            createdAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+            sentAt = DateTime.UtcNow.AddMinutes(1).ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+            completedAt = DateTime.UtcNow.AddMinutes(2).ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+            reference = "test-ref"
+        };
+
+        _mockNotificationClient.GetNotificationById("test-notification-id")
+            .Returns(mockNotification);
+
+        var provider = new GovUkNotifyEmailProvider(_mockOptions, _mockLogger, _mockNotificationClient);
+
+        // Act
+        var result = await provider.GetEmailStatusAsync("test-notification-id");
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Id.Should().Be("test-notification-id");
+        result.Status.Should().Be(EmailStatus.Delivered);
+        result.Reference.Should().Be("test-ref");
+    }
+
+    [Fact]
+    public async Task GetEmailStatusAsync_WithNotifyClientException_ShouldThrowEmailProviderException()
+    {
+        // Arrange
+        _mockNotificationClient.GetNotificationById(Arg.Any<string>())
+            .Returns<Notification>(x => throw new NotifyClientException("API error"));
+
+        var provider = new GovUkNotifyEmailProvider(_mockOptions, _mockLogger, _mockNotificationClient);
+
+        // Act & Assert
+        var act = async () => await provider.GetEmailStatusAsync("test-id");
+        await act.Should().ThrowAsync<EmailProviderException>()
+            .WithMessage("GOV.UK Notify error: API error");
+    }
+
+    [Fact]
+    public async Task GetEmailsAsync_WithFilters_ShouldReturnMappedResults()
+    {
+        // Arrange
+        var mockNotificationList = new NotificationList
+        {
+            notifications = new List<Notification>
+            {
+                new Notification
+                {
+                    id = "notification-1",
+                    status = "sent",
+                    reference = "ref-1"
+                },
+                new Notification
+                {
+                    id = "notification-2", 
+                    status = "delivered",
+                    reference = "ref-2"
+                }
+            }
+        };
+
+        _mockNotificationClient.GetNotifications("email", "delivered", "test-ref", null)
+            .Returns(mockNotificationList);
+
+        var provider = new GovUkNotifyEmailProvider(_mockOptions, _mockLogger, _mockNotificationClient);
+
+        // Act
+        var result = await provider.GetEmailsAsync("test-ref", EmailStatus.Delivered);
+
+        // Assert
+        result.Should().HaveCount(2);
+        result.First().Id.Should().Be("notification-1");
+        result.Last().Id.Should().Be("notification-2");
+
+        _mockNotificationClient.Received(1).GetNotifications("email", "delivered", "test-ref", null);
+    }
+
+    [Fact]
+    public async Task GetTemplateByIdAsync_WithValidId_ShouldReturnMappedTemplate()
+    {
+        // Arrange
+        var mockTemplateResponse = new TemplateResponse
+        {
+            id = "template-123",
+            name = "Test Template",
+            type = "email",
+            version = 2,
+            body = "Hello {{name}}",
+            subject = "Test Subject"
+        };
+
+        _mockNotificationClient.GetTemplateById("template-123")
+            .Returns(mockTemplateResponse);
+
+        var provider = new GovUkNotifyEmailProvider(_mockOptions, _mockLogger, _mockNotificationClient);
+
+        // Act
+        var result = await provider.GetTemplateAsync("template-123");
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Id.Should().Be("template-123");
+        result.Name.Should().Be("Test Template");
+        result.Type.Should().Be("email");
+        result.Version.Should().Be(2);
+        result.Body.Should().Be("Hello {{name}}");
+        result.Subject.Should().Be("Test Subject");
+    }
+
+    [Fact]
+    public async Task GetTemplateByIdAndVersion_WithValidParameters_ShouldReturnMappedTemplate()
+    {
+        // Arrange
+        var mockTemplateResponse = new TemplateResponse
+        {
+            id = "template-123",
+            name = "Test Template v1",
+            version = 1,
+            body = "Version 1 body"
+        };
+
+        _mockNotificationClient.GetTemplateByIdAndVersion("template-123", 1)
+            .Returns(mockTemplateResponse);
+
+        var provider = new GovUkNotifyEmailProvider(_mockOptions, _mockLogger, _mockNotificationClient);
+
+        // Act
+        var result = await provider.GetTemplateAsync("template-123", 1);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Id.Should().Be("template-123");
+        result.Version.Should().Be(1);
+        result.Body.Should().Be("Version 1 body");
+    }
+
+    [Fact]
+    public async Task GetAllTemplatesAsync_ShouldReturnMappedTemplates()
+    {
+        // Arrange
+        var mockTemplateList = new TemplateList
+        {
+            templates = new List<TemplateResponse>
+            {
+                new TemplateResponse { id = "template-1", name = "Template 1", type = "email" },
+                new TemplateResponse { id = "template-2", name = "Template 2", type = "email" }
+            }
+        };
+
+        _mockNotificationClient.GetAllTemplates("email")
+            .Returns(mockTemplateList);
+
+        var provider = new GovUkNotifyEmailProvider(_mockOptions, _mockLogger, _mockNotificationClient);
+
+        // Act
+        var result = await provider.GetAllTemplatesAsync();
+
+        // Assert
+        result.Should().HaveCount(2);
+        result.First().Id.Should().Be("template-1");
+        result.Last().Id.Should().Be("template-2");
+    }
+
+    [Fact]
+    public async Task PreviewTemplateAsync_WithPersonalization_ShouldReturnMappedPreview()
+    {
+        // Arrange
+        var personalization = new Dictionary<string, object>
+        {
+            ["name"] = "John Doe",
+            ["date"] = DateTime.Now.ToString()
+        };
+
+        var mockPreviewResponse = new TemplatePreviewResponse
+        {
+            id = "template-123",
+            type = "email",
+            version = 1,
+            body = "Hello John Doe",
+            subject = "Welcome John Doe"
+        };
+
+        _mockNotificationClient.GenerateTemplatePreview("template-123", Arg.Any<Dictionary<string, dynamic>>())
+            .Returns(mockPreviewResponse);
+
+        var provider = new GovUkNotifyEmailProvider(_mockOptions, _mockLogger, _mockNotificationClient);
+
+        // Act
+        var result = await provider.PreviewTemplateAsync("template-123", personalization);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Id.Should().Be("template-123");
+        result.Type.Should().Be("email");
+        result.Version.Should().Be(1);
+        result.Body.Should().Be("Hello John Doe");
+        result.Subject.Should().Be("Welcome John Doe");
+    }
+
+    [Fact]
+    public async Task SendEmailAsync_WithNotifyClientException_ShouldWrapException()
+    {
+        // Arrange
+        _mockNotificationClient.SendEmail(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Dictionary<string, dynamic>>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns<EmailNotificationResponse>(x => throw new NotifyClientException("Template not found"));
+
+        var provider = new GovUkNotifyEmailProvider(_mockOptions, _mockLogger, _mockNotificationClient);
+        var emailMessage = new EmailMessage
+        {
+            ToEmail = "test@example.com",
+            TemplateId = "non-existent-template"
+        };
+
+        // Act & Assert
+        var act = async () => await provider.SendEmailAsync(emailMessage);
+        await act.Should().ThrowAsync<EmailProviderException>()
+            .WithMessage("GOV.UK Notify error: Template not found");
+    }
+
+    [Fact]
+    public async Task SendEmailAsync_WithGenericException_ShouldWrapAsUnexpectedError()
+    {
+        // Arrange
+        _mockNotificationClient.SendEmail(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Dictionary<string, dynamic>>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns<EmailNotificationResponse>(x => throw new InvalidOperationException("Unexpected error"));
+
+        var provider = new GovUkNotifyEmailProvider(_mockOptions, _mockLogger, _mockNotificationClient);
+        var emailMessage = new EmailMessage
+        {
+            ToEmail = "test@example.com",
+            TemplateId = "template-123"
+        };
+
+        // Act & Assert
+        var act = async () => await provider.SendEmailAsync(emailMessage);
+        await act.Should().ThrowAsync<EmailProviderException>()
+            .WithMessage("Unexpected error: Unexpected error");
+    }
+
+    [Theory]
+    [InlineData("created", EmailStatus.Created)]
+    [InlineData("sending", EmailStatus.Sending)]
+    [InlineData("pending", EmailStatus.Queued)]
+    [InlineData("sent", EmailStatus.Sent)]
+    [InlineData("delivered", EmailStatus.Delivered)]
+    [InlineData("permanent-failure", EmailStatus.PermanentFailure)]
+    [InlineData("temporary-failure", EmailStatus.TemporaryFailure)]
+    [InlineData("technical-failure", EmailStatus.TechnicalFailure)]
+    [InlineData("accepted", EmailStatus.Accepted)]
+    [InlineData("unknown", EmailStatus.Unknown)]
+    [InlineData(null, EmailStatus.Unknown)]
+    public async Task StatusMapping_WithVariousStatuses_ShouldMapCorrectly(string notifyStatus, EmailStatus expectedStatus)
+    {
+        // Arrange
+        var mockNotification = new Notification
+        {
+            id = "test-id",
+            status = notifyStatus
+        };
+
+        _mockNotificationClient.GetNotificationById("test-id")
+            .Returns(mockNotification);
+
+        var provider = new GovUkNotifyEmailProvider(_mockOptions, _mockLogger, _mockNotificationClient);
+
+        // Act
+        var result = await provider.GetEmailStatusAsync("test-id");
+
+        // Assert
+        result.Status.Should().Be(expectedStatus);
+    }
+
+    [Fact]
+    public async Task GetEmailStatusAsync_WithNullId_ShouldThrowArgumentNullException()
+    {
+        // Arrange
+        var provider = new GovUkNotifyEmailProvider(_mockOptions, _mockLogger, _mockNotificationClient);
+
+        // Act & Assert
+        var act = async () => await provider.GetEmailStatusAsync(null!);
+        await act.Should().ThrowAsync<ArgumentNullException>()
+            .WithParameterName("emailId");
+    }
+
+    #endregion
 }

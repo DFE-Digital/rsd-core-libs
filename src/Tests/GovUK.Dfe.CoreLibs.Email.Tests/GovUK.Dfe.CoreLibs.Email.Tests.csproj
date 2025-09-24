@@ -28,7 +28,16 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="NSubstitute" />
+    <Using Include="AutoFixture" />
+    <Using Include="AutoFixture.Xunit2" />
     <Using Include="FluentAssertions" />
+    <Using Include="Microsoft.Extensions.Logging" />
+    <Using Include="Microsoft.Extensions.Options" />
+    <Using Include="GovUK.Dfe.CoreLibs.Email.Models" />
+    <Using Include="GovUK.Dfe.CoreLibs.Email.Interfaces" />
+    <Using Include="GovUK.Dfe.CoreLibs.Email.Services" />
+    <Using Include="GovUK.Dfe.CoreLibs.Email.Providers" />
+    <Using Include="GovUK.Dfe.CoreLibs.Email.Exceptions" />
   </ItemGroup>
 
 </Project>

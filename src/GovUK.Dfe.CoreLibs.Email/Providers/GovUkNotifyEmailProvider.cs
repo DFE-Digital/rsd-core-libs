@@ -96,6 +96,8 @@ public class GovUkNotifyEmailProvider : IEmailProvider
     /// <inheritdoc />
     public async Task<EmailResponse> GetEmailStatusAsync(string emailId, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(emailId);
+        
         try
         {
             var response = await Task.Run(() => _notifyClient.GetNotificationById(emailId), cancellationToken);

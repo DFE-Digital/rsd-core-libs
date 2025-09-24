@@ -150,7 +150,7 @@ public class EmailService : IEmailService
     {
         if (!_emailProvider.SupportsTemplates)
         {
-            throw new EmailProviderException($"Provider {_emailProvider.ProviderName} does not support templates", _emailProvider.ProviderName);
+            throw new EmailProviderException($"Email provider {_emailProvider.ProviderName} does not support templates", _emailProvider.ProviderName);
         }
 
         _logger.LogDebug("Getting all templates via {Provider} with type filter: {TemplateType}", _emailProvider.ProviderName, templateType);
@@ -173,7 +173,7 @@ public class EmailService : IEmailService
 
         if (!_emailProvider.SupportsTemplates)
         {
-            throw new EmailProviderException($"Provider {_emailProvider.ProviderName} does not support templates", _emailProvider.ProviderName);
+            throw new EmailProviderException($"Email provider {_emailProvider.ProviderName} does not support template previews", _emailProvider.ProviderName);
         }
 
         _logger.LogDebug("Previewing template {TemplateId} via {Provider}", templateId, _emailProvider.ProviderName);

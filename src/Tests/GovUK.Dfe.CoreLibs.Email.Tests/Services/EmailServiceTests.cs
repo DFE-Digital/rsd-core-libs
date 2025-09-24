@@ -557,4 +557,257 @@ public class EmailServiceTests
     }
 
     #endregion
+
+    #region Additional Coverage Tests
+
+    [Fact]
+    public async Task PreviewTemplateAsync_WithValidParameters_ShouldCallProvider()
+    {
+        // Arrange
+        var expectedPreview = new TemplatePreview
+        {
+            Id = "template-123",
+            Type = "email",
+            Version = 1,
+            Body = "Hello John",
+            Subject = "Welcome John"
+        };
+
+        var personalization = new Dictionary<string, object>
+        {
+            ["name"] = "John"
+        };
+
+        _mockProvider.PreviewTemplateAsync("template-123", personalization, Arg.Any<CancellationToken>())
+            .Returns(expectedPreview);
+
+        // Act
+        var result = await _emailService.PreviewTemplateAsync("template-123", personalization);
+
+        // Assert
+        result.Should().Be(expectedPreview);
+        await _mockProvider.Received(1).PreviewTemplateAsync("template-123", personalization, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PreviewTemplateAsync_WithNullTemplateId_ShouldThrowArgumentNullException()
+    {
+        // Act & Assert
+        var act = async () => await _emailService.PreviewTemplateAsync(null!);
+        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("templateId");
+    }
+
+    [Fact]
+    public async Task PreviewTemplateAsync_WhenProviderDoesNotSupportTemplates_ShouldThrowEmailProviderException()
+    {
+        // Arrange
+        _mockProvider.SupportsTemplates.Returns(false);
+
+        // Act & Assert
+        var act = async () => await _emailService.PreviewTemplateAsync("template-123");
+        await act.Should().ThrowAsync<EmailProviderException>()
+            .WithMessage("Email provider TestProvider does not support template previews");
+    }
+
+    [Fact]
+    public async Task GetAllTemplatesAsync_ShouldCallProvider()
+    {
+        // Arrange
+        var expectedTemplates = new List<EmailTemplate>
+        {
+            new EmailTemplate { Id = "template-1", Name = "Template 1" },
+            new EmailTemplate { Id = "template-2", Name = "Template 2" }
+        };
+
+        _mockProvider.GetAllTemplatesAsync(null, Arg.Any<CancellationToken>())
+            .Returns(expectedTemplates);
+
+        // Act
+        var result = await _emailService.GetAllTemplatesAsync();
+
+        // Assert
+        result.Should().BeEquivalentTo(expectedTemplates);
+        await _mockProvider.Received(1).GetAllTemplatesAsync(null, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetAllTemplatesAsync_WhenProviderDoesNotSupportTemplates_ShouldThrowEmailProviderException()
+    {
+        // Arrange
+        _mockProvider.SupportsTemplates.Returns(false);
+
+        // Act & Assert
+        var act = async () => await _emailService.GetAllTemplatesAsync();
+        await act.Should().ThrowAsync<EmailProviderException>()
+            .WithMessage("Email provider TestProvider does not support templates");
+    }
+
+    [Fact]
+    public async Task SendEmailAsync_WithNullPersonalization_ShouldHandleCorrectly()
+    {
+        // Arrange
+        var emailMessage = new EmailMessage
+        {
+            ToEmail = "test@example.com",
+            TemplateId = "template-123",
+            Personalization = null
+        };
+
+        var expectedResponse = new EmailResponse { Id = "test-id", Status = EmailStatus.Sent };
+        _mockProvider.SendEmailAsync(emailMessage, Arg.Any<CancellationToken>())
+            .Returns(expectedResponse);
+
+        // Act
+        var result = await _emailService.SendEmailAsync(emailMessage);
+
+        // Assert
+        result.Should().Be(expectedResponse);
+    }
+
+    [Fact]
+    public async Task SendEmailAsync_WithEmptyPersonalization_ShouldHandleCorrectly()
+    {
+        // Arrange
+        var emailMessage = new EmailMessage
+        {
+            ToEmail = "test@example.com",
+            TemplateId = "template-123",
+            Personalization = new Dictionary<string, object>()
+        };
+
+        var expectedResponse = new EmailResponse { Id = "test-id", Status = EmailStatus.Sent };
+        _mockProvider.SendEmailAsync(emailMessage, Arg.Any<CancellationToken>())
+            .Returns(expectedResponse);
+
+        // Act
+        var result = await _emailService.SendEmailAsync(emailMessage);
+
+        // Assert
+        result.Should().Be(expectedResponse);
+    }
+
+    [Fact]
+    public async Task SendEmailAsync_WithReference_ShouldPassToProvider()
+    {
+        // Arrange
+        var emailMessage = new EmailMessage
+        {
+            ToEmail = "test@example.com",
+            TemplateId = "template-123",
+            Reference = "my-reference"
+        };
+
+        var expectedResponse = new EmailResponse { Id = "test-id", Status = EmailStatus.Sent };
+        _mockProvider.SendEmailAsync(emailMessage, Arg.Any<CancellationToken>())
+            .Returns(expectedResponse);
+
+        // Act
+        var result = await _emailService.SendEmailAsync(emailMessage);
+
+        // Assert
+        result.Should().Be(expectedResponse);
+        await _mockProvider.Received(1).SendEmailAsync(
+            Arg.Is<EmailMessage>(e => e.Reference == "my-reference"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SendEmailAsync_WithReplyToEmail_ShouldPassToProvider()
+    {
+        // Arrange
+        var emailMessage = new EmailMessage
+        {
+            ToEmail = "test@example.com",
+            TemplateId = "template-123",
+            ReplyToEmail = "reply@example.com"
+        };
+
+        var expectedResponse = new EmailResponse { Id = "test-id", Status = EmailStatus.Sent };
+        _mockProvider.SendEmailAsync(emailMessage, Arg.Any<CancellationToken>())
+            .Returns(expectedResponse);
+
+        // Act
+        var result = await _emailService.SendEmailAsync(emailMessage);
+
+        // Assert
+        result.Should().Be(expectedResponse);
+        await _mockProvider.Received(1).SendEmailAsync(
+            Arg.Is<EmailMessage>(e => e.ReplyToEmail == "reply@example.com"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetEmailsAsync_WithNullFilters_ShouldCallProviderWithNulls()
+    {
+        // Arrange
+        var expectedEmails = new List<EmailResponse>
+        {
+            new EmailResponse { Id = "email-1" },
+            new EmailResponse { Id = "email-2" }
+        };
+
+        _mockProvider.GetEmailsAsync(null, null, null, Arg.Any<CancellationToken>())
+            .Returns(expectedEmails);
+
+        // Act
+        var result = await _emailService.GetEmailsAsync();
+
+        // Assert
+        result.Should().BeEquivalentTo(expectedEmails);
+        await _mockProvider.Received(1).GetEmailsAsync(null, null, null, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetEmailsAsync_WithAllFilters_ShouldPassToProvider()
+    {
+        // Arrange
+        var expectedEmails = new List<EmailResponse>
+        {
+            new EmailResponse { Id = "email-1", Status = EmailStatus.Delivered }
+        };
+
+        _mockProvider.GetEmailsAsync("test-ref", EmailStatus.Delivered, null, Arg.Any<CancellationToken>())
+            .Returns(expectedEmails);
+
+        // Act
+        var result = await _emailService.GetEmailsAsync("test-ref", EmailStatus.Delivered);
+
+        // Assert
+        result.Should().BeEquivalentTo(expectedEmails);
+        await _mockProvider.Received(1).GetEmailsAsync("test-ref", EmailStatus.Delivered, null, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void IsValidEmail_WithNullOrWhitespaceEmails_ShouldReturnFalse()
+    {
+        // Act & Assert
+        _emailService.IsValidEmail(null!).Should().BeFalse();
+        _emailService.IsValidEmail("").Should().BeFalse();
+        _emailService.IsValidEmail("   ").Should().BeFalse();
+        _emailService.IsValidEmail("\t").Should().BeFalse();
+        _emailService.IsValidEmail("\n").Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsValidEmail_WithValidEmails_ShouldReturnTrue()
+    {
+        // Act & Assert
+        _emailService.IsValidEmail("test@example.com").Should().BeTrue();
+        _emailService.IsValidEmail("user.name@domain.co.uk").Should().BeTrue();
+        _emailService.IsValidEmail("user+tag@example.org").Should().BeTrue();
+        _emailService.IsValidEmail("a@b.co").Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsValidEmail_WithInvalidEmails_ShouldReturnFalse()
+    {
+        // Act & Assert
+        _emailService.IsValidEmail("invalid-email").Should().BeFalse();
+        _emailService.IsValidEmail("@example.com").Should().BeFalse();
+        _emailService.IsValidEmail("test@").Should().BeFalse();
+        _emailService.IsValidEmail("test.example.com").Should().BeFalse();
+        _emailService.IsValidEmail("test@.com").Should().BeFalse();
+    }
+
+    #endregion
 }
