@@ -2,6 +2,7 @@
 
 A flexible and extensible email library for .NET applications that provides a unified interface for sending emails through multiple providers. The library supports template-based emails, file attachments, email status tracking, and is designed to be easily extended with new email providers.
 
+
 ## Features
 
 - **Multiple Email Providers**: Currently supports GOV.UK Notify with easy extensibility for other providers
