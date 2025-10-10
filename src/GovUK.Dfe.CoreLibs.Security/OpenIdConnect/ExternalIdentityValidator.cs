@@ -66,13 +66,14 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// <inheritdoc/>
         public async Task<ClaimsPrincipal> ValidateIdTokenAsync(
             string idToken,
+            bool validCypressRequest = false,
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(idToken))
                 throw new ArgumentNullException(nameof(idToken));
 
             // Check if test authentication is enabled and should be used
-            if (_testOpts?.Enabled == true || _cypressAuthOpts?.AllowToggle == true)
+            if (_testOpts?.Enabled == true || validCypressRequest)
             {
                 return ValidateTestIdToken(idToken);
             }

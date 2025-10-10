@@ -108,11 +108,11 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
 
             // Act & Assert
             await Assert.ThrowsAsync<ArgumentNullException>(
-                () => validator.ValidateIdTokenAsync(null!, CancellationToken.None));
+                () => validator.ValidateIdTokenAsync(null!, false,CancellationToken.None));
             await Assert.ThrowsAsync<ArgumentNullException>(
-                () => validator.ValidateIdTokenAsync("", CancellationToken.None));
+                () => validator.ValidateIdTokenAsync("", false, CancellationToken.None));
             await Assert.ThrowsAsync<ArgumentNullException>(
-                () => validator.ValidateIdTokenAsync("   ", CancellationToken.None));
+                () => validator.ValidateIdTokenAsync("   ", false, CancellationToken.None));
         }
 
         [Fact]
