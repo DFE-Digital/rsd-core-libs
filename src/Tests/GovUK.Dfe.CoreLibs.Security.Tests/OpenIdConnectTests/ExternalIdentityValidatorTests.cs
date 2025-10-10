@@ -206,7 +206,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             var validator = new ExternalIdentityValidator(
                 Options.Create(_oidcOpts),
                 factory,
-                Options.Create(testOpts));
+                testOptions:Options.Create(testOpts));
 
             Assert.True(validator.IsTestAuthenticationEnabled);
         }
@@ -226,7 +226,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             var validator = new ExternalIdentityValidator(
                 Options.Create(_oidcOpts),
                 factory,
-                Options.Create(testOpts));
+                testOptions: Options.Create(testOpts));
 
             Assert.Throws<ArgumentNullException>(() => validator.ValidateTestIdToken(null!));
             Assert.Throws<ArgumentNullException>(() => validator.ValidateTestIdToken(""));
@@ -248,7 +248,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             var validator = new ExternalIdentityValidator(
                 Options.Create(_oidcOpts),
                 factory,
-                Options.Create(testOpts));
+                testOptions: Options.Create(testOpts));
 
             Assert.Throws<InvalidOperationException>(() =>
                 validator.ValidateTestIdToken("some-token"));
@@ -269,7 +269,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             var validator = new ExternalIdentityValidator(
                 Options.Create(_oidcOpts),
                 factory,
-                Options.Create(testOpts));
+                testOptions: Options.Create(testOpts));
 
             Assert.Throws<InvalidOperationException>(() =>
                 validator.ValidateTestIdToken("some-token"));
@@ -291,7 +291,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             var validator = new ExternalIdentityValidator(
                 Options.Create(_oidcOpts),
                 factory,
-                Options.Create(testOpts));
+                testOptions: Options.Create(testOpts));
 
             // Token signed with a *different* key
             var badKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"));
@@ -328,7 +328,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             var validator = new ExternalIdentityValidator(
                 Options.Create(_oidcOpts),
                 factory,
-                Options.Create(testOpts));
+                testOptions: Options.Create(testOpts));
 
             var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(rawKey));
             var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
@@ -371,7 +371,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             var validator = new ExternalIdentityValidator(
                 Options.Create(_oidcOpts),
                 factory,
-                Options.Create(testOpts));
+                testOptions: Options.Create(testOpts));
 
             var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(rawKey));
             var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);

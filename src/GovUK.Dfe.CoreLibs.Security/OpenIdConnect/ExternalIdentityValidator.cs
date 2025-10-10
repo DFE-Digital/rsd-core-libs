@@ -41,7 +41,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         public ExternalIdentityValidator(
             IOptions<OpenIdConnectOptions> options,
             IHttpClientFactory httpClientFactory,
-            IOptions<CypressAuthenticationOptions>? cypressAuthOpts, 
+            IOptions<CypressAuthenticationOptions>? cypressAuthOpts = null, 
             IOptions<TestAuthenticationOptions>? testOptions = null)
         {
             _opts = options?.Value
