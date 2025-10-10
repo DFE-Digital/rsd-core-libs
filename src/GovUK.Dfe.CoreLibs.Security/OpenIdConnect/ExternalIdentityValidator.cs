@@ -22,6 +22,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         private readonly ConfigurationManager<OpenIdConnectConfiguration> _configManager;
         private readonly OpenIdConnectOptions _opts;
         private readonly TestAuthenticationOptions? _testOpts;
+        private readonly CypressAuthenticationOptions? _cypressAuthOpts;
 
         /// <summary>
         /// Initializes a new instance of <see cref="ExternalIdentityValidator"/>.
@@ -33,18 +34,22 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// Factory for creating <see cref="System.Net.Http.HttpClient"/> instances
         /// to fetch the discovery document and JWKS.
         /// </param>
+        /// <param name="cypressAuthOpts">Cypress authentication options</param>
         /// <param name="testOptions">
         /// Optional test authentication options for development/testing scenarios.
         /// </param>
         public ExternalIdentityValidator(
             IOptions<OpenIdConnectOptions> options,
             IHttpClientFactory httpClientFactory,
+            IOptions<CypressAuthenticationOptions>? cypressAuthOpts, 
             IOptions<TestAuthenticationOptions>? testOptions = null)
         {
             _opts = options?.Value
-                ?? throw new ArgumentNullException(nameof(options));
+                    ?? throw new ArgumentNullException(nameof(options));
 
             _testOpts = testOptions?.Value;
+
+            _cypressAuthOpts = cypressAuthOpts?.Value;
 
             // Use the built-in ConfigurationManager to handle metadata caching/refresh.
             _configManager = new ConfigurationManager<OpenIdConnectConfiguration>(
@@ -67,7 +72,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 throw new ArgumentNullException(nameof(idToken));
 
             // Check if test authentication is enabled and should be used
-            if (_testOpts?.Enabled == true)
+            if (_testOpts?.Enabled == true || _cypressAuthOpts?.AllowToggle == true)
             {
                 return ValidateTestIdToken(idToken);
             }
