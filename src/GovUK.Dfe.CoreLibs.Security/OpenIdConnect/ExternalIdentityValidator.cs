@@ -75,7 +75,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
             // Check if test authentication is enabled and should be used
             if (_testOpts?.Enabled == true || validCypressRequest)
             {
-                return ValidateTestIdToken(idToken);
+                return ValidateTestIdToken(idToken, validCypressRequest);
             }
 
             // Fetch (or retrieve cached) OIDC metadata & signing keys
@@ -103,16 +103,17 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// This method bypasses OIDC discovery and uses a pre-configured signing key.
         /// </summary>
         /// <param name="idToken">The test JWT token to validate</param>
+        /// <param name="cypressRequest">Whether this is a cypress request</param>
         /// <returns>A ClaimsPrincipal containing the validated claims</returns>
         /// <exception cref="ArgumentNullException">Thrown when idToken is null or empty</exception>
         /// <exception cref="InvalidOperationException">Thrown when test authentication is not properly configured</exception>
         /// <exception cref="SecurityTokenException">Thrown when token validation fails</exception>
-        public ClaimsPrincipal ValidateTestIdToken(string idToken)
+        public ClaimsPrincipal ValidateTestIdToken(string idToken, bool cypressRequest)
         {
             if (string.IsNullOrWhiteSpace(idToken))
                 throw new ArgumentNullException(nameof(idToken));
 
-            if (_testOpts == null || !_testOpts.Enabled)
+            if (_testOpts == null || !_testOpts.Enabled || !cypressRequest)
                 throw new InvalidOperationException("Test authentication is not enabled or configured.");
 
             if (string.IsNullOrWhiteSpace(_testOpts.JwtSigningKey))
