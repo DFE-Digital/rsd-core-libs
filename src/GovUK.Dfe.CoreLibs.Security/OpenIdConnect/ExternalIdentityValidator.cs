@@ -108,7 +108,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// <exception cref="ArgumentNullException">Thrown when idToken is null or empty</exception>
         /// <exception cref="InvalidOperationException">Thrown when test authentication is not properly configured</exception>
         /// <exception cref="SecurityTokenException">Thrown when token validation fails</exception>
-        public ClaimsPrincipal ValidateTestIdToken(string idToken, bool cypressRequest)
+        public ClaimsPrincipal ValidateTestIdToken(string idToken, bool cypressRequest = false)
         {
             if (string.IsNullOrWhiteSpace(idToken))
                 throw new ArgumentNullException(nameof(idToken));

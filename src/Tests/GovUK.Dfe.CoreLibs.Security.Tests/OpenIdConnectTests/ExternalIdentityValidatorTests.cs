@@ -309,7 +309,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             var badToken = handler.WriteToken(handler.CreateToken(descriptor));
 
             Assert.Throws<SecurityTokenException>(() =>
-                validator.ValidateTestIdToken(badToken));
+                validator.ValidateTestIdToken(badToken, true));
         }
 
         [Fact]
@@ -345,7 +345,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             };
             var token = handler.WriteToken(handler.CreateToken(descriptor));
 
-            var principal = validator.ValidateTestIdToken(token);
+            var principal = validator.ValidateTestIdToken(token, true);
 
             Assert.NotNull(principal);
             Assert.True(principal.Identity?.IsAuthenticated);
@@ -387,7 +387,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             };
             var token = handler.WriteToken(handler.CreateToken(descriptor));
 
-            var principal = await validator.ValidateIdTokenAsync(token);
+            var principal = await validator.ValidateIdTokenAsync(token, true);
 
             Assert.NotNull(principal);
             Assert.True(principal.Identity?.IsAuthenticated);
