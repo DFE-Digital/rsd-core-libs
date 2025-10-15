@@ -113,7 +113,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
             if (string.IsNullOrWhiteSpace(idToken))
                 throw new ArgumentNullException(nameof(idToken));
 
-            if (_testOpts == null || !_testOpts.Enabled || !cypressRequest)
+            if (_testOpts == null || (!_testOpts.Enabled && !cypressRequest))
                 throw new InvalidOperationException("Test authentication is not enabled or configured.");
 
             if (string.IsNullOrWhiteSpace(_testOpts.JwtSigningKey))
