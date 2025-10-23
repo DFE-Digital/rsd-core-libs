@@ -51,7 +51,11 @@ namespace GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions
                 }
             });
 
-            services.AddHostedService<ServiceBusEntitySetupHostedService>();
+            // Only register the entity setup hosted service if auto-creation is enabled
+            if (settings.Transport == TransportType.AzureServiceBus && settings.AzureServiceBus.AutoCreateEntities)
+            {
+                services.AddHostedService<ServiceBusEntitySetupHostedService>();
+            }
 
             services.AddScoped<IEventPublisher, MassTransitEventPublisher>();
 

@@ -186,6 +186,81 @@ public class ServiceCollectionExtensionsTests
         settings!.Value.AppPrefix.Should().BeEmpty();
     }
 
+    [Fact]
+    public void AddDfEMassTransit_WithAutoCreateEntitiesDisabled_ShouldNotRegisterHostedService()
+    {
+        // Arrange
+        var customConfig = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["MassTransit:Transport"] = "AzureServiceBus",
+                ["MassTransit:AppPrefix"] = "test-app",
+                ["MassTransit:AzureServiceBus:ConnectionString"] = "Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=testkey",
+                ["MassTransit:AzureServiceBus:AutoCreateEntities"] = "false"
+            })
+            .Build();
+
+        // Act
+        _services.AddDfEMassTransit(customConfig);
+
+        // Assert
+        var serviceProvider = _services.BuildServiceProvider();
+        serviceProvider.GetService<IEventPublisher>().Should().NotBeNull();
+        
+        // The hosted service should not be registered
+        var hostedServices = _services.Where(s => 
+            s.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
+            s.ImplementationType?.Name == "ServiceBusEntitySetupHostedService");
+        
+        hostedServices.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AddDfEMassTransit_WithAutoCreateEntitiesEnabled_ShouldRegisterHostedService()
+    {
+        // Arrange
+        var customConfig = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["MassTransit:Transport"] = "AzureServiceBus",
+                ["MassTransit:AppPrefix"] = "test-app",
+                ["MassTransit:AzureServiceBus:ConnectionString"] = "Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=testkey",
+                ["MassTransit:AzureServiceBus:AutoCreateEntities"] = "true"
+            })
+            .Build();
+
+        // Act
+        _services.AddDfEMassTransit(customConfig);
+
+        // Assert
+        var serviceProvider = _services.BuildServiceProvider();
+        serviceProvider.GetService<IEventPublisher>().Should().NotBeNull();
+        
+        // The hosted service should be registered
+        var hostedServices = _services.Where(s => 
+            s.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
+            s.ImplementationType?.Name == "ServiceBusEntitySetupHostedService");
+        
+        hostedServices.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void AddDfEMassTransit_WithDefaultAutoCreateEntities_ShouldRegisterHostedService()
+    {
+        // Act
+        _services.AddDfEMassTransit(_configuration);
+
+        // Assert
+        var serviceProvider = _services.BuildServiceProvider();
+        
+        // The hosted service should be registered by default
+        var hostedServices = _services.Where(s => 
+            s.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
+            s.ImplementationType?.Name == "ServiceBusEntitySetupHostedService");
+        
+        hostedServices.Should().NotBeEmpty();
+    }
+
     #endregion
 
     #region Configuration Validation Tests

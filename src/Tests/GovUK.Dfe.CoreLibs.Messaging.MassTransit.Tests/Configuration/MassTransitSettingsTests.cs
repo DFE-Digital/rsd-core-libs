@@ -127,6 +127,7 @@ public class AzureServiceBusSettingsTests
 
         // Assert
         settings.ConnectionString.Should().BeEmpty();
+        settings.AutoCreateEntities.Should().BeTrue(); // Default is true
     }
 
     [Fact]
@@ -173,7 +174,38 @@ public class AzureServiceBusSettingsTests
     }
 
     [Fact]
+    public void AutoCreateEntities_ShouldSetAndGetCorrectly()
+    {
+        // Arrange
+        var settings = new AzureServiceBusSettings();
+
+        // Act
+        settings.AutoCreateEntities = false;
+
+        // Assert
+        settings.AutoCreateEntities.Should().BeFalse();
+    }
+
+    [Fact]
     public void Settings_ShouldDeserializeFromJson()
+    {
+        // Arrange
+        var json = @"{
+            ""ConnectionString"": ""Endpoint=sb://test.servicebus.windows.net/"",
+            ""AutoCreateEntities"": false
+        }";
+
+        // Act
+        var settings = System.Text.Json.JsonSerializer.Deserialize<AzureServiceBusSettings>(json);
+
+        // Assert
+        settings.Should().NotBeNull();
+        settings!.ConnectionString.Should().Be("Endpoint=sb://test.servicebus.windows.net/");
+        settings.AutoCreateEntities.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Settings_ShouldDeserializeFromJsonWithDefaultAutoCreateEntities()
     {
         // Arrange
         var json = @"{
@@ -186,6 +218,7 @@ public class AzureServiceBusSettingsTests
         // Assert
         settings.Should().NotBeNull();
         settings!.ConnectionString.Should().Be("Endpoint=sb://test.servicebus.windows.net/");
+        settings.AutoCreateEntities.Should().BeTrue(); // Default value
     }
 }
 
