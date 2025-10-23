@@ -245,7 +245,7 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddDfEMassTransit_WithDefaultAutoCreateEntities_ShouldRegisterHostedService()
+    public void AddDfEMassTransit_WithDefaultAutoCreateEntities_ShouldNotRegisterHostedService()
     {
         // Act
         _services.AddDfEMassTransit(_configuration);
@@ -253,12 +253,12 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var serviceProvider = _services.BuildServiceProvider();
         
-        // The hosted service should be registered by default
+        // The hosted service should NOT be registered by default (default is false)
         var hostedServices = _services.Where(s => 
             s.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
             s.ImplementationType?.Name == "ServiceBusEntitySetupHostedService");
         
-        hostedServices.Should().NotBeEmpty();
+        hostedServices.Should().BeEmpty();
     }
 
     #endregion

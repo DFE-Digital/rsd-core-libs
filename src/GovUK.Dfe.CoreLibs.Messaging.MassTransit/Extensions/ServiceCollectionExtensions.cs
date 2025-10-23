@@ -40,6 +40,12 @@ namespace GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions
                         {
                             cfg.Host(settings.AzureServiceBus.ConnectionString);
 
+                            // Disable automatic topology deployment (entity creation) if AutoCreateEntities is false
+                            if (!settings.AzureServiceBus.AutoCreateEntities)
+                            {
+                                cfg.DeployTopologyOnly = false;
+                            }
+
                             configureBus?.Invoke(context, cfg);
 
                             cfg.ConfigureEndpoints(context);

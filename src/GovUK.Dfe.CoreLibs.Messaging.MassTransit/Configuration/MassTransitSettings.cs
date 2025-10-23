@@ -16,10 +16,10 @@ namespace GovUK.Dfe.CoreLibs.Messaging.MassTransit.Configuration
         public string ConnectionString { get; set; } = string.Empty;
         
         /// <summary>
-        /// Determines whether to automatically create Azure Service Bus entities (topics/queues) at startup.
-        /// Default is true for backwards compatibility.
-        /// Set to false if entities are managed externally (e.g., via Terraform, ARM templates).
+        /// Determines whether to automatically create Azure Service Bus entities (topics/queues) at startup and during publishing.
+        /// Default is false - entities should be managed externally (e.g., via Terraform, ARM templates, Azure Portal).
+        /// Set to true only in development environments if you want automatic entity creation.
         /// </summary>
-        public bool AutoCreateEntities { get; set; } = true;
+        public bool AutoCreateEntities { get; set; } = false;
     }
 }

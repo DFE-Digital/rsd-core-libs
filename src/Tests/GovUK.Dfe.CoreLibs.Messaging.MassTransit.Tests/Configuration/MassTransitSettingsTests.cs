@@ -127,7 +127,7 @@ public class AzureServiceBusSettingsTests
 
         // Assert
         settings.ConnectionString.Should().BeEmpty();
-        settings.AutoCreateEntities.Should().BeTrue(); // Default is true
+        settings.AutoCreateEntities.Should().BeFalse(); // Default is false - entities managed externally
     }
 
     [Fact]
@@ -180,10 +180,10 @@ public class AzureServiceBusSettingsTests
         var settings = new AzureServiceBusSettings();
 
         // Act
-        settings.AutoCreateEntities = false;
+        settings.AutoCreateEntities = true;
 
         // Assert
-        settings.AutoCreateEntities.Should().BeFalse();
+        settings.AutoCreateEntities.Should().BeTrue();
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public class AzureServiceBusSettingsTests
         // Assert
         settings.Should().NotBeNull();
         settings!.ConnectionString.Should().Be("Endpoint=sb://test.servicebus.windows.net/");
-        settings.AutoCreateEntities.Should().BeTrue(); // Default value
+        settings.AutoCreateEntities.Should().BeFalse(); // Default value is false
     }
 }
 
