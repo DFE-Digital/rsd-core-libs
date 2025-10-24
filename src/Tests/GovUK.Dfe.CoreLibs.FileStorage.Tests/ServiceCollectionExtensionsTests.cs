@@ -399,6 +399,211 @@ public class ServiceCollectionExtensionsTests
         Assert.Equal(20.0, options.Azure.RetryPolicy.MaxDelaySeconds);
     }
 
+    #region Hybrid Provider Tests
+
+    [Fact]
+    public void AddFileStorage_WithValidHybridConfiguration_ShouldRegisterServices()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var testDirectory = Path.Combine(Path.GetTempPath(), "TestFileStorage", Guid.NewGuid().ToString());
+        var configuration = CreateConfiguration(new Dictionary<string, string>
+        {
+            ["FileStorage:Provider"] = "Hybrid",
+            ["FileStorage:Local:BaseDirectory"] = testDirectory,
+            ["FileStorage:Local:CreateDirectoryIfNotExists"] = "true",
+            ["FileStorage:Azure:ConnectionString"] = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net",
+            ["FileStorage:Azure:ShareName"] = "testshare"
+        });
+
+        try
+        {
+            // Act
+            services.AddFileStorage(configuration);
+
+            // Assert
+            var serviceProvider = services.BuildServiceProvider();
+            var fileStorageService = serviceProvider.GetService<IFileStorageService>();
+            var azureOperations = serviceProvider.GetService<IAzureSpecificOperations>();
+            var options = serviceProvider.GetService<FileStorageOptions>();
+
+            Assert.NotNull(fileStorageService);
+            Assert.IsType<HybridFileStorageService>(fileStorageService);
+            Assert.NotNull(azureOperations);
+            Assert.IsType<HybridFileStorageService>(azureOperations);
+            Assert.Same(fileStorageService, azureOperations); // Should be the same instance
+            
+            Assert.NotNull(options);
+            Assert.Equal("Hybrid", options.Provider);
+            Assert.Equal(testDirectory, options.Local.BaseDirectory);
+            Assert.Equal("DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net", options.Azure.ConnectionString);
+            Assert.Equal("testshare", options.Azure.ShareName);
+        }
+        finally
+        {
+            // Cleanup
+            if (Directory.Exists(testDirectory))
+            {
+                Directory.Delete(testDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void AddFileStorage_WithHybridProviderCaseInsensitive_ShouldRegisterServices()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var testDirectory = Path.Combine(Path.GetTempPath(), "TestFileStorage", Guid.NewGuid().ToString());
+        var configuration = CreateConfiguration(new Dictionary<string, string>
+        {
+            ["FileStorage:Provider"] = "HYBRID",
+            ["FileStorage:Local:BaseDirectory"] = testDirectory,
+            ["FileStorage:Azure:ConnectionString"] = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net",
+            ["FileStorage:Azure:ShareName"] = "testshare"
+        });
+
+        try
+        {
+            // Act
+            services.AddFileStorage(configuration);
+
+            // Assert
+            var serviceProvider = services.BuildServiceProvider();
+            var fileStorageService = serviceProvider.GetService<IFileStorageService>();
+
+            Assert.NotNull(fileStorageService);
+            Assert.IsType<HybridFileStorageService>(fileStorageService);
+        }
+        finally
+        {
+            // Cleanup
+            if (Directory.Exists(testDirectory))
+            {
+                Directory.Delete(testDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void AddFileStorage_WithHybridProviderButMissingAzureConnectionString_ShouldThrowFileStorageConfigurationException()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var testDirectory = Path.Combine(Path.GetTempPath(), "TestFileStorage", Guid.NewGuid().ToString());
+        var configuration = CreateConfiguration(new Dictionary<string, string>
+        {
+            ["FileStorage:Provider"] = "Hybrid",
+            ["FileStorage:Local:BaseDirectory"] = testDirectory,
+            ["FileStorage:Azure:ShareName"] = "testshare"
+        });
+
+        // Act & Assert
+        var exception = Assert.Throws<FileStorageConfigurationException>(() => services.AddFileStorage(configuration));
+        Assert.Contains("Hybrid File Storage configuration", exception.Message);
+    }
+
+    [Fact]
+    public void AddFileStorage_WithHybridProviderButMissingAzureShareName_ShouldThrowFileStorageConfigurationException()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var testDirectory = Path.Combine(Path.GetTempPath(), "TestFileStorage", Guid.NewGuid().ToString());
+        var configuration = CreateConfiguration(new Dictionary<string, string>
+        {
+            ["FileStorage:Provider"] = "Hybrid",
+            ["FileStorage:Local:BaseDirectory"] = testDirectory,
+            ["FileStorage:Azure:ConnectionString"] = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=test;EndpointSuffix=core.windows.net"
+        });
+
+        // Act & Assert
+        var exception = Assert.Throws<FileStorageConfigurationException>(() => services.AddFileStorage(configuration));
+        Assert.Contains("Hybrid File Storage configuration", exception.Message);
+    }
+
+    [Fact]
+    public void AddFileStorage_WithHybridProviderButEmptyAzureConnectionString_ShouldThrowFileStorageConfigurationException()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var testDirectory = Path.Combine(Path.GetTempPath(), "TestFileStorage", Guid.NewGuid().ToString());
+        var configuration = CreateConfiguration(new Dictionary<string, string>
+        {
+            ["FileStorage:Provider"] = "Hybrid",
+            ["FileStorage:Local:BaseDirectory"] = testDirectory,
+            ["FileStorage:Azure:ConnectionString"] = "",
+            ["FileStorage:Azure:ShareName"] = "testshare"
+        });
+
+        // Act & Assert
+        var exception = Assert.Throws<FileStorageConfigurationException>(() => services.AddFileStorage(configuration));
+        Assert.Contains("Hybrid File Storage configuration", exception.Message);
+    }
+
+    [Fact]
+    public void AddFileStorage_WithAzureProvider_ShouldRegisterIAzureSpecificOperations()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var configuration = CreateConfiguration(new Dictionary<string, string>
+        {
+            ["FileStorage:Provider"] = "Azure",
+            ["FileStorage:Azure:ConnectionString"] = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=test;EndpointSuffix=core.windows.net",
+            ["FileStorage:Azure:ShareName"] = "testshare"
+        });
+
+        // Act
+        services.AddFileStorage(configuration);
+
+        // Assert
+        var serviceProvider = services.BuildServiceProvider();
+        var fileStorageService = serviceProvider.GetService<IFileStorageService>();
+        var azureOperations = serviceProvider.GetService<IAzureSpecificOperations>();
+
+        Assert.NotNull(fileStorageService);
+        Assert.NotNull(azureOperations);
+        Assert.IsType<AzureFileStorageService>(fileStorageService);
+        Assert.IsType<AzureFileStorageService>(azureOperations);
+        Assert.Same(fileStorageService, azureOperations);
+    }
+
+    [Fact]
+    public void AddFileStorage_WithLocalProvider_ShouldNotRegisterIAzureSpecificOperations()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var testDirectory = Path.Combine(Path.GetTempPath(), "TestFileStorage", Guid.NewGuid().ToString());
+        var configuration = CreateConfiguration(new Dictionary<string, string>
+        {
+            ["FileStorage:Provider"] = "Local",
+            ["FileStorage:Local:BaseDirectory"] = testDirectory
+        });
+
+        try
+        {
+            // Act
+            services.AddFileStorage(configuration);
+
+            // Assert
+            var serviceProvider = services.BuildServiceProvider();
+            var fileStorageService = serviceProvider.GetService<IFileStorageService>();
+            var azureOperations = serviceProvider.GetService<IAzureSpecificOperations>();
+
+            Assert.NotNull(fileStorageService);
+            Assert.Null(azureOperations); // Should not be registered for local provider
+        }
+        finally
+        {
+            // Cleanup
+            if (Directory.Exists(testDirectory))
+            {
+                Directory.Delete(testDirectory, true);
+            }
+        }
+    }
+
+    #endregion
+
     private static IConfiguration CreateConfiguration(Dictionary<string, string> settings)
     {
         var configurationBuilder = new ConfigurationBuilder();

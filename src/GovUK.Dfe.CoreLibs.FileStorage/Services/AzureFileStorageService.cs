@@ -8,9 +8,9 @@ using FileNotFoundException = GovUK.Dfe.CoreLibs.FileStorage.Exceptions.FileNotF
 namespace GovUK.Dfe.CoreLibs.FileStorage.Services;
 
 /// <summary>
-/// Azure File Service based implementation of <see cref="IFileStorageService"/>.
+/// Azure File Service based implementation of <see cref="IFileStorageService"/> and <see cref="IAzureSpecificOperations"/>.
 /// </summary>
-public class AzureFileStorageService : IFileStorageService
+public class AzureFileStorageService : IFileStorageService, IAzureSpecificOperations
 {
     private readonly IShareClientWrapper _clientWrapper;
 
@@ -124,5 +124,50 @@ public class AzureFileStorageService : IFileStorageService
         {
             throw new FileStorageException($"Failed to check existence of file at path '{path}'.", ex);
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<string> GenerateSasTokenAsync(string path, DateTimeOffset expiresOn, string permissions = "r", CancellationToken token = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(permissions);
+
+        if (expiresOn <= DateTimeOffset.UtcNow)
+        {
+            throw new ArgumentException("Expiration date must be in the future.", nameof(expiresOn));
+        }
+
+        try
+        {
+            var fileClient = await _clientWrapper.GetFileClientAsync(path, token);
+            
+            // Check if file exists before generating SAS token
+            if (!await fileClient.ExistsAsync(token))
+            {
+                throw new FileNotFoundException($"File not found at path '{path}'. Cannot generate SAS token for non-existent file.");
+            }
+
+            return await fileClient.GenerateSasUriAsync(expiresOn, permissions, token);
+        }
+        catch (FileNotFoundException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new FileStorageException($"Failed to generate SAS token for file at path '{path}'.", ex);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<string> GenerateSasTokenAsync(string path, TimeSpan duration, string permissions = "r", CancellationToken token = default)
+    {
+        if (duration <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("Duration must be greater than zero.", nameof(duration));
+        }
+
+        var expiresOn = DateTimeOffset.UtcNow.Add(duration);
+        return await GenerateSasTokenAsync(path, expiresOn, permissions, token);
     }
 }

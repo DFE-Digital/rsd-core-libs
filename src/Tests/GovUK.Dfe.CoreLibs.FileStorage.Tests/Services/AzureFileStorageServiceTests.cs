@@ -340,4 +340,194 @@ public class AzureFileStorageServiceTests
         await Assert.ThrowsAsync<OperationCanceledException>(() => _service.DeleteAsync(path, cancellationToken));
         await Assert.ThrowsAsync<OperationCanceledException>(() => _service.ExistsAsync(path, cancellationToken));
     }
+
+    #region SAS Token Generation Tests
+
+    [Fact]
+    public async Task GenerateSasTokenAsync_WithValidParametersAndExpiresOn_ShouldReturnSasUri()
+    {
+        // Arrange
+        var path = "test/file.txt";
+        var expiresOn = DateTimeOffset.UtcNow.AddHours(1);
+        var expectedSasUri = "https://test.file.core.windows.net/testshare/test/file.txt?sv=2021-12-02&sr=f&sig=test";
+        
+        _mockClientWrapper.GetFileClientAsync(path, Arg.Any<CancellationToken>()).Returns(_mockFileClient);
+        _mockFileClient.ExistsAsync(Arg.Any<CancellationToken>()).Returns(true);
+        _mockFileClient.GenerateSasUriAsync(expiresOn, "r", Arg.Any<CancellationToken>()).Returns(expectedSasUri);
+
+        // Act
+        var result = await _service.GenerateSasTokenAsync(path, expiresOn, "r");
+
+        // Assert
+        Assert.Equal(expectedSasUri, result);
+        await _mockClientWrapper.Received(1).GetFileClientAsync(path, Arg.Any<CancellationToken>());
+        await _mockFileClient.Received(1).ExistsAsync(Arg.Any<CancellationToken>());
+        await _mockFileClient.Received(1).GenerateSasUriAsync(expiresOn, "r", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GenerateSasTokenAsync_WithValidParametersAndDuration_ShouldReturnSasUri()
+    {
+        // Arrange
+        var path = "test/file.txt";
+        var duration = TimeSpan.FromHours(2);
+        var expectedSasUri = "https://test.file.core.windows.net/testshare/test/file.txt?sv=2021-12-02&sr=f&sig=test";
+        
+        _mockClientWrapper.GetFileClientAsync(path, Arg.Any<CancellationToken>()).Returns(_mockFileClient);
+        _mockFileClient.ExistsAsync(Arg.Any<CancellationToken>()).Returns(true);
+        _mockFileClient.GenerateSasUriAsync(Arg.Any<DateTimeOffset>(), "r", Arg.Any<CancellationToken>()).Returns(expectedSasUri);
+
+        // Act
+        var result = await _service.GenerateSasTokenAsync(path, duration, "r");
+
+        // Assert
+        Assert.Equal(expectedSasUri, result);
+        await _mockClientWrapper.Received(1).GetFileClientAsync(path, Arg.Any<CancellationToken>());
+        await _mockFileClient.Received(1).ExistsAsync(Arg.Any<CancellationToken>());
+        await _mockFileClient.Received(1).GenerateSasUriAsync(Arg.Any<DateTimeOffset>(), "r", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GenerateSasTokenAsync_WithWritePermissions_ShouldReturnSasUri()
+    {
+        // Arrange
+        var path = "test/file.txt";
+        var expiresOn = DateTimeOffset.UtcNow.AddDays(1);
+        var expectedSasUri = "https://test.file.core.windows.net/testshare/test/file.txt?sv=2021-12-02&sr=f&sig=test&sp=rw";
+        
+        _mockClientWrapper.GetFileClientAsync(path, Arg.Any<CancellationToken>()).Returns(_mockFileClient);
+        _mockFileClient.ExistsAsync(Arg.Any<CancellationToken>()).Returns(true);
+        _mockFileClient.GenerateSasUriAsync(expiresOn, "rw", Arg.Any<CancellationToken>()).Returns(expectedSasUri);
+
+        // Act
+        var result = await _service.GenerateSasTokenAsync(path, expiresOn, "rw");
+
+        // Assert
+        Assert.Equal(expectedSasUri, result);
+        await _mockFileClient.Received(1).GenerateSasUriAsync(expiresOn, "rw", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GenerateSasTokenAsync_WithNullPath_ShouldThrowArgumentException()
+    {
+        // Arrange
+        var expiresOn = DateTimeOffset.UtcNow.AddHours(1);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(() => _service.GenerateSasTokenAsync(null!, expiresOn));
+    }
+
+    [Fact]
+    public async Task GenerateSasTokenAsync_WithEmptyPath_ShouldThrowArgumentException()
+    {
+        // Arrange
+        var expiresOn = DateTimeOffset.UtcNow.AddHours(1);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.GenerateSasTokenAsync("", expiresOn));
+    }
+
+    [Fact]
+    public async Task GenerateSasTokenAsync_WithNullPermissions_ShouldThrowArgumentNullException()
+    {
+        // Arrange
+        var path = "test/file.txt";
+        var expiresOn = DateTimeOffset.UtcNow.AddHours(1);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(() => _service.GenerateSasTokenAsync(path, expiresOn, null!));
+    }
+
+    [Fact]
+    public async Task GenerateSasTokenAsync_WithEmptyPermissions_ShouldThrowArgumentException()
+    {
+        // Arrange
+        var path = "test/file.txt";
+        var expiresOn = DateTimeOffset.UtcNow.AddHours(1);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.GenerateSasTokenAsync(path, expiresOn, ""));
+    }
+
+    [Fact]
+    public async Task GenerateSasTokenAsync_WithPastExpirationDate_ShouldThrowArgumentException()
+    {
+        // Arrange
+        var path = "test/file.txt";
+        var expiresOn = DateTimeOffset.UtcNow.AddHours(-1); // Past date
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => _service.GenerateSasTokenAsync(path, expiresOn));
+        Assert.Contains("Expiration date must be in the future", exception.Message);
+    }
+
+    [Fact]
+    public async Task GenerateSasTokenAsync_WithZeroDuration_ShouldThrowArgumentException()
+    {
+        // Arrange
+        var path = "test/file.txt";
+        var duration = TimeSpan.Zero;
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => _service.GenerateSasTokenAsync(path, duration));
+        Assert.Contains("Duration must be greater than zero", exception.Message);
+    }
+
+    [Fact]
+    public async Task GenerateSasTokenAsync_WithNegativeDuration_ShouldThrowArgumentException()
+    {
+        // Arrange
+        var path = "test/file.txt";
+        var duration = TimeSpan.FromHours(-1);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => _service.GenerateSasTokenAsync(path, duration));
+        Assert.Contains("Duration must be greater than zero", exception.Message);
+    }
+
+    [Fact]
+    public async Task GenerateSasTokenAsync_WhenFileDoesNotExist_ShouldThrowFileNotFoundException()
+    {
+        // Arrange
+        var path = "test/nonexistent.txt";
+        var expiresOn = DateTimeOffset.UtcNow.AddHours(1);
+        
+        _mockClientWrapper.GetFileClientAsync(path, Arg.Any<CancellationToken>()).Returns(_mockFileClient);
+        _mockFileClient.ExistsAsync(Arg.Any<CancellationToken>()).Returns(false);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<FileNotFoundException>(() => _service.GenerateSasTokenAsync(path, expiresOn));
+        Assert.Contains("File not found at path", exception.Message);
+        Assert.Contains("Cannot generate SAS token for non-existent file", exception.Message);
+    }
+
+    [Fact]
+    public async Task GenerateSasTokenAsync_WhenClientWrapperThrows_ShouldThrowFileStorageException()
+    {
+        // Arrange
+        var path = "test/file.txt";
+        var expiresOn = DateTimeOffset.UtcNow.AddHours(1);
+        
+        _mockClientWrapper.GetFileClientAsync(path, Arg.Any<CancellationToken>()).ThrowsAsync(new Exception("Test exception"));
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<FileStorageException>(() => _service.GenerateSasTokenAsync(path, expiresOn));
+        Assert.Contains("Failed to generate SAS token", exception.Message);
+    }
+
+    [Fact]
+    public async Task GenerateSasTokenAsync_WithCancellationToken_ShouldPassTokenToClient()
+    {
+        // Arrange
+        var path = "test/file.txt";
+        var expiresOn = DateTimeOffset.UtcNow.AddHours(1);
+        var cancellationToken = new CancellationToken(true); // Cancelled token
+        
+        _mockClientWrapper.GetFileClientAsync(path, cancellationToken).ThrowsAsync(new OperationCanceledException());
+
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(() => _service.GenerateSasTokenAsync(path, expiresOn, "r", cancellationToken));
+    }
+
+    #endregion
 }
