@@ -1,6 +1,7 @@
 ﻿namespace GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
 public record FileUploadedEvent(
     string FileName,
+    string? Path,
     bool? IsAzureFileShare,
-    string FileUrl,
+    string FileUri,
     string ServiceName);
