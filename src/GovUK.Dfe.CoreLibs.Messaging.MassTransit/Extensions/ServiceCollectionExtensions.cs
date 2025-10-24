@@ -4,6 +4,7 @@ using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Helpers;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Interfaces;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Publishers;
 using MassTransit;
+using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -38,13 +39,14 @@ namespace GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions
                     case TransportType.AzureServiceBus:
                         x.UsingAzureServiceBus((context, cfg) =>
                         {
-                            cfg.Host(settings.AzureServiceBus.ConnectionString);
-
-                            // Disable automatic topology deployment (entity creation) if AutoCreateEntities is false
-                            if (!settings.AzureServiceBus.AutoCreateEntities)
+                            cfg.Host(settings.AzureServiceBus.ConnectionString, hostCfg =>
                             {
-                                cfg.DeployTopologyOnly = false;
-                            }
+                                hostCfg.TransportType = settings.AzureServiceBus.UseWebSockets
+                                    ? ServiceBusTransportType.AmqpWebSockets
+                                    : ServiceBusTransportType.AmqpTcp;
+                            });
+
+                            cfg.DeployPublishTopology = settings.AzureServiceBus.AutoCreateEntities;
 
                             configureBus?.Invoke(context, cfg);
 
@@ -57,7 +59,6 @@ namespace GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions
                 }
             });
 
-            // Only register the entity setup hosted service if auto-creation is enabled
             if (settings.Transport == TransportType.AzureServiceBus && settings.AzureServiceBus.AutoCreateEntities)
             {
                 services.AddHostedService<ServiceBusEntitySetupHostedService>();

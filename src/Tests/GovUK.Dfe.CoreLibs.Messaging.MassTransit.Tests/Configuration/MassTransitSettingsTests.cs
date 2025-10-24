@@ -127,6 +127,7 @@ public class AzureServiceBusSettingsTests
 
         // Assert
         settings.ConnectionString.Should().BeEmpty();
+        settings.UseWebSockets.Should().BeTrue();
         settings.AutoCreateEntities.Should().BeFalse(); // Default is false - entities managed externally
     }
 
@@ -192,6 +193,7 @@ public class AzureServiceBusSettingsTests
         // Arrange
         var json = @"{
             ""ConnectionString"": ""Endpoint=sb://test.servicebus.windows.net/"",
+            ""UseWebSockets"": false,
             ""AutoCreateEntities"": false
         }";
 
@@ -201,6 +203,7 @@ public class AzureServiceBusSettingsTests
         // Assert
         settings.Should().NotBeNull();
         settings!.ConnectionString.Should().Be("Endpoint=sb://test.servicebus.windows.net/");
+        settings.UseWebSockets.Should().BeFalse();
         settings.AutoCreateEntities.Should().BeFalse();
     }
 
@@ -218,6 +221,7 @@ public class AzureServiceBusSettingsTests
         // Assert
         settings.Should().NotBeNull();
         settings!.ConnectionString.Should().Be("Endpoint=sb://test.servicebus.windows.net/");
+        settings.UseWebSockets.Should().BeTrue();
         settings.AutoCreateEntities.Should().BeFalse(); // Default value is false
     }
 }

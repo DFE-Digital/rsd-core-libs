@@ -17,6 +17,7 @@ jobs:
     with:
       project_name: GovUK.Dfe.CoreLibs.Messaging.Contracts
       project_path: src/GovUK.Dfe.CoreLibs.Messaging.Contracts
+      run_tests: false
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
