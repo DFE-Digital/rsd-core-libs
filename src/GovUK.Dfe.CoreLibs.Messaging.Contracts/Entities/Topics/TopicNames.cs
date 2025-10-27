@@ -3,6 +3,6 @@
     public static class TopicNames
     {
         public const string ScanRequests = "scan-requests";
-        public const string ScanStatus = "scan-status";
+        public const string ScanResult = "scan-result";
     }
 }
