@@ -1,5 +1,5 @@
 ﻿namespace GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
-public record FileUploadedEvent(
+public record ScanRequestedEvent(
     string? FileId,
     string FileName,
     string? Reference,
