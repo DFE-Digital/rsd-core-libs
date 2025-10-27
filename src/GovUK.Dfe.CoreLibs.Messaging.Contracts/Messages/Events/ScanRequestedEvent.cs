@@ -2,6 +2,7 @@
 public record ScanRequestedEvent(
     string? FileId,
     string FileName,
+    string? FileHash,
     string? Reference,
     string? Path,
     bool? IsAzureFileShare,
