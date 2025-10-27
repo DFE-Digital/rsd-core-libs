@@ -86,6 +86,54 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
 
         [Theory]
         [CustomAutoData()]
+        public async Task GetAsync_ShouldReturnCachedValue_WhenCacheKeyExists(string cacheKey, string methodName, string expectedValue)
+        {
+            // Arrange
+            _memoryCache.TryGetValue(cacheKey, out Arg.Any<object>())
+                .Returns(x =>
+                {
+                    x[1] = expectedValue;
+                    return true;
+                });
+
+            // Act
+            var result = await _cacheService.GetAsync<string>(cacheKey);
+
+            // Assert
+            Assert.Equal(expectedValue, result);
+            _memoryCache.Received(1).TryGetValue(cacheKey, out Arg.Any<object>());
+            _logger.Received(1).Log(
+                LogLevel.Information,
+                Arg.Any<EventId>(),
+                Arg.Is<object>(v => v.ToString()!.Contains($"Cache hit for key: {cacheKey}")),
+                Arg.Any<Exception>(),
+                Arg.Any<Func<object, Exception, string>>()!);
+        }
+
+        [Theory]
+        [CustomAutoData()]
+        public async Task GetAsync_ShouldReturnDefault_WhenCacheKeyDoesNotExist(string cacheKey, string methodName)
+        {
+            // Arrange
+            _memoryCache.TryGetValue(cacheKey, out Arg.Any<object>())
+                .Returns(false);
+
+            // Act
+            var result = await _cacheService.GetAsync<string>(cacheKey);
+
+            // Assert
+            Assert.Null(result);
+            _memoryCache.Received(1).TryGetValue(cacheKey, out Arg.Any<object>());
+            _logger.Received(1).Log(
+                LogLevel.Information,
+                Arg.Any<EventId>(),
+                Arg.Is<object>(v => v.ToString()!.Contains($"Cache miss for key: {cacheKey}")),
+                Arg.Any<Exception>(),
+                Arg.Any<Func<object, Exception, string>>()!);
+        }
+
+        [Theory]
+        [CustomAutoData()]
         public void Remove_ShouldRemoveValueFromCache_WhenCalled(string cacheKey)
         {
             // Act

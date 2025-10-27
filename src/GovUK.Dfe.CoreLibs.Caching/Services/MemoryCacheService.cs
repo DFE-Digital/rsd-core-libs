@@ -34,6 +34,20 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
             return result;
         }
 
+        public async Task<T?> GetAsync<T>(string cacheKey)
+        {
+            await Task.CompletedTask; // Keep async signature for interface consistency
+
+            if (memoryCache.TryGetValue(cacheKey, out T? cachedValue))
+            {
+                logger.LogInformation("Cache hit for key: {CacheKey}", cacheKey);
+                return cachedValue;
+            }
+
+            logger.LogInformation("Cache miss for key: {CacheKey}", cacheKey);
+            return default(T);
+        }
+
         public void Remove(string cacheKey)
         {
             memoryCache.Remove(cacheKey);

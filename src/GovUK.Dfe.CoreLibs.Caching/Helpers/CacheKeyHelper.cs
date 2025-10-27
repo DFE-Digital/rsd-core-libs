@@ -38,6 +38,52 @@ namespace GovUK.Dfe.CoreLibs.Caching.Helpers
 
             return GenerateHashedCacheKey(concatenatedInput);
         }
+
+        /// <summary>
+        /// Computes the SHA-256 hash of the provided stream and returns it as an uppercase hexadecimal string.
+        /// </summary>
+        /// <param name="fileStream">
+        /// The stream to compute the hash for. The stream must be readable and positioned
+        /// at the beginning of the data to hash.
+        /// </param>
+        /// <returns>
+        /// A 64-character uppercase hexadecimal string representing the SHA-256 hash of the stream’s contents.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="fileStream"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException">Thrown if the stream cannot be read.</exception>
+        public static string ComputeSha256(Stream fileStream)
+        {
+            if (fileStream == null)
+                throw new ArgumentNullException(nameof(fileStream), "File stream cannot be null.");
+
+            if (!fileStream.CanRead)
+                throw new ArgumentException("File stream must be readable.", nameof(fileStream));
+
+            // Remember the original position if the stream supports seeking.
+            long originalPosition = 0;
+            if (fileStream.CanSeek)
+            {
+                originalPosition = fileStream.Position;
+                fileStream.Position = 0;
+            }
+
+            try
+            {
+                using var sha = SHA256.Create();
+                var hashBytes = sha.ComputeHash(fileStream);
+
+                // Convert the hash bytes to an uppercase hexadecimal string.
+                return Convert.ToHexString(hashBytes);
+            }
+            finally
+            {
+                // Restore the stream position so callers can continue using it if needed.
+                if (fileStream.CanSeek)
+                {
+                    fileStream.Position = originalPosition;
+                }
+            }
+        }
     }
 
 }
