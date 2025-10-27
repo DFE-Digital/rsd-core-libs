@@ -15,13 +15,15 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
         private readonly MemoryCacheSettings _cacheSettings = cacheSettings.Value.Memory;
         public Type CacheType => typeof(IMemoryCacheType);
 
-        public async Task<T> GetOrAddAsync<T>(string cacheKey, Func<Task<T>> fetchFunction, string methodName)
+        public async Task<T> GetOrAddAsync<T>(string cacheKey, Func<Task<T>> fetchFunction, string methodName, CancellationToken cancellationToken = default)
         {
             if (memoryCache.TryGetValue(cacheKey, out T? cachedValue))
             {
                 logger.LogInformation("Cache hit for key: {CacheKey}", cacheKey);
                 return cachedValue!;
             }
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             logger.LogInformation("Cache miss for key: {CacheKey}. Fetching from source...", cacheKey);
             var result = await fetchFunction();
