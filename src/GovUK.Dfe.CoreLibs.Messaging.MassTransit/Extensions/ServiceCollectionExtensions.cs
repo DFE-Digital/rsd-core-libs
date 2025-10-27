@@ -12,6 +12,27 @@ namespace GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions
 {
     public static class ServiceCollectionExtensions
     {
+        private static string GetServiceBusConnectionString(IConfiguration configuration, MassTransitSettings settings)
+        {
+            // First, check ConnectionStrings:ServiceBus
+            var connectionString = configuration.GetConnectionString("ServiceBus");
+
+            if (!string.IsNullOrEmpty(connectionString))
+            {
+                return connectionString;
+            }
+
+            // Fall back to MassTransit:AzureServiceBus:ConnectionString
+            if (!string.IsNullOrEmpty(settings.AzureServiceBus.ConnectionString))
+            {
+                return settings.AzureServiceBus.ConnectionString;
+            }
+
+            throw new InvalidOperationException(
+                "Azure Service Bus connection string is required but not configured. " +
+                "Please configure either 'ConnectionStrings:ServiceBus' or 'MassTransit:AzureServiceBus:ConnectionString'");
+        }
+
         public static IServiceCollection AddDfEMassTransit(
             this IServiceCollection services,
             IConfiguration configuration,
@@ -37,9 +58,11 @@ namespace GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions
                 switch (settings.Transport)
                 {
                     case TransportType.AzureServiceBus:
+                        var connectionString = GetServiceBusConnectionString(configuration, settings);
+                        
                         x.UsingAzureServiceBus((context, cfg) =>
                         {
-                            cfg.Host(settings.AzureServiceBus.ConnectionString, hostCfg =>
+                            cfg.Host(connectionString, hostCfg =>
                             {
                                 hostCfg.TransportType = settings.AzureServiceBus.UseWebSockets
                                     ? ServiceBusTransportType.AmqpWebSockets

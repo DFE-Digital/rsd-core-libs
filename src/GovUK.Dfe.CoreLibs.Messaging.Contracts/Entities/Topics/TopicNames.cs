@@ -2,7 +2,7 @@
 {
     public static class TopicNames
     {
-        public const string ScanRequests = "scan-requests";
-        public const string ScanResult = "scan-result";
+        public const string ScanRequests = "file-scanner-requests";
+        public const string ScanResult = "file-scanner-results";
     }
 }

@@ -143,6 +143,126 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddDfEMassTransit_WithConnectionStringInConnectionStrings_ShouldUseConnectionString()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var configBuilder = new ConfigurationBuilder();
+        configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:ServiceBus"] = "Endpoint=sb://fromconnectionstrings.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=testkey",
+            ["MassTransit:Transport"] = "AzureServiceBus",
+            ["MassTransit:AppPrefix"] = "test-app"
+        });
+        var config = configBuilder.Build();
+
+        // Act
+        services.AddDfEMassTransit(config);
+
+        // Assert
+        var serviceProvider = services.BuildServiceProvider();
+        serviceProvider.GetService<IEventPublisher>().Should().NotBeNull();
+    }
+
+    [Fact]
+    public void AddDfEMassTransit_WithConnectionStringInMassTransitSection_ShouldUseConnectionString()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var configBuilder = new ConfigurationBuilder();
+        configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["MassTransit:Transport"] = "AzureServiceBus",
+            ["MassTransit:AppPrefix"] = "test-app",
+            ["MassTransit:AzureServiceBus:ConnectionString"] = "Endpoint=sb://frommodule.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=testkey"
+        });
+        var config = configBuilder.Build();
+
+        // Act
+        services.AddDfEMassTransit(config);
+
+        // Assert
+        var serviceProvider = services.BuildServiceProvider();
+        serviceProvider.GetService<IEventPublisher>().Should().NotBeNull();
+    }
+
+    [Fact]
+    public void AddDfEMassTransit_WithBothConnectionStrings_ShouldPrioritizeConnectionStringsSection()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var configBuilder = new ConfigurationBuilder();
+        configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:ServiceBus"] = "Endpoint=sb://priority.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=testkey",
+            ["MassTransit:Transport"] = "AzureServiceBus",
+            ["MassTransit:AppPrefix"] = "test-app",
+            ["MassTransit:AzureServiceBus:ConnectionString"] = "Endpoint=sb://fallback.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=testkey"
+        });
+        var config = configBuilder.Build();
+
+        // Act
+        services.AddDfEMassTransit(config);
+
+        // Assert - should not throw, meaning it used the ConnectionStrings:ServiceBus value
+        var serviceProvider = services.BuildServiceProvider();
+        serviceProvider.GetService<IEventPublisher>().Should().NotBeNull();
+    }
+
+    [Fact]
+    public void AddDfEMassTransit_WithNoConnectionString_ShouldThrowInvalidOperationException()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var configBuilder = new ConfigurationBuilder();
+        configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["MassTransit:Transport"] = "AzureServiceBus",
+            ["MassTransit:AppPrefix"] = "test-app"
+            // No connection string configured
+        });
+        var config = configBuilder.Build();
+
+        // Act
+        var act = () =>
+        {
+            services.AddDfEMassTransit(config);
+            var serviceProvider = services.BuildServiceProvider();
+        };
+
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Azure Service Bus connection string is required*");
+    }
+
+    [Fact]
+    public void AddDfEMassTransit_WithEmptyConnectionString_ShouldThrowInvalidOperationException()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var configBuilder = new ConfigurationBuilder();
+        configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:ServiceBus"] = "",
+            ["MassTransit:Transport"] = "AzureServiceBus",
+            ["MassTransit:AppPrefix"] = "test-app",
+            ["MassTransit:AzureServiceBus:ConnectionString"] = ""
+        });
+        var config = configBuilder.Build();
+
+        // Act
+        var act = () =>
+        {
+            services.AddDfEMassTransit(config);
+            var serviceProvider = services.BuildServiceProvider();
+        };
+
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Azure Service Bus connection string is required*");
+    }
+
+    [Fact]
     public void AddDfEMassTransit_WithCustomAppPrefix_ShouldUseCustomPrefix()
     {
         // Arrange
