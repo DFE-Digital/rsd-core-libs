@@ -1,11 +1,9 @@
 ﻿using Azure.Messaging.ServiceBus.Administration;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Constants;
 using Microsoft.Extensions.Logging;
-using System.Diagnostics.CodeAnalysis;
 
 namespace GovUK.Dfe.CoreLibs.Messaging.MassTransit.Helpers
 {
-    [ExcludeFromCodeCoverage] // Requires real Azure Service Bus connection for testing
     public static class ServiceBusAdminHelper
     {
         public static async Task EnsureEntitiesExistAsync(string connectionString, ILogger logger)

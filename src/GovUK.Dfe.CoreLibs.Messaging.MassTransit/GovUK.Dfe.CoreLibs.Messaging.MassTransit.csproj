@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="GovUK.Dfe.CoreLibs.Messaging.MassTransit.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="MassTransit" Version="8.5.5" />
     <PackageReference Include="MassTransit.Azure.ServiceBus.Core" Version="8.5.5" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />

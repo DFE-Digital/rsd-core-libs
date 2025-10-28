@@ -21,7 +21,7 @@ namespace GovUK.Dfe.CoreLibs.Messaging.MassTransit.Publishers
             }, cancellationToken);
         }
 
-        private static void ApplyMessageProperties(PublishContext context, AzureServiceBusMessageProperties properties)
+        internal static void ApplyMessageProperties(PublishContext context, AzureServiceBusMessageProperties properties)
         {
             // Set system properties
             if (!string.IsNullOrWhiteSpace(properties.ContentType))
