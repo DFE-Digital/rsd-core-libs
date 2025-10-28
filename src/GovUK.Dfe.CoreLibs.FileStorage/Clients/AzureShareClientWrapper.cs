@@ -35,9 +35,30 @@ internal class AzureShareClientWrapper(string connectionString, string shareName
     {
         ArgumentNullException.ThrowIfNull(path);
 
-        var directory = _shareClient.GetRootDirectoryClient();
-        await directory.CreateIfNotExistsAsync(cancellationToken: token);
-        var fileClient = directory.GetFileClient(path);
-        return new AzureShareFileClient(fileClient);
+		// Ensure the share exists (safe for Azure Files)
+		await _shareClient.CreateIfNotExistsAsync(cancellationToken: token);
+
+		// Normalize and split the provided path into directory segments and file name
+		var normalized = path.Replace('\\', '/').Trim('/');
+		var fileName = System.IO.Path.GetFileName(normalized);
+		var dirPath = normalized.Length > fileName.Length
+			? normalized.Substring(0, normalized.Length - fileName.Length).TrimEnd('/')
+			: string.Empty;
+
+		// Start from the implicit root directory (must not be created explicitly)
+		var directory = _shareClient.GetRootDirectoryClient();
+
+		// Create subdirectories if any (skip root)
+		if (!string.IsNullOrEmpty(dirPath))
+		{
+			foreach (var segment in dirPath.Split('/', StringSplitOptions.RemoveEmptyEntries))
+			{
+				directory = directory.GetSubdirectoryClient(segment);
+				await directory.CreateIfNotExistsAsync(cancellationToken: token);
+			}
+		}
+
+		var fileClient = directory.GetFileClient(fileName);
+		return new AzureShareFileClient(fileClient);
     }
 }

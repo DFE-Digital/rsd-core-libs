@@ -9,4 +9,5 @@ internal interface IShareFileClient
     Task<Stream> DownloadAsync(CancellationToken token = default);
     Task DeleteIfExistsAsync(CancellationToken token = default);
     Task<bool> ExistsAsync(CancellationToken token = default);
+    Task<string> GenerateSasUriAsync(DateTimeOffset expiresOn, string permissions, CancellationToken token = default);
 }

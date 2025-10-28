@@ -38,13 +38,38 @@ public static class ServiceCollectionExtensions
         return options.Provider.ToLowerInvariant() switch
         {
             "azure" => ValidateAzureConfiguration(options) ? 
-                services.AddSingleton<IFileStorageService, AzureFileStorageService>() : 
+                RegisterAzureServices(services) : 
                 throw new FileStorageConfigurationException("Invalid Azure File Storage configuration. ConnectionString and ShareName are required."),
             "local" => ValidateLocalConfiguration(options) ? 
-                services.AddSingleton<IFileStorageService, LocalFileStorageService>() : 
+                RegisterLocalServices(services) : 
                 throw new FileStorageConfigurationException("Invalid Local File Storage configuration."),
+            "hybrid" => ValidateHybridConfiguration(options) ? 
+                RegisterHybridServices(services) : 
+                throw new FileStorageConfigurationException("Invalid Hybrid File Storage configuration. Both Local and Azure configurations are required."),
             _ => throw new FileStorageConfigurationException($"Unsupported file storage provider: {options.Provider}")
         };
+    }
+
+    private static IServiceCollection RegisterAzureServices(IServiceCollection services)
+    {
+        services.AddSingleton<IFileStorageService, AzureFileStorageService>();
+        services.AddSingleton<IAzureSpecificOperations>(sp => 
+            (AzureFileStorageService)sp.GetRequiredService<IFileStorageService>());
+        return services;
+    }
+
+    private static IServiceCollection RegisterLocalServices(IServiceCollection services)
+    {
+        services.AddSingleton<IFileStorageService, LocalFileStorageService>();
+        return services;
+    }
+
+    private static IServiceCollection RegisterHybridServices(IServiceCollection services)
+    {
+        services.AddSingleton<IFileStorageService, HybridFileStorageService>();
+        services.AddSingleton<IAzureSpecificOperations>(sp => 
+            (HybridFileStorageService)sp.GetRequiredService<IFileStorageService>());
+        return services;
     }
 
     private static bool ValidateAzureConfiguration(FileStorageOptions options)
@@ -57,5 +82,12 @@ public static class ServiceCollectionExtensions
     {
         // Local configuration is always valid as it has sensible defaults
         return true;
+    }
+
+    private static bool ValidateHybridConfiguration(FileStorageOptions options)
+    {
+        // Hybrid mode requires both local and Azure configurations
+        // Local is always valid, so we just need to check Azure
+        return ValidateAzureConfiguration(options);
     }
 }
