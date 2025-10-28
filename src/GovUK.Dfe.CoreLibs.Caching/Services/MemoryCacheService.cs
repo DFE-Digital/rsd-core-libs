@@ -15,13 +15,15 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
         private readonly MemoryCacheSettings _cacheSettings = cacheSettings.Value.Memory;
         public Type CacheType => typeof(IMemoryCacheType);
 
-        public async Task<T> GetOrAddAsync<T>(string cacheKey, Func<Task<T>> fetchFunction, string methodName)
+        public async Task<T> GetOrAddAsync<T>(string cacheKey, Func<Task<T>> fetchFunction, string methodName, CancellationToken cancellationToken = default)
         {
             if (memoryCache.TryGetValue(cacheKey, out T? cachedValue))
             {
                 logger.LogInformation("Cache hit for key: {CacheKey}", cacheKey);
                 return cachedValue!;
             }
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             logger.LogInformation("Cache miss for key: {CacheKey}. Fetching from source...", cacheKey);
             var result = await fetchFunction();
@@ -32,6 +34,20 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
             logger.LogInformation("Cached result for key: {CacheKey} for duration: {CacheDuration}", cacheKey, cacheDuration);
 
             return result;
+        }
+
+        public async Task<T?> GetAsync<T>(string cacheKey)
+        {
+            await Task.CompletedTask; // Keep async signature for interface consistency
+
+            if (memoryCache.TryGetValue(cacheKey, out T? cachedValue))
+            {
+                logger.LogInformation("Cache hit for key: {CacheKey}", cacheKey);
+                return cachedValue;
+            }
+
+            logger.LogInformation("Cache miss for key: {CacheKey}", cacheKey);
+            return default(T);
         }
 
         public void Remove(string cacheKey)
