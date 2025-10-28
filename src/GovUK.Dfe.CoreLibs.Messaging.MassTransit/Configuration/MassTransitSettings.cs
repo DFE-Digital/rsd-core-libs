@@ -27,5 +27,12 @@ namespace GovUK.Dfe.CoreLibs.Messaging.MassTransit.Configuration
         /// Set to true only in development environments if you want automatic entity creation.
         /// </summary>
         public bool AutoCreateEntities { get; set; } = false;
+        
+        /// <summary>
+        /// Determines whether to automatically configure receive endpoints using cfg.ConfigureEndpoints(context).
+        /// Default is true - set to false if you want full manual control over endpoint configuration using SubscriptionEndpoint, ReceiveEndpoint, etc.
+        /// When false, you must manually configure all endpoints in the configureAzureServiceBus callback.
+        /// </summary>
+        public bool AutoConfigureEndpoints { get; set; } = true;
     }
 }

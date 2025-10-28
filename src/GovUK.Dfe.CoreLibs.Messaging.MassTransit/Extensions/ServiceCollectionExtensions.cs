@@ -33,11 +33,21 @@ namespace GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions
                 "Please configure either 'ConnectionStrings:ServiceBus' or 'MassTransit:AzureServiceBus:ConnectionString'");
         }
 
+        /// <summary>
+        /// Adds DfE MassTransit configuration with support for advanced Azure Service Bus features.
+        /// </summary>
+        /// <param name="services">The service collection</param>
+        /// <param name="configuration">Application configuration</param>
+        /// <param name="configureConsumers">Optional: Configure consumers and sagas</param>
+        /// <param name="configureBus">Optional: Configure bus settings (for generic transport configuration)</param>
+        /// <param name="configureAzureServiceBus">Optional: Configure Azure Service Bus specific features (SubscriptionEndpoint, ReceiveEndpoint, Subscribe, SQL filters, etc.)</param>
+        /// <returns>The service collection for chaining</returns>
         public static IServiceCollection AddDfEMassTransit(
             this IServiceCollection services,
             IConfiguration configuration,
             Action<IBusRegistrationConfigurator>? configureConsumers = null,
-            Action<IBusRegistrationContext, IBusFactoryConfigurator>? configureBus = null
+            Action<IBusRegistrationContext, IBusFactoryConfigurator>? configureBus = null,
+            Action<IBusRegistrationContext, IServiceBusBusFactoryConfigurator>? configureAzureServiceBus = null
         )
         {
             services.AddOptions<MassTransitSettings>()
@@ -71,9 +81,19 @@ namespace GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions
 
                             cfg.DeployPublishTopology = settings.AzureServiceBus.AutoCreateEntities;
 
+                            // Generic bus configuration (applies to all transports)
                             configureBus?.Invoke(context, cfg);
 
-                            cfg.ConfigureEndpoints(context);
+                            // Azure Service Bus specific configuration
+                            // This is where users can access SubscriptionEndpoint, ReceiveEndpoint, Subscribe, SQL filters, etc.
+                            configureAzureServiceBus?.Invoke(context, cfg);
+
+                            // Only configure endpoints automatically if no custom Azure Service Bus configuration is provided
+                            // This gives users full control over endpoint configuration
+                            if (configureAzureServiceBus == null && settings.AzureServiceBus.AutoConfigureEndpoints)
+                            {
+                                cfg.ConfigureEndpoints(context);
+                            }
                         });
                         break;
 

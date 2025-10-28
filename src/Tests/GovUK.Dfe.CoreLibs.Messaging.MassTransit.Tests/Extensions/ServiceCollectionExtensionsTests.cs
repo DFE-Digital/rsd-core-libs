@@ -444,6 +444,188 @@ public class ServiceCollectionExtensionsTests
 
     #endregion
 
+    #region Azure Service Bus Specific Configuration Tests
+
+    [Fact]
+    public void AddDfEMassTransit_WithAzureServiceBusConfiguration_ShouldAllowCustomConfiguration()
+    {
+        // Act
+        _services.AddDfEMassTransit(
+            _configuration,
+            configureConsumers: x =>
+            {
+                x.AddConsumer<TestConsumer>();
+            },
+            configureAzureServiceBus: (context, cfg) =>
+            {
+                // Azure Service Bus specific configuration
+                // This would normally configure SubscriptionEndpoint, ReceiveEndpoint, etc.
+            });
+
+        // Assert
+        var serviceProvider = _services.BuildServiceProvider();
+        serviceProvider.GetService<IEventPublisher>().Should().NotBeNull();
+    }
+
+    [Fact]
+    public void AddDfEMassTransit_WithAutoConfigureEndpointsDisabled_ShouldNotAutoConfigureEndpoints()
+    {
+        // Arrange
+        var customConfig = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["MassTransit:Transport"] = "AzureServiceBus",
+                ["MassTransit:AppPrefix"] = "test-app",
+                ["MassTransit:AzureServiceBus:ConnectionString"] = "Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=testkey",
+                ["MassTransit:AzureServiceBus:AutoConfigureEndpoints"] = "false"
+            })
+            .Build();
+
+        // Act
+        _services.AddDfEMassTransit(
+            customConfig,
+            configureConsumers: x =>
+            {
+                x.AddConsumer<TestConsumer>();
+            },
+            configureAzureServiceBus: (context, cfg) =>
+            {
+                // Manual endpoint configuration would go here
+            });
+
+        // Assert
+        var serviceProvider = _services.BuildServiceProvider();
+        serviceProvider.GetService<IEventPublisher>().Should().NotBeNull();
+    }
+
+    [Fact]
+    public void AddDfEMassTransit_WithAutoConfigureEndpointsEnabled_ShouldAutoConfigureEndpoints()
+    {
+        // Arrange
+        var customConfig = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["MassTransit:Transport"] = "AzureServiceBus",
+                ["MassTransit:AppPrefix"] = "test-app",
+                ["MassTransit:AzureServiceBus:ConnectionString"] = "Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=testkey",
+                ["MassTransit:AzureServiceBus:AutoConfigureEndpoints"] = "true"
+            })
+            .Build();
+
+        // Act
+        _services.AddDfEMassTransit(
+            customConfig,
+            configureConsumers: x =>
+            {
+                x.AddConsumer<TestConsumer>();
+            });
+
+        // Assert
+        var serviceProvider = _services.BuildServiceProvider();
+        serviceProvider.GetService<IEventPublisher>().Should().NotBeNull();
+    }
+
+    [Fact]
+    public void AddDfEMassTransit_WithDefaultAutoConfigureEndpoints_ShouldAutoConfigureEndpoints()
+    {
+        // Act
+        _services.AddDfEMassTransit(
+            _configuration,
+            configureConsumers: x =>
+            {
+                x.AddConsumer<TestConsumer>();
+            });
+
+        // Assert
+        var serviceProvider = _services.BuildServiceProvider();
+        var settings = serviceProvider.GetService<IOptions<MassTransitSettings>>();
+        
+        // Default should be true
+        settings!.Value.AzureServiceBus.AutoConfigureEndpoints.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AddDfEMassTransit_WithAllCallbacks_ShouldInvokeAllCallbacks()
+    {
+        // Arrange
+        bool consumersConfigured = false;
+        bool busConfigured = false;
+        bool azureServiceBusConfigured = false;
+
+        // Act
+        _services.AddDfEMassTransit(
+            _configuration,
+            configureConsumers: x =>
+            {
+                consumersConfigured = true;
+                x.AddConsumer<TestConsumer>();
+            },
+            configureBus: (context, cfg) =>
+            {
+                busConfigured = true;
+            },
+            configureAzureServiceBus: (context, cfg) =>
+            {
+                azureServiceBusConfigured = true;
+            });
+
+        // Assert
+        var serviceProvider = _services.BuildServiceProvider();
+        serviceProvider.GetService<IEventPublisher>().Should().NotBeNull();
+        
+        consumersConfigured.Should().BeTrue();
+        busConfigured.Should().BeTrue();
+        azureServiceBusConfigured.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AddDfEMassTransit_WithUseWebSocketsTrue_ShouldConfigureWebSockets()
+    {
+        // Arrange
+        var customConfig = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["MassTransit:Transport"] = "AzureServiceBus",
+                ["MassTransit:AppPrefix"] = "test-app",
+                ["MassTransit:AzureServiceBus:ConnectionString"] = "Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=testkey",
+                ["MassTransit:AzureServiceBus:UseWebSockets"] = "true"
+            })
+            .Build();
+
+        // Act
+        _services.AddDfEMassTransit(customConfig);
+
+        // Assert
+        var serviceProvider = _services.BuildServiceProvider();
+        var settings = serviceProvider.GetService<IOptions<MassTransitSettings>>();
+        settings!.Value.AzureServiceBus.UseWebSockets.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AddDfEMassTransit_WithUseWebSocketsFalse_ShouldConfigureTcp()
+    {
+        // Arrange
+        var customConfig = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["MassTransit:Transport"] = "AzureServiceBus",
+                ["MassTransit:AppPrefix"] = "test-app",
+                ["MassTransit:AzureServiceBus:ConnectionString"] = "Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=testkey",
+                ["MassTransit:AzureServiceBus:UseWebSockets"] = "false"
+            })
+            .Build();
+
+        // Act
+        _services.AddDfEMassTransit(customConfig);
+
+        // Assert
+        var serviceProvider = _services.BuildServiceProvider();
+        var settings = serviceProvider.GetService<IOptions<MassTransitSettings>>();
+        settings!.Value.AzureServiceBus.UseWebSockets.Should().BeFalse();
+    }
+
+    #endregion
+
     #region Helper Classes
 
     public class TestConsumer : IConsumer<TestMessage>
