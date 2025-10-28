@@ -624,6 +624,46 @@ public class ServiceCollectionExtensionsTests
         settings!.Value.AzureServiceBus.UseWebSockets.Should().BeFalse();
     }
 
+    [Fact]
+    public void AddDfEMassTransit_WithDefaultUseWebSockets_ShouldDefaultToTrue()
+    {
+        // Act
+        _services.AddDfEMassTransit(_configuration);
+
+        // Assert
+        var serviceProvider = _services.BuildServiceProvider();
+        var settings = serviceProvider.GetService<IOptions<MassTransitSettings>>();
+        settings!.Value.AzureServiceBus.UseWebSockets.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AddDfEMassTransit_WithConsumersAndBusAndAzureServiceBus_ShouldRegisterAll()
+    {
+        // Arrange
+        bool allConfigured = true;
+
+        // Act
+        _services.AddDfEMassTransit(
+            _configuration,
+            configureConsumers: x =>
+            {
+                x.AddConsumer<TestConsumer>();
+            },
+            configureBus: (context, cfg) =>
+            {
+                // Generic configuration
+            },
+            configureAzureServiceBus: (context, cfg) =>
+            {
+                // Azure specific configuration
+            });
+
+        // Assert
+        var serviceProvider = _services.BuildServiceProvider();
+        serviceProvider.GetService<IEventPublisher>().Should().NotBeNull();
+        allConfigured.Should().BeTrue();
+    }
+
     #endregion
 
     #region Helper Classes

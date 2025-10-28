@@ -315,6 +315,132 @@ public class MassTransitEventPublisherTests
         await act.Should().NotThrowAsync();
     }
 
+    [Fact]
+    public async Task PublishAsync_WithPropertiesAndCancellationToken_ShouldNotThrow()
+    {
+        // Arrange
+        var testEvent = new TestEvent { Id = Guid.NewGuid(), Name = "Test" };
+        var properties = new AzureServiceBusMessageProperties
+        {
+            Subject = "Test Subject",
+            ContentType = "application/json"
+        };
+        var cancellationToken = new CancellationToken();
+
+        // Act & Assert
+        var act = async () => await _publisher.PublishAsync(testEvent, properties, cancellationToken);
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task PublishAsync_WithPropertiesAndDefaultCancellationToken_ShouldNotThrow()
+    {
+        // Arrange
+        var testEvent = new TestEvent { Id = Guid.NewGuid(), Name = "Test" };
+        var properties = new AzureServiceBusMessageProperties
+        {
+            Subject = "Test Subject"
+        };
+
+        // Act & Assert
+        var act = async () => await _publisher.PublishAsync(testEvent, properties);
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task PublishAsync_WithMultipleCustomProperties_ShouldNotThrow()
+    {
+        // Arrange
+        var testEvent = new TestEvent { Id = Guid.NewGuid(), Name = "Test" };
+        var properties = new AzureServiceBusMessageProperties();
+        properties.AddCustomProperties(new Dictionary<string, object>
+        {
+            { "Property1", "Value1" },
+            { "Property2", 123 },
+            { "Property3", true }
+        });
+
+        // Act & Assert
+        var act = async () => await _publisher.PublishAsync(testEvent, properties);
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task PublishAsync_WithZeroTimeToLive_ShouldNotThrow()
+    {
+        // Arrange
+        var testEvent = new TestEvent { Id = Guid.NewGuid(), Name = "Test" };
+        var properties = new AzureServiceBusMessageProperties
+        {
+            TimeToLive = TimeSpan.Zero
+        };
+
+        // Act & Assert
+        var act = async () => await _publisher.PublishAsync(testEvent, properties);
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task PublishAsync_WithPastScheduledEnqueueTime_ShouldNotThrow()
+    {
+        // Arrange
+        var testEvent = new TestEvent { Id = Guid.NewGuid(), Name = "Test" };
+        var properties = new AzureServiceBusMessageProperties
+        {
+            ScheduledEnqueueTime = DateTimeOffset.UtcNow.AddHours(-1)
+        };
+
+        // Act & Assert
+        var act = async () => await _publisher.PublishAsync(testEvent, properties);
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task PublishAsync_MultipleEventsSequentially_ShouldAllSucceed()
+    {
+        // Arrange
+        var events = Enumerable.Range(1, 10)
+            .Select(i => new TestEvent { Id = Guid.NewGuid(), Name = $"Event {i}" })
+            .ToList();
+
+        // Act & Assert
+        foreach (var testEvent in events)
+        {
+            var act = async () => await _publisher.PublishAsync(testEvent);
+            await act.Should().NotThrowAsync();
+        }
+
+        // Verify all were published
+        await _publishEndpoint.Received(10).Publish(Arg.Any<TestEvent>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PublishAsync_WithPropertiesUsingBuilder_CoverAllBranches()
+    {
+        // Arrange - Test with every property set to cover all conditional branches
+        var testEvent = new TestEvent { Id = Guid.NewGuid(), Name = "Full Test" };
+        var properties = new AzureServiceBusMessageProperties
+        {
+            ContentType = "text/plain",
+            CorrelationId = Guid.NewGuid().ToString(),
+            MessageId = Guid.NewGuid().ToString(),
+            PartitionKey = "key-1",
+            SessionId = "session-1",
+            ReplyTo = "reply-address",
+            ReplyToSessionId = "reply-session-1",
+            TimeToLive = TimeSpan.FromHours(1),
+            ScheduledEnqueueTime = DateTimeOffset.UtcNow.AddMinutes(5),
+            Subject = "Test Subject",
+            To = "destination"
+        };
+        properties.AddCustomProperty("CustomKey1", "CustomValue1");
+        properties.AddCustomProperty("CustomKey2", 42);
+
+        // Act & Assert
+        var act = async () => await _publisher.PublishAsync(testEvent, properties);
+        await act.Should().NotThrowAsync();
+    }
+
     #endregion
 
     #region Helper Classes
