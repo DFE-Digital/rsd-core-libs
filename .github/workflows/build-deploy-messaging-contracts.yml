@@ -1,0 +1,32 @@
+name: CI & Pack GovUK.Dfe.CoreLibs.Messaging.Contracts
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "src/GovUK.Dfe.CoreLibs.Messaging.Contracts/**"
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "src/GovUK.Dfe.CoreLibs.Messaging.Contracts/**"
+
+
+jobs:
+  build-and-test:
+    uses: ./.github/workflows/build-test-template.yml
+    with:
+      project_name: GovUK.Dfe.CoreLibs.Messaging.Contracts
+      project_path: src/GovUK.Dfe.CoreLibs.Messaging.Contracts
+      run_tests: false
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  pack-and-release:
+    needs: build-and-test
+    if: needs.build-and-test.result == 'success'
+    uses: ./.github/workflows/pack-template.yml
+    with:
+      project_name: GovUK.Dfe.CoreLibs.Messaging.Contracts
+      project_path: src/GovUK.Dfe.CoreLibs.Messaging.Contracts/GovUK.Dfe.CoreLibs.Messaging.Contracts.csproj
+    secrets:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

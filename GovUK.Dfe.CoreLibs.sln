@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.10.35122.118
@@ -35,7 +35,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GovUK.Dfe.CoreLibs.FileStor
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GovUK.Dfe.CoreLibs.TestPackage", "src\GovUK.Dfe.CoreLibs.TestPackage\GovUK.Dfe.CoreLibs.TestPackage.csproj", "{4A462F11-4D5B-4AF4-864C-0964362F5345}"
 EndProject
-
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GovUK.Dfe.CoreLibs.Notifications", "src\GovUK.Dfe.CoreLibs.Notifications\GovUK.Dfe.CoreLibs.Notifications.csproj", "{7C2F9D9F-8B6E-5A0F-AC4B-2D3E4F5A6B7C}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GovUK.Dfe.CoreLibs.Notifications.Tests", "src\Tests\GovUK.Dfe.CoreLibs.Notifications.Tests\GovUK.Dfe.CoreLibs.Notifications.Tests.csproj", "{8D3F0E0F-9C7F-6B1F-BD5C-3E4F5A6B7C8D}"
@@ -43,6 +42,12 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GovUK.Dfe.CoreLibs.Email", "src\GovUK.Dfe.CoreLibs.Email\GovUK.Dfe.CoreLibs.Email.csproj", "{9E4F1A1B-2C3D-4E5F-A6B7-C8D9E0F1A2B3}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GovUK.Dfe.CoreLibs.Email.Tests", "src\Tests\GovUK.Dfe.CoreLibs.Email.Tests\GovUK.Dfe.CoreLibs.Email.Tests.csproj", "{1F2A3B4C-5D6E-7F8A-9B0C-1D2E3F4A5B6C}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GovUK.Dfe.CoreLibs.Messaging.Contracts", "src\GovUK.Dfe.CoreLibs.Messaging.Contracts\GovUK.Dfe.CoreLibs.Messaging.Contracts.csproj", "{AE3CA0E3-A51D-42DD-9DBA-273F679F66AE}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GovUK.Dfe.CoreLibs.Messaging.MassTransit", "src\GovUK.Dfe.CoreLibs.Messaging.MassTransit\GovUK.Dfe.CoreLibs.Messaging.MassTransit.csproj", "{B4EBEB86-ED60-4E4D-BDF2-DAB06CF54E84}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GovUK.Dfe.CoreLibs.Messaging.MassTransit.Tests", "src\Tests\GovUK.Dfe.CoreLibs.Messaging.MassTransit.Tests\GovUK.Dfe.CoreLibs.Messaging.MassTransit.Tests.csproj", "{1EA0F5A0-759C-4FF5-8C2C-CF4D4ACE252F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -109,7 +114,6 @@ Global
 		{4A462F11-4D5B-4AF4-864C-0964362F5345}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4A462F11-4D5B-4AF4-864C-0964362F5345}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4A462F11-4D5B-4AF4-864C-0964362F5345}.Release|Any CPU.Build.0 = Release|Any CPU
-
 		{7C2F9D9F-8B6E-5A0F-AC4B-2D3E4F5A6B7C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{7C2F9D9F-8B6E-5A0F-AC4B-2D3E4F5A6B7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7C2F9D9F-8B6E-5A0F-AC4B-2D3E4F5A6B7C}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -126,6 +130,18 @@ Global
 		{1F2A3B4C-5D6E-7F8A-9B0C-1D2E3F4A5B6C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1F2A3B4C-5D6E-7F8A-9B0C-1D2E3F4A5B6C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1F2A3B4C-5D6E-7F8A-9B0C-1D2E3F4A5B6C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AE3CA0E3-A51D-42DD-9DBA-273F679F66AE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AE3CA0E3-A51D-42DD-9DBA-273F679F66AE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AE3CA0E3-A51D-42DD-9DBA-273F679F66AE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AE3CA0E3-A51D-42DD-9DBA-273F679F66AE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B4EBEB86-ED60-4E4D-BDF2-DAB06CF54E84}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B4EBEB86-ED60-4E4D-BDF2-DAB06CF54E84}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B4EBEB86-ED60-4E4D-BDF2-DAB06CF54E84}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B4EBEB86-ED60-4E4D-BDF2-DAB06CF54E84}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1EA0F5A0-759C-4FF5-8C2C-CF4D4ACE252F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1EA0F5A0-759C-4FF5-8C2C-CF4D4ACE252F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1EA0F5A0-759C-4FF5-8C2C-CF4D4ACE252F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1EA0F5A0-759C-4FF5-8C2C-CF4D4ACE252F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -139,6 +155,7 @@ Global
 		{F6C61BB2-F98D-4013-AAD6-C6F2135B5D74} = {3F89DCAD-8EC7-41ED-A08F-A9EFAE263EB4}
 		{8D3F0E0F-9C7F-6B1F-BD5C-3E4F5A6B7C8D} = {3F89DCAD-8EC7-41ED-A08F-A9EFAE263EB4}
 		{1F2A3B4C-5D6E-7F8A-9B0C-1D2E3F4A5B6C} = {3F89DCAD-8EC7-41ED-A08F-A9EFAE263EB4}
+		{1EA0F5A0-759C-4FF5-8C2C-CF4D4ACE252F} = {3F89DCAD-8EC7-41ED-A08F-A9EFAE263EB4}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {01D11FBC-6C66-43E4-8F1F-46B105EDD95C}
