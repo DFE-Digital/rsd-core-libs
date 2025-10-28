@@ -86,6 +86,54 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
 
         [Theory]
         [CustomAutoData()]
+        public async Task GetAsync_ShouldReturnCachedValue_WhenCacheKeyExists(string cacheKey, string methodName, string expectedValue)
+        {
+            // Arrange
+            _memoryCache.TryGetValue(cacheKey, out Arg.Any<object>())
+                .Returns(x =>
+                {
+                    x[1] = expectedValue;
+                    return true;
+                });
+
+            // Act
+            var result = await _cacheService.GetAsync<string>(cacheKey);
+
+            // Assert
+            Assert.Equal(expectedValue, result);
+            _memoryCache.Received(1).TryGetValue(cacheKey, out Arg.Any<object>());
+            _logger.Received(1).Log(
+                LogLevel.Information,
+                Arg.Any<EventId>(),
+                Arg.Is<object>(v => v.ToString()!.Contains($"Cache hit for key: {cacheKey}")),
+                Arg.Any<Exception>(),
+                Arg.Any<Func<object, Exception, string>>()!);
+        }
+
+        [Theory]
+        [CustomAutoData()]
+        public async Task GetAsync_ShouldReturnDefault_WhenCacheKeyDoesNotExist(string cacheKey, string methodName)
+        {
+            // Arrange
+            _memoryCache.TryGetValue(cacheKey, out Arg.Any<object>())
+                .Returns(false);
+
+            // Act
+            var result = await _cacheService.GetAsync<string>(cacheKey);
+
+            // Assert
+            Assert.Null(result);
+            _memoryCache.Received(1).TryGetValue(cacheKey, out Arg.Any<object>());
+            _logger.Received(1).Log(
+                LogLevel.Information,
+                Arg.Any<EventId>(),
+                Arg.Is<object>(v => v.ToString()!.Contains($"Cache miss for key: {cacheKey}")),
+                Arg.Any<Exception>(),
+                Arg.Any<Func<object, Exception, string>>()!);
+        }
+
+        [Theory]
+        [CustomAutoData()]
         public void Remove_ShouldRemoveValueFromCache_WhenCalled(string cacheKey)
         {
             // Act
@@ -99,6 +147,91 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
                 Arg.Is<object>(v => v.ToString()!.Contains($"Cache removed for key: {cacheKey}")),
                 Arg.Any<Exception>(),
                 Arg.Any<Func<object, Exception, string>>()!);
+        }
+
+        [Theory]
+        [CustomAutoData()]
+        public async Task GetOrAddAsync_ShouldRespectCancellationToken_WhenCancelled(string cacheKey, string methodName)
+        {
+            // Arrange
+            var cts = new CancellationTokenSource();
+            cts.Cancel(); // Cancel immediately
+
+            _memoryCache.TryGetValue(cacheKey, out Arg.Any<object>()).Returns(false);
+
+            // Act & Assert
+            // TaskCanceledException is a subclass of OperationCanceledException
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => 
+                await _cacheService.GetOrAddAsync(cacheKey, () => Task.FromResult("value"), methodName, cts.Token));
+        }
+
+        [Theory]
+        [CustomAutoData()]
+        public async Task GetOrAddAsync_ShouldNotThrowIfCancelled_WhenValueAlreadyCached(string cacheKey, string methodName)
+        {
+            // Arrange
+            var cachedValue = _fixture.Create<string>();
+            var cts = new CancellationTokenSource();
+            cts.Cancel(); // Cancel immediately
+
+            _memoryCache.TryGetValue(cacheKey, out Arg.Any<object>()!).Returns(x =>
+            {
+                x[1] = cachedValue;
+                return true;
+            });
+
+            // Act - should not throw because value is already in cache
+            var result = await _cacheService.GetOrAddAsync(cacheKey, () => Task.FromResult(cachedValue), methodName, cts.Token);
+
+            // Assert
+            Assert.Equal(cachedValue, result);
+        }
+
+        [Theory]
+        [CustomAutoData()]
+        public async Task GetOrAddAsync_ShouldUseCustomDuration_WhenMethodSpecificDurationExists(string cacheKey)
+        {
+            // Arrange
+            var expectedValue = _fixture.Create<string>();
+            var methodName = "TestMethod";
+            var expectedDuration = TimeSpan.FromSeconds(_cacheSettings.Durations[methodName]);
+
+            _memoryCache.TryGetValue(cacheKey, out Arg.Any<object>()).Returns(false);
+
+            // Act
+            var result = await _cacheService.GetOrAddAsync(cacheKey, () => Task.FromResult(expectedValue), methodName);
+
+            // Assert
+            Assert.Equal(expectedValue, result);
+            _memoryCache.Received(1).Set(cacheKey, expectedValue, expectedDuration);
+        }
+
+        [Theory]
+        [CustomAutoData()]
+        public async Task GetOrAddAsync_ShouldNotCache_WhenResultIsDefaultValue(string cacheKey, string methodName)
+        {
+            // Arrange
+            _memoryCache.TryGetValue(cacheKey, out Arg.Any<object>()).Returns(false);
+
+            // Act
+            var result = await _cacheService.GetOrAddAsync<string>(cacheKey, () => Task.FromResult<string>(null!), methodName);
+
+            // Assert
+            Assert.Null(result);
+            
+            // Verify Set was not called by checking if TryGetValue was the only call
+            var setCalls = _memoryCache.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "Set");
+            Assert.Equal(0, setCalls);
+        }
+
+        [Fact]
+        public void CacheType_ShouldReturnCorrectType()
+        {
+            // Act
+            var cacheType = _cacheService.CacheType;
+
+            // Assert
+            Assert.Equal(typeof(Interfaces.IMemoryCacheType), cacheType);
         }
     }
 }
