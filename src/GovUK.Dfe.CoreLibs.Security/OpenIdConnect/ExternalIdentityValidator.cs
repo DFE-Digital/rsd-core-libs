@@ -22,6 +22,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         private readonly ConfigurationManager<OpenIdConnectConfiguration> _configManager;
         private readonly OpenIdConnectOptions _opts;
         private readonly TestAuthenticationOptions? _testOpts;
+        private readonly CypressAuthenticationOptions? _cypressAuthOpts;
 
         /// <summary>
         /// Initializes a new instance of <see cref="ExternalIdentityValidator"/>.
@@ -33,18 +34,22 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// Factory for creating <see cref="System.Net.Http.HttpClient"/> instances
         /// to fetch the discovery document and JWKS.
         /// </param>
+        /// <param name="cypressAuthOpts">Cypress authentication options</param>
         /// <param name="testOptions">
         /// Optional test authentication options for development/testing scenarios.
         /// </param>
         public ExternalIdentityValidator(
             IOptions<OpenIdConnectOptions> options,
             IHttpClientFactory httpClientFactory,
+            IOptions<CypressAuthenticationOptions>? cypressAuthOpts = null, 
             IOptions<TestAuthenticationOptions>? testOptions = null)
         {
             _opts = options?.Value
-                ?? throw new ArgumentNullException(nameof(options));
+                    ?? throw new ArgumentNullException(nameof(options));
 
             _testOpts = testOptions?.Value;
+
+            _cypressAuthOpts = cypressAuthOpts?.Value;
 
             // Use the built-in ConfigurationManager to handle metadata caching/refresh.
             _configManager = new ConfigurationManager<OpenIdConnectConfiguration>(
@@ -61,15 +66,16 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// <inheritdoc/>
         public async Task<ClaimsPrincipal> ValidateIdTokenAsync(
             string idToken,
+            bool validCypressRequest = false,
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(idToken))
                 throw new ArgumentNullException(nameof(idToken));
 
             // Check if test authentication is enabled and should be used
-            if (_testOpts?.Enabled == true)
+            if (_testOpts?.Enabled == true || validCypressRequest)
             {
-                return ValidateTestIdToken(idToken);
+                return ValidateTestIdToken(idToken, validCypressRequest);
             }
 
             // Fetch (or retrieve cached) OIDC metadata & signing keys
@@ -97,16 +103,17 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// This method bypasses OIDC discovery and uses a pre-configured signing key.
         /// </summary>
         /// <param name="idToken">The test JWT token to validate</param>
+        /// <param name="cypressRequest">Whether this is a cypress request</param>
         /// <returns>A ClaimsPrincipal containing the validated claims</returns>
         /// <exception cref="ArgumentNullException">Thrown when idToken is null or empty</exception>
         /// <exception cref="InvalidOperationException">Thrown when test authentication is not properly configured</exception>
         /// <exception cref="SecurityTokenException">Thrown when token validation fails</exception>
-        public ClaimsPrincipal ValidateTestIdToken(string idToken)
+        public ClaimsPrincipal ValidateTestIdToken(string idToken, bool cypressRequest = false)
         {
             if (string.IsNullOrWhiteSpace(idToken))
                 throw new ArgumentNullException(nameof(idToken));
 
-            if (_testOpts == null || !_testOpts.Enabled)
+            if (_testOpts == null || (!_testOpts.Enabled && !cypressRequest))
                 throw new InvalidOperationException("Test authentication is not enabled or configured.");
 
             if (string.IsNullOrWhiteSpace(_testOpts.JwtSigningKey))
