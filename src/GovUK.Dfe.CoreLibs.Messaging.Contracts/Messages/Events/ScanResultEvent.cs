@@ -18,5 +18,5 @@ public record ScanResultEvent(
     string? ScannerVersion = null,
     string? Message = null,               // Optional details or error message
     int? TimeoutSeconds = null,           // Used only when TimedOut
-    string? VendorJobId = null            // Used only when Accepted
-);
+    string? VendorJobId = null,           // Used only when Accepted
+    Dictionary<string, object>? Metadata = null);
