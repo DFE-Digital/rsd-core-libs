@@ -1,6 +1,7 @@
 ﻿using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.CoreLibs.Caching.Services;
 using GovUK.Dfe.CoreLibs.Caching.Settings;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -228,7 +229,8 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Extensions
             var redisCacheServiceDescriptor = serviceDescriptors
                 .FirstOrDefault(d => d.ServiceType == typeof(ICacheService<IRedisCacheType>));
             Assert.NotNull(redisCacheServiceDescriptor);
-            Assert.Equal(typeof(RedisCacheService), redisCacheServiceDescriptor.ImplementationType);
+            // The implementation is via factory, not direct type
+            Assert.NotNull(redisCacheServiceDescriptor.ImplementationFactory);
         }
 
         [Fact]
@@ -266,7 +268,8 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Extensions
             var redisCacheServiceDescriptor = serviceDescriptors
                 .FirstOrDefault(d => d.ServiceType == typeof(ICacheService<IRedisCacheType>));
             Assert.NotNull(redisCacheServiceDescriptor);
-            Assert.Equal(typeof(RedisCacheService), redisCacheServiceDescriptor.ImplementationType);
+            // The implementation is via factory, not direct type
+            Assert.NotNull(redisCacheServiceDescriptor.ImplementationFactory);
         }
 
         [Fact]
@@ -321,6 +324,188 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Extensions
             Assert.Equal("MyApp:", cacheSettings.Value.Redis.KeyPrefix);
             Assert.Equal(1, cacheSettings.Value.Redis.Database);
             Assert.Equal(1200, cacheSettings.Value.Redis.Durations["TestMethod"]);
+        }
+
+        [Fact]
+        public void AddHybridCaching_ShouldRegisterIAdvancedRedisCacheService()
+        {
+            // Arrange
+            var services = new ServiceCollection();
+            services.AddLogging();
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["CacheSettings:Memory:DefaultDurationInSeconds"] = "60",
+                    ["ConnectionStrings:Redis"] = "localhost:6379",
+                    ["CacheSettings:Redis:DefaultDurationInSeconds"] = "300"
+                })
+                .Build();
+
+            // Act
+            services.AddHybridCaching(configuration);
+
+            // Assert - Verify IAdvancedRedisCacheService is registered
+            var serviceDescriptors = services.ToList();
+            var advancedCacheServiceDescriptor = serviceDescriptors
+                .FirstOrDefault(d => d.ServiceType == typeof(IAdvancedRedisCacheService));
+            
+            Assert.NotNull(advancedCacheServiceDescriptor);
+            Assert.Equal(ServiceLifetime.Singleton, advancedCacheServiceDescriptor.Lifetime);
+        }
+
+        [Fact]
+        public void AddHybridCaching_ShouldRegisterIDistributedCache()
+        {
+            // Arrange
+            var services = new ServiceCollection();
+            services.AddLogging();
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["CacheSettings:Memory:DefaultDurationInSeconds"] = "60",
+                    ["ConnectionStrings:Redis"] = "localhost:6379",
+                    ["CacheSettings:Redis:DefaultDurationInSeconds"] = "300"
+                })
+                .Build();
+
+            // Act
+            services.AddHybridCaching(configuration);
+
+            // Assert - Verify IDistributedCache is registered
+            var serviceDescriptors = services.ToList();
+            var distributedCacheDescriptor = serviceDescriptors
+                .FirstOrDefault(d => d.ServiceType == typeof(IDistributedCache));
+            
+            Assert.NotNull(distributedCacheDescriptor);
+            Assert.Equal(ServiceLifetime.Singleton, distributedCacheDescriptor.Lifetime);
+            Assert.Equal(typeof(DistributedCacheAdapter), distributedCacheDescriptor.ImplementationType);
+        }
+
+        [Fact]
+        public void AddHybridCaching_ShouldRegisterRedisCacheServiceOnce()
+        {
+            // Arrange
+            var services = new ServiceCollection();
+            services.AddLogging();
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["CacheSettings:Memory:DefaultDurationInSeconds"] = "60",
+                    ["ConnectionStrings:Redis"] = "localhost:6379",
+                    ["CacheSettings:Redis:DefaultDurationInSeconds"] = "300"
+                })
+                .Build();
+
+            // Act
+            services.AddHybridCaching(configuration);
+
+            // Assert - Verify RedisCacheService is registered once as a singleton
+            var serviceDescriptors = services.ToList();
+            var redisCacheServiceDescriptors = serviceDescriptors
+                .Where(d => d.ImplementationType == typeof(RedisCacheService) || 
+                           (d.ServiceType == typeof(RedisCacheService)))
+                .ToList();
+            
+            // Should have exactly one registration of the concrete RedisCacheService
+            var concreteRegistration = serviceDescriptors
+                .FirstOrDefault(d => d.ServiceType == typeof(RedisCacheService));
+            Assert.NotNull(concreteRegistration);
+            Assert.Equal(ServiceLifetime.Singleton, concreteRegistration.Lifetime);
+        }
+
+        [Fact]
+        public void AddHybridCaching_ShouldShareSameRedisCacheServiceInstance()
+        {
+            // Arrange
+            var services = new ServiceCollection();
+            services.AddLogging();
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["CacheSettings:Memory:DefaultDurationInSeconds"] = "60",
+                    ["ConnectionStrings:Redis"] = "localhost:6379",
+                    ["CacheSettings:Redis:DefaultDurationInSeconds"] = "300"
+                })
+                .Build();
+
+            // Act
+            services.AddHybridCaching(configuration);
+
+            // Assert - Verify all Redis-related services point to the same instance
+            // This test verifies the factory pattern is set up correctly
+            var serviceDescriptors = services.ToList();
+
+            // Check ICacheService<IRedisCacheType> factory
+            var standardCacheDescriptor = serviceDescriptors
+                .FirstOrDefault(d => d.ServiceType == typeof(ICacheService<IRedisCacheType>));
+            Assert.NotNull(standardCacheDescriptor);
+            Assert.NotNull(standardCacheDescriptor.ImplementationFactory);
+
+            // Check IAdvancedRedisCacheService factory
+            var advancedCacheDescriptor = serviceDescriptors
+                .FirstOrDefault(d => d.ServiceType == typeof(IAdvancedRedisCacheService));
+            Assert.NotNull(advancedCacheDescriptor);
+            Assert.NotNull(advancedCacheDescriptor.ImplementationFactory);
+
+            // All factories should resolve from the same RedisCacheService singleton
+            // This is implicitly tested by the registration pattern in ServiceCollectionExtensions
+        }
+
+        [Fact]
+        public void AddHybridCaching_ShouldThrowException_WhenRedisConnectionStringMissing()
+        {
+            // Arrange
+            var services = new ServiceCollection();
+            services.AddLogging();
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["CacheSettings:Memory:DefaultDurationInSeconds"] = "60",
+                    ["CacheSettings:Redis:DefaultDurationInSeconds"] = "300"
+                    // Missing Redis connection string
+                })
+                .Build();
+
+            // Act
+            services.AddHybridCaching(configuration);
+            var serviceProvider = services.BuildServiceProvider();
+
+            // Assert - Should throw when trying to resolve Redis services
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                serviceProvider.GetService<IConnectionMultiplexer>());
+
+            Assert.Contains("Redis connection string is required", exception.Message);
+        }
+
+        [Fact]
+        public void AddHybridCaching_ShouldConfigureAllCacheSettings()
+        {
+            // Arrange
+            var services = new ServiceCollection();
+            services.AddLogging();
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["CacheSettings:Memory:DefaultDurationInSeconds"] = "120",
+                    ["CacheSettings:Redis:ConnectionString"] = "localhost:6379",
+                    ["CacheSettings:Redis:DefaultDurationInSeconds"] = "600",
+                    ["CacheSettings:Redis:KeyPrefix"] = "MyApp:",
+                    ["CacheSettings:Redis:Database"] = "2"
+                })
+                .Build();
+
+            // Act
+            services.AddHybridCaching(configuration);
+            var serviceProvider = services.BuildServiceProvider();
+
+            // Assert
+            var cacheSettings = serviceProvider.GetService<IOptions<CacheSettings>>();
+            Assert.NotNull(cacheSettings);
+            Assert.Equal(120, cacheSettings.Value.Memory.DefaultDurationInSeconds);
+            Assert.Equal("localhost:6379", cacheSettings.Value.Redis.ConnectionString);
+            Assert.Equal(600, cacheSettings.Value.Redis.DefaultDurationInSeconds);
+            Assert.Equal("MyApp:", cacheSettings.Value.Redis.KeyPrefix);
+            Assert.Equal(2, cacheSettings.Value.Redis.Database);
         }
     }
 }

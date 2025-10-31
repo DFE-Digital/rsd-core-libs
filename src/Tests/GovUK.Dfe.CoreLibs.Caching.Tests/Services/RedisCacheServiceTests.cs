@@ -789,5 +789,117 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
             Assert.Equal(1, fetchCallCount);
             Assert.All(results, r => Assert.Equal(expectedValue, r));
         }
+
+        [Theory]
+        [CustomAutoData()]
+        public async Task SetRawAsync_ShouldStoreRawByteData_WhenCalled(string cacheKey)
+        {
+            // Arrange
+            var rawData = _fixture.Create<byte[]>();
+            var fullKey = $"{_redisCacheSettings.KeyPrefix}{cacheKey}";
+            var expiry = TimeSpan.FromMinutes(10);
+
+            // Act
+            await _cacheService.SetRawAsync(cacheKey, rawData, expiry);
+
+            // Assert
+            await _database.Received(1).StringSetAsync(fullKey, rawData, expiry);
+            _logger.Received(1).Log(
+                LogLevel.Debug,
+                Arg.Any<EventId>(),
+                Arg.Is<object>(v => v.ToString()!.Contains($"Redis raw data set for key: {fullKey}")),
+                Arg.Any<Exception>(),
+                Arg.Any<Func<object, Exception, string>>()!);
+        }
+
+        [Theory]
+        [CustomAutoData()]
+        public async Task SetRawAsync_ShouldThrowRedisException_WhenRedisFailsToSet(string cacheKey)
+        {
+            // Arrange
+            var rawData = _fixture.Create<byte[]>();
+            var fullKey = $"{_redisCacheSettings.KeyPrefix}{cacheKey}";
+            var expiry = TimeSpan.FromMinutes(10);
+
+            _database.When(x => x.StringSetAsync(fullKey, Arg.Any<RedisValue>(), expiry))
+                .Do(x => throw new RedisException("Redis connection failed"));
+
+            // Act & Assert
+            await Assert.ThrowsAsync<RedisException>(async () => 
+                await _cacheService.SetRawAsync(cacheKey, rawData, expiry));
+
+            _logger.Received(1).Log(
+                LogLevel.Error,
+                Arg.Any<EventId>(),
+                Arg.Is<object>(v => v.ToString()!.Contains($"Redis error occurred while setting raw data for key: {fullKey}")),
+                Arg.Any<Exception>(),
+                Arg.Any<Func<object, Exception, string>>()!);
+        }
+
+        [Theory]
+        [CustomAutoData()]
+        public async Task GetRawAsync_ShouldReturnRawByteData_WhenDataExists(string cacheKey)
+        {
+            // Arrange
+            var rawData = _fixture.Create<byte[]>();
+            var fullKey = $"{_redisCacheSettings.KeyPrefix}{cacheKey}";
+
+            _database.StringGetAsync(fullKey).Returns((RedisValue)rawData);
+
+            // Act
+            var result = await _cacheService.GetRawAsync(cacheKey);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(rawData, result);
+            _logger.Received(1).Log(
+                LogLevel.Debug,
+                Arg.Any<EventId>(),
+                Arg.Is<object>(v => v.ToString()!.Contains($"Redis raw data retrieved for key: {fullKey}")),
+                Arg.Any<Exception>(),
+                Arg.Any<Func<object, Exception, string>>()!);
+        }
+
+        [Theory]
+        [CustomAutoData()]
+        public async Task GetRawAsync_ShouldReturnNull_WhenDataDoesNotExist(string cacheKey)
+        {
+            // Arrange
+            var fullKey = $"{_redisCacheSettings.KeyPrefix}{cacheKey}";
+            _database.StringGetAsync(fullKey).Returns(RedisValue.Null);
+
+            // Act
+            var result = await _cacheService.GetRawAsync(cacheKey);
+
+            // Assert
+            Assert.Null(result);
+            _logger.Received(1).Log(
+                LogLevel.Debug,
+                Arg.Any<EventId>(),
+                Arg.Is<object>(v => v.ToString()!.Contains($"Redis cache miss for raw key: {fullKey}")),
+                Arg.Any<Exception>(),
+                Arg.Any<Func<object, Exception, string>>()!);
+        }
+
+        [Theory]
+        [CustomAutoData()]
+        public async Task GetRawAsync_ShouldReturnNull_WhenRedisExceptionOccurs(string cacheKey)
+        {
+            // Arrange
+            var fullKey = $"{_redisCacheSettings.KeyPrefix}{cacheKey}";
+            _database.StringGetAsync(fullKey).Returns(Task.FromException<RedisValue>(new RedisException("Redis connection failed")));
+
+            // Act
+            var result = await _cacheService.GetRawAsync(cacheKey);
+
+            // Assert
+            Assert.Null(result);
+            _logger.Received(1).Log(
+                LogLevel.Error,
+                Arg.Any<EventId>(),
+                Arg.Is<object>(v => v.ToString()!.Contains($"Redis error occurred while getting raw data for key: {fullKey}")),
+                Arg.Any<Exception>(),
+                Arg.Any<Func<object, Exception, string>>()!);
+        }
     }
 }

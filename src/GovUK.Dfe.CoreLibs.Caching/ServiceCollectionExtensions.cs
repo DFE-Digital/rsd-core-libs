@@ -1,6 +1,7 @@
 using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.CoreLibs.Caching.Services;
 using GovUK.Dfe.CoreLibs.Caching.Settings;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using StackExchange.Redis;
 
@@ -56,22 +57,39 @@ namespace Microsoft.Extensions.DependencyInjection
             return services;
         }
 
+        /// <summary>
+        /// Adds hybrid caching with both memory and Redis, including automatic session support.
+        /// This registers IDistributedCache for ASP.NET Core sessions automatically.
+        /// </summary>
         public static IServiceCollection AddHybridCaching(
             this IServiceCollection services, IConfiguration config)
         {
             services.Configure<CacheSettings>(config.GetSection("CacheSettings"));
 
-            // Add Memory Cache
+            // Add Memory Cache for fast local caching
             services.AddMemoryCache();
             services.AddSingleton<ICacheService<IMemoryCacheType>, MemoryCacheService>();
 
-            // Add Redis Cache
+            // Add Redis connection
             services.AddSingleton<IConnectionMultiplexer>(serviceProvider =>
             {
                 var connectionString = GetRedisConnectionString(config);
                 return ConnectionMultiplexer.Connect(connectionString);
             });
-            services.AddSingleton<ICacheService<IRedisCacheType>, RedisCacheService>();
+
+            // Register Redis cache service with all interfaces
+            services.AddSingleton<RedisCacheService>();
+
+            // Standard caching interface (what 99% of users should use)
+            services.AddSingleton<ICacheService<IRedisCacheType>>(sp =>
+                sp.GetRequiredService<RedisCacheService>());
+
+            // Advanced Redis operations interface (for pattern matching, raw data)
+            services.AddSingleton<IAdvancedRedisCacheService>(sp =>
+                sp.GetRequiredService<RedisCacheService>());
+
+            // ASP.NET Core distributed cache for session support (automatic)
+            services.AddSingleton<IDistributedCache, DistributedCacheAdapter>();
 
             return services;
         }
