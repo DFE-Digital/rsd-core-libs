@@ -7,4 +7,5 @@ public record ScanRequestedEvent(
     string? Path,
     bool? IsAzureFileShare,
     string FileUri,
-    string ServiceName);
+    string ServiceName, 
+    Dictionary<string, object>? Metadata);
