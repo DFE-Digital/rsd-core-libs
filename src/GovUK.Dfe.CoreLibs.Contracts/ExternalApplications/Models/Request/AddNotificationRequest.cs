@@ -30,4 +30,6 @@ public class AddNotificationRequest
     public NotificationPriority? Priority { get; set; }
 
     public bool? ReplaceExistingContext { get; set; }
+
+    public Guid? UserId { get; set; }
 }
