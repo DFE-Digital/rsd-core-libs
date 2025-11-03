@@ -1,3 +1,4 @@
+using GovUK.Dfe.CoreLibs.Contracts.Academies.Base;
 using GovUK.Dfe.CoreLibs.Contracts.Academies.V4.Establishments;
 using System.Diagnostics.CodeAnalysis;
 
