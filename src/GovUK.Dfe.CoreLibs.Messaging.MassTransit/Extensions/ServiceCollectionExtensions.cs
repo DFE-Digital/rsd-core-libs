@@ -15,7 +15,8 @@ namespace GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions
         private static string GetServiceBusConnectionString(IConfiguration configuration, MassTransitSettings settings)
         {
             // First, check ConnectionStrings:ServiceBus
-            var connectionString = configuration.GetConnectionString("ServiceBus");
+            var connectionString = configuration.GetConnectionString("ServiceBus") ??
+                                   configuration["ServiceBus"];
 
             if (!string.IsNullOrEmpty(connectionString))
             {
