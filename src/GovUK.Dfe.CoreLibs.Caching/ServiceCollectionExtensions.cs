@@ -12,7 +12,8 @@ namespace Microsoft.Extensions.DependencyInjection
         private static string GetRedisConnectionString(IConfiguration config)
         {
             // First, check ConnectionStrings:Redis
-            var connectionString = config.GetConnectionString("Redis");
+            var connectionString = config.GetConnectionString("Redis") ??
+                                   config["Redis"];
 
             if (!string.IsNullOrEmpty(connectionString))
             {
