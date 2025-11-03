@@ -13,7 +13,6 @@ public class EstablishmentDto: V4.Establishments.EstablishmentDto
 public class ReportCardDto
 {
         public string? WebLink { get; set; }
-        public int? Urn { get; set; }
         public string? LatestInspectionDate { get; set; }
         public string? LatestCurriculumAndTeaching { get; set; }
         public string? LatestAttendanceAndBehaviour { get; set; }
