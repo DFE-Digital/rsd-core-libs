@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace GovUK.Dfe.CoreLibs.Contracts.Academies.V4;
+namespace GovUK.Dfe.CoreLibs.Contracts.Academies.Base;
 
 [Serializable]
 [ExcludeFromCodeCoverage]
