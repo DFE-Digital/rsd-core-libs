@@ -2,15 +2,15 @@ using GovUK.Dfe.CoreLibs.AsyncProcessing.Configurations;
 using GovUK.Dfe.CoreLibs.AsyncProcessing.Interfaces;
 using GovUK.Dfe.CoreLibs.AsyncProcessing.Services;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
-using MediatR;
 using NSubstitute;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 
 namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
 {
     public class BackgroundServiceFactoryTests : IDisposable
     {
-        private readonly IMediator _mediator;
+        private readonly ILogger<BackgroundServiceFactory> _logger;
         private readonly BackgroundServiceFactory _factoryNoGlobalToken;
         private readonly BackgroundServiceFactory _factoryWithGlobalToken;
 
@@ -19,7 +19,7 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
 
         public BackgroundServiceFactoryTests()
         {
-            _mediator = Substitute.For<IMediator>();
+            _logger = Substitute.For<ILogger<BackgroundServiceFactory>>();
 
             _cts = new CancellationTokenSource();
 
@@ -33,8 +33,8 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
                 UseGlobalStoppingToken = true
             });
 
-            _factoryNoGlobalToken = new BackgroundServiceFactory(_mediator, optionsNoGlobalToken);
-            _factoryWithGlobalToken = new BackgroundServiceFactory(_mediator, optionsGlobalToken);
+            _factoryNoGlobalToken = new BackgroundServiceFactory(_logger, optionsNoGlobalToken);
+            _factoryWithGlobalToken = new BackgroundServiceFactory(_logger, optionsGlobalToken);
         }
 
         public void Dispose()
@@ -46,12 +46,9 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
         [Theory]
         [CustomAutoData]
         public async Task EnqueueTask_ShouldProcessTaskInQueue_WithoutGlobalToken(
-                   Func<Task<int>> taskFunc,
-                   IBackgroundServiceEvent eventMock)
+                   Func<Task<int>> taskFunc)
         {
             // Arrange
-            Func<int, IBackgroundServiceEvent> eventFactory = _ => eventMock;
-
             var semaphore = new SemaphoreSlim(0, 1);
             bool taskExecuted = false;
 
@@ -63,7 +60,7 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
             }
 
             // Act
-            _factoryNoGlobalToken.EnqueueTask(WrappedTaskFunc, eventFactory);
+            _factoryNoGlobalToken.EnqueueTask(WrappedTaskFunc);
 
             var cts = new CancellationTokenSource();
             var runTask = _factoryNoGlobalToken.StartAsync(cts.Token);
@@ -80,12 +77,9 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
         [Theory]
         [CustomAutoData]
         public async Task EnqueueTask_ShouldProcessTaskInQueue_WithGlobalToken(
-            Func<Task<int>> taskFunc,
-            IBackgroundServiceEvent eventMock)
+            Func<Task<int>> taskFunc)
         {
             // Arrange
-            Func<int, IBackgroundServiceEvent> eventFactory = _ => eventMock;
-
             var semaphore = new SemaphoreSlim(0, 1);
             bool taskExecuted = false;
 
@@ -97,7 +91,7 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
             }
 
             // Act
-            _factoryWithGlobalToken.EnqueueTask(WrappedTaskFunc, eventFactory);
+            _factoryWithGlobalToken.EnqueueTask(WrappedTaskFunc);
 
             var cts = new CancellationTokenSource();
             var runTask = _factoryWithGlobalToken.StartAsync(cts.Token);
@@ -114,63 +108,10 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
 
         [Theory]
         [CustomAutoData]
-        public async Task EnqueueTask_ShouldPublishEvent_WhenEventFactoryIsProvided_WithoutGlobalToken(
-            int taskResult,
-            IBackgroundServiceEvent eventMock)
-        {
-            // Arrange
-            Func<int, IBackgroundServiceEvent> eventFactory = _ => eventMock;
-
-            // Act
-            _factoryNoGlobalToken.EnqueueTask(
-                (cancellationToken) => Task.FromResult(taskResult),
-                eventFactory);
-
-            var cts = new CancellationTokenSource();
-            var runTask = _factoryNoGlobalToken.StartAsync(cts.Token);
-
-            await Task.Delay(100);
-            cts.Cancel();
-            await runTask;
-
-            // Assert
-            await _mediator.Received(1).Publish(eventMock, Arg.Any<CancellationToken>());
-        }
-
-        [Theory]
-        [CustomAutoData]
-        public async Task EnqueueTask_ShouldPublishEvent_WhenEventFactoryIsProvided_WithGlobalToken(
-            int taskResult,
-            IBackgroundServiceEvent eventMock)
-        {
-            // Arrange
-            Func<int, IBackgroundServiceEvent> eventFactory = _ => eventMock;
-
-            // Act
-            _factoryWithGlobalToken.EnqueueTask(
-                (cancellationToken) => Task.FromResult(taskResult),
-                eventFactory);
-
-            var cts = new CancellationTokenSource();
-            var runTask = _factoryWithGlobalToken.StartAsync(cts.Token);
-
-            await Task.Delay(100);
-            cts.Cancel();
-            await runTask;
-
-            // Assert
-            await _mediator.Received(1).Publish(eventMock, Arg.Any<CancellationToken>());
-        }
-
-        [Theory]
-        [CustomAutoData]
         public async Task StartProcessingQueue_ShouldProcessTasksSequentially_WithoutGlobalToken(
-            Func<Task<int>> taskFunc,
-            IBackgroundServiceEvent eventMock)
+            Func<Task<int>> taskFunc)
         {
             // Arrange
-            Func<int, IBackgroundServiceEvent> eventFactory = _ => eventMock;
-
             var taskCount = 0;
 
             Func<CancellationToken, Task<int>> wrappedTaskFunc = async (cancellationToken) =>
@@ -179,8 +120,8 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
                 return await taskFunc();
             };
 
-            _factoryNoGlobalToken.EnqueueTask(wrappedTaskFunc, eventFactory);
-            _factoryNoGlobalToken.EnqueueTask(wrappedTaskFunc, eventFactory);
+            _factoryNoGlobalToken.EnqueueTask(wrappedTaskFunc);
+            _factoryNoGlobalToken.EnqueueTask(wrappedTaskFunc);
 
             var cts = new CancellationTokenSource();
             var runTask = _factoryNoGlobalToken.StartAsync(cts.Token);
@@ -197,12 +138,9 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
         [Theory]
         [CustomAutoData]
         public async Task StartProcessingQueue_ShouldProcessTasksSequentially_WithGlobalToken(
-            Func<Task<int>> taskFunc,
-            IBackgroundServiceEvent eventMock)
+            Func<Task<int>> taskFunc)
         {
             // Arrange
-            Func<int, IBackgroundServiceEvent> eventFactory = _ => eventMock;
-
             var taskCount = 0;
 
             Func<CancellationToken, Task<int>> wrappedTaskFunc = async (cancellationToken) =>
@@ -211,8 +149,8 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
                 return await taskFunc();
             };
 
-            _factoryWithGlobalToken.EnqueueTask(wrappedTaskFunc, eventFactory);
-            _factoryWithGlobalToken.EnqueueTask(wrappedTaskFunc, eventFactory);
+            _factoryWithGlobalToken.EnqueueTask(wrappedTaskFunc);
+            _factoryWithGlobalToken.EnqueueTask(wrappedTaskFunc);
 
             var cts = new CancellationTokenSource();
             var runTask = _factoryWithGlobalToken.StartAsync(cts.Token);
@@ -265,7 +203,7 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
             var runTask = _factoryWithGlobalToken.StartAsync(_cts.Token);
             await Task.Delay(500);
 
-            var enqueuedTask = _factoryWithGlobalToken.EnqueueTask<bool, IBackgroundServiceEvent>(async (token) =>
+            var enqueuedTask = _factoryWithGlobalToken.EnqueueTask(async (token) =>
             {
                 for (int i = 0; i < 10; i++)
                 {
@@ -279,7 +217,7 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
             await Task.Delay(600); 
             _cts.Cancel();
 
-            await Assert.ThrowsAsync<OperationCanceledException>(async () => await enqueuedTask);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await enqueuedTask);
             await runTask; 
         }
 
@@ -292,7 +230,7 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
 
             var wasCanceled = false;
 
-            _factoryNoGlobalToken.EnqueueTask<bool, IBackgroundServiceEvent>(async (token) =>
+            _factoryNoGlobalToken.EnqueueTask(async (token) =>
             {
                 try
                 {
@@ -330,7 +268,7 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
 
             var callerCts = new CancellationTokenSource();
 
-            var enqueuedTask = _factoryNoGlobalToken.EnqueueTask<bool, IBackgroundServiceEvent>(async (token) =>
+            var enqueuedTask = _factoryNoGlobalToken.EnqueueTask(async (token) =>
             {
                 for (int i = 0; i < 5; i++)
                 {
@@ -338,12 +276,12 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
                     await Task.Delay(200, token);
                 }
                 return false;
-            }, null, callerCts.Token);
+            }, callerCts.Token);
 
             await Task.Delay(400);
             callerCts.Cancel();
 
-            await Assert.ThrowsAsync<OperationCanceledException>(async () => await enqueuedTask);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await enqueuedTask);
             await runTask;
         }
 
@@ -355,7 +293,7 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
 
             var callerCts = new CancellationTokenSource();
 
-            var enqueuedTask = _factoryWithGlobalToken.EnqueueTask<bool, IBackgroundServiceEvent>(async (token) =>
+            var enqueuedTask = _factoryWithGlobalToken.EnqueueTask(async (token) =>
             {
                 for (int i = 0; i < 5; i++)
                 {
@@ -363,13 +301,13 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
                     await Task.Delay(300, token);
                 }
                 return false;
-            }, null, callerCts.Token);
+            }, callerCts.Token);
 
             // Cancel either global or caller token
             await Task.Delay(400);
             callerCts.Cancel();
 
-            await Assert.ThrowsAsync<OperationCanceledException>(async () => await enqueuedTask);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await enqueuedTask);
             await runTask;
         }
 
@@ -378,11 +316,11 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
         {
             var runTask = _factoryWithGlobalToken.StartAsync(_cts.Token);
 
-            var enqueuedTask = _factoryWithGlobalToken.EnqueueTask<bool, IBackgroundServiceEvent>(async (token) =>
+            var enqueuedTask = _factoryWithGlobalToken.EnqueueTask(async (token) =>
             {
                 await Task.Delay(200, token);
                 return true;
-            }, null, CancellationToken.None);
+            }, CancellationToken.None);
 
             var result = await enqueuedTask;
             _cts.Cancel();
