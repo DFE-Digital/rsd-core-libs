@@ -3,24 +3,19 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Interfaces
     public interface IBackgroundServiceFactory
     {
         /// <summary>
-        /// Enqueues a background task with an optional event to be published when the task completes.
-        /// The task will respect the service's stopping token if needed.
+        /// Enqueues a background task to be processed asynchronously.
+        /// The task will respect the service's stopping token if configured.
         /// </summary>
         /// <typeparam name="TResult">Return type of the task.</typeparam>
-        /// <typeparam name="TEvent">Event type to publish upon task completion.</typeparam>
         /// <param name="taskFunc">
         /// A function representing the async work. Receives a CancellationToken if you want your task cancellable.
         /// </param>
-        /// <param name="eventFactory">
-        /// A factory function creating an event to publish when the task completes.
-        /// </param>
         /// <param name="callerCancellationToken">
-        /// The callers cancellation token.
+        /// Optional cancellation token from the caller to cancel the specific task.
         /// </param>
-        Task<TResult> EnqueueTask<TResult, TEvent>(
+        /// <returns>A Task that completes when the background task completes, returning the result.</returns>
+        Task<TResult> EnqueueTask<TResult>(
             Func<CancellationToken, Task<TResult>> taskFunc,
-            Func<TResult, TEvent>? eventFactory = null,
-            CancellationToken? callerCancellationToken = null)
-            where TEvent : IBackgroundServiceEvent;
+            CancellationToken? callerCancellationToken = null);
     }
 }
