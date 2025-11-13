@@ -19,6 +19,11 @@ public class EmailOptions
     /// Default from name
     /// </summary>
     public string? DefaultFromName { get; set; }
+    
+    /// <summary>
+    /// The email address that user-initiated communications (such as bug reports or support requests) should be sent to.
+    /// </summary>
+    public string? ServiceSupportEmailAddress { get; set; }
 
     /// <summary>
     /// Whether to enable email validation
