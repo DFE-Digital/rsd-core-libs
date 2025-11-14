@@ -1,4 +1,5 @@
 using GovUK.Dfe.CoreLibs.Security.Utils;
+using GovUK.Dfe.CoreLibs.Security.Enums;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -41,7 +42,8 @@ namespace GovUK.Dfe.CoreLibs.Security.Cypress
             {
                 new(ClaimTypes.Name, userInfo!.Name),
                 new(ClaimTypes.NameIdentifier, userId),
-                new(ClaimTypes.Authentication, "true")
+                new(ClaimTypes.Authentication, "true"),
+                new(CustomClaimTypeConstants.PreferredUsername, userInfo!.Name)
             };
 
             if (!string.IsNullOrEmpty(userInfo.AdId))
