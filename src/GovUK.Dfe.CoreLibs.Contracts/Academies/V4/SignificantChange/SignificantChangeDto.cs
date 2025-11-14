@@ -2,11 +2,11 @@
 
 public class SignificantChangeDto
 {
-    public long? SignificantChangeId { get; set; }
+    public int? SigChangeId { get; set; }
     public int? URN { get; set; }
     public int? TypeofGiasChangeId { get; set; }
     public string? TypeofSigChange { get; set; }
-    public string? TypeofSigChangedMapped { get; set; }
+    public string? typeOfSigChangeMapped { get; set; }
     public string? CreatedUserName { get; set; }
     public string? EditedUserName { get; set; }
     public string? ApplicationType { get; set; }
