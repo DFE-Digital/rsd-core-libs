@@ -1,5 +1,8 @@
 ﻿namespace GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
-public record TransferApplicationSubmitted(
+/// <summary>
+/// Event published when a transfer application is submitted in EAT Transfers
+/// </summary>
+public record TransferApplicationSubmittedEvent(
     string ApplicationId,
     string ApplicationReference,
     string OutgoingTrustUkprn,
@@ -9,8 +12,12 @@ public record TransferApplicationSubmitted(
     List<TransferringAcademy> TransferringAcademies,
     Dictionary<string, object>? Metadata);
 
+/// <summary>
+/// Represents an academy being transferred
+/// </summary>
 public record TransferringAcademy(
-    string OutgoingTrustUkprn,
+    string OutgoingAcademyName,
+    string OutgoingAcademyUkprn,
     string? IncomingTrustUkprn,
     string IncomingTrustName,
     string? Region,
