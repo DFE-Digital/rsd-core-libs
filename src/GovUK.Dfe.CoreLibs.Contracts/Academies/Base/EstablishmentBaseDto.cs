@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Diagnostics.CodeAnalysis;
 
 namespace GovUK.Dfe.CoreLibs.Contracts.Academies.Base;
 
@@ -39,6 +34,7 @@ public class EstablishmentBaseDto
     public string HeadteacherFirstName { get; set; }
     public string HeadteacherLastName { get; set; }
     public string HeadteacherPreferredJobTitle { get; set; }
+    public string MainPhone { get; set; }
 
     public NameAndCodeDto Diocese { get; set; }
     public NameAndCodeDto EstablishmentType { get; set; }
