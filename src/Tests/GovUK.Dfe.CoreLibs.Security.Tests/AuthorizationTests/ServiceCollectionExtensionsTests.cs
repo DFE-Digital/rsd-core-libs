@@ -4,6 +4,7 @@ using GovUK.Dfe.CoreLibs.Security.Interfaces;
 using GovUK.Dfe.CoreLibs.Security.OpenIdConnect;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -162,6 +163,195 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.AuthorizationTests
             var validator = provider.GetService<IExternalIdentityValidator>();
             Assert.NotNull(validator);
             Assert.IsType<ExternalIdentityValidator>(validator);
+        }
+
+        [Fact]
+        public void AddUserTokenServiceFactory_ShouldRegisterFactory()
+        {
+            // Arrange
+            var services = new ServiceCollection();
+            services.AddLogging();
+
+            // Act
+            services.AddUserTokenServiceFactory();
+            var provider = services.BuildServiceProvider();
+
+            // Assert
+            var factory = provider.GetService<IUserTokenServiceFactory>();
+            Assert.NotNull(factory);
+            Assert.IsType<UserTokenServiceFactory>(factory);
+        }
+
+        [Fact]
+        public void AddUserTokenServiceFactory_WithConfigurationSections_ShouldRegisterFactoryAndNamedOptions()
+        {
+            // Arrange
+            var inMemorySettings = new Dictionary<string, string>
+            {
+                ["Authentication:Primary:SecretKey"] = "primary_secret_key_that_is_long_enough_for_hmacsha256",
+                ["Authentication:Primary:Issuer"] = "primary-issuer",
+                ["Authentication:Primary:Audience"] = "primary-audience",
+                ["Authentication:Primary:TokenLifetimeMinutes"] = "60",
+                ["Authentication:Secondary:SecretKey"] = "secondary_secret_key_that_is_long_enough_for_hmacsha256",
+                ["Authentication:Secondary:Issuer"] = "secondary-issuer",
+                ["Authentication:Secondary:Audience"] = "secondary-audience",
+                ["Authentication:Secondary:TokenLifetimeMinutes"] = "30"
+            };
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(inMemorySettings)
+                .Build();
+
+            var services = new ServiceCollection();
+            services.AddLogging();
+
+            var namedConfigurations = new Dictionary<string, string>
+            {
+                { "Primary", "Authentication:Primary" },
+                { "Secondary", "Authentication:Secondary" }
+            };
+
+            // Act
+            services.AddUserTokenServiceFactory(config, namedConfigurations);
+            var provider = services.BuildServiceProvider();
+
+            // Assert
+            var factory = provider.GetService<IUserTokenServiceFactory>();
+            Assert.NotNull(factory);
+
+            var optionsMonitor = provider.GetService<IOptionsMonitor<TokenSettings>>();
+            Assert.NotNull(optionsMonitor);
+
+            var primaryOptions = optionsMonitor.Get("Primary");
+            Assert.Equal("primary_secret_key_that_is_long_enough_for_hmacsha256", primaryOptions.SecretKey);
+            Assert.Equal("primary-issuer", primaryOptions.Issuer);
+            Assert.Equal("primary-audience", primaryOptions.Audience);
+            Assert.Equal(60, primaryOptions.TokenLifetimeMinutes);
+
+            var secondaryOptions = optionsMonitor.Get("Secondary");
+            Assert.Equal("secondary_secret_key_that_is_long_enough_for_hmacsha256", secondaryOptions.SecretKey);
+            Assert.Equal("secondary-issuer", secondaryOptions.Issuer);
+            Assert.Equal("secondary-audience", secondaryOptions.Audience);
+            Assert.Equal(30, secondaryOptions.TokenLifetimeMinutes);
+        }
+
+        [Fact]
+        public void AddUserTokenServiceFactory_WithActionConfiguration_ShouldRegisterFactoryAndNamedOptions()
+        {
+            // Arrange
+            var services = new ServiceCollection();
+            services.AddLogging();
+
+            var namedConfigurations = new Dictionary<string, Action<TokenSettings>>
+            {
+                { 
+                    "Primary", 
+                    settings =>
+                    {
+                        settings.SecretKey = "primary_secret_key_that_is_long_enough_for_hmacsha256";
+                        settings.Issuer = "primary-issuer";
+                        settings.Audience = "primary-audience";
+                        settings.TokenLifetimeMinutes = 60;
+                    }
+                },
+                { 
+                    "Secondary", 
+                    settings =>
+                    {
+                        settings.SecretKey = "secondary_secret_key_that_is_long_enough_for_hmacsha256";
+                        settings.Issuer = "secondary-issuer";
+                        settings.Audience = "secondary-audience";
+                        settings.TokenLifetimeMinutes = 30;
+                    }
+                }
+            };
+
+            // Act
+            services.AddUserTokenServiceFactory(namedConfigurations);
+            var provider = services.BuildServiceProvider();
+
+            // Assert
+            var factory = provider.GetService<IUserTokenServiceFactory>();
+            Assert.NotNull(factory);
+
+            var optionsMonitor = provider.GetService<IOptionsMonitor<TokenSettings>>();
+            Assert.NotNull(optionsMonitor);
+
+            var primaryOptions = optionsMonitor.Get("Primary");
+            Assert.Equal("primary_secret_key_that_is_long_enough_for_hmacsha256", primaryOptions.SecretKey);
+            Assert.Equal("primary-issuer", primaryOptions.Issuer);
+            Assert.Equal("primary-audience", primaryOptions.Audience);
+            Assert.Equal(60, primaryOptions.TokenLifetimeMinutes);
+
+            var secondaryOptions = optionsMonitor.Get("Secondary");
+            Assert.Equal("secondary_secret_key_that_is_long_enough_for_hmacsha256", secondaryOptions.SecretKey);
+            Assert.Equal("secondary-issuer", secondaryOptions.Issuer);
+            Assert.Equal("secondary-audience", secondaryOptions.Audience);
+            Assert.Equal(30, secondaryOptions.TokenLifetimeMinutes);
+        }
+
+        [Fact]
+        public void AddUserTokenServiceFactory_WithMultipleConfigurations_ShouldAllowGettingDifferentServices()
+        {
+            // Arrange
+            var services = new ServiceCollection();
+            services.AddLogging();
+
+            var namedConfigurations = new Dictionary<string, Action<TokenSettings>>
+            {
+                { "Config1", s => { s.SecretKey = "config1_secret_key_that_is_long_enough_for_hmacsha256"; s.Issuer = "issuer1"; s.Audience = "audience1"; } },
+                { "Config2", s => { s.SecretKey = "config2_secret_key_that_is_long_enough_for_hmacsha256"; s.Issuer = "issuer2"; s.Audience = "audience2"; } },
+                { "Config3", s => { s.SecretKey = "config3_secret_key_that_is_long_enough_for_hmacsha256"; s.Issuer = "issuer3"; s.Audience = "audience3"; } }
+            };
+
+            services.AddUserTokenServiceFactory(namedConfigurations);
+            var provider = services.BuildServiceProvider();
+
+            // Act
+            var factory = provider.GetRequiredService<IUserTokenServiceFactory>();
+            var service1 = factory.GetService("Config1");
+            var service2 = factory.GetService("Config2");
+            var service3 = factory.GetService("Config3");
+
+            // Assert
+            Assert.NotNull(service1);
+            Assert.NotNull(service2);
+            Assert.NotNull(service3);
+            Assert.NotSame(service1, service2);
+            Assert.NotSame(service2, service3);
+            Assert.NotSame(service1, service3);
+        }
+
+        [Fact]
+        public void AddUserTokenServiceFactory_ShouldRegisterHttpContextAccessor()
+        {
+            // Arrange
+            var services = new ServiceCollection();
+            services.AddLogging();
+
+            // Act
+            services.AddUserTokenServiceFactory();
+            var provider = services.BuildServiceProvider();
+
+            // Assert
+            var httpContextAccessor = provider.GetService<IHttpContextAccessor>();
+            Assert.NotNull(httpContextAccessor);
+        }
+
+        [Fact]
+        public void AddUserTokenServiceFactory_ShouldRegisterAsSingleton()
+        {
+            // Arrange
+            var services = new ServiceCollection();
+            services.AddLogging();
+
+            // Act
+            services.AddUserTokenServiceFactory();
+            var provider = services.BuildServiceProvider();
+
+            // Assert - Get factory twice and verify it's the same instance
+            var factory1 = provider.GetService<IUserTokenServiceFactory>();
+            var factory2 = provider.GetService<IUserTokenServiceFactory>();
+            Assert.Same(factory1, factory2);
         }
     }
 }
