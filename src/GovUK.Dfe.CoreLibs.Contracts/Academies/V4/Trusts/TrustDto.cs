@@ -1,4 +1,4 @@
-using GovUK.Dfe.CoreLibs.Contracts.Academies.V4.Establishments;
+using GovUK.Dfe.CoreLibs.Contracts.Academies.Base;
 using System.Diagnostics.CodeAnalysis;
 
 namespace GovUK.Dfe.CoreLibs.Contracts.Academies.V4.Trusts;
