@@ -210,6 +210,7 @@ namespace GovUK.Dfe.CoreLibs.Security
             services.Configure<OpenIdConnectOptions>(
                 configuration.GetSection(sectionName));
             services.Configure<TestAuthenticationOptions>(configuration.GetSection(TestAuthenticationOptions.SectionName));
+            services.Configure<CypressAuthenticationOptions>(configuration.GetSection(CypressAuthenticationOptions.SectionName));
 
             services.AddHttpClient();
 
