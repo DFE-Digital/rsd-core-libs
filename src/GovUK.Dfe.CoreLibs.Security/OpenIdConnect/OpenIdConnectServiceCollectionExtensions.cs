@@ -8,12 +8,13 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
     public static class OpenIdConnectServiceCollectionExtensions
     {
         /// <summary>
-        /// Adds OIDC handler.
+        /// Adds OIDC handler with optional custom event handlers.
         /// </summary>
         public static AuthenticationBuilder AddCustomOpenIdConnect(
             this AuthenticationBuilder builder,
             IConfiguration configuration,
-            string sectionName = "DfESignIn")
+            string sectionName = "DfESignIn",
+            OpenIdConnectEvents? customEvents = null)
         {
             var section = configuration.GetSection(sectionName);
             builder.Services.Configure<Configurations.OpenIdConnectOptions>(section);
@@ -37,16 +38,20 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 foreach (var scope in opts.Scopes)
                     oidc.Scope.Add(scope);
 
-                oidc.Events = new OpenIdConnectEvents
-                {
-                    OnRedirectToIdentityProvider = ctx =>
-                    {
-                        if (!string.IsNullOrEmpty(opts.RedirectUri))
-                            ctx.ProtocolMessage.RedirectUri = opts.RedirectUri;
+                // Use provided events if supplied, otherwise default
+                oidc.Events = customEvents ?? new OpenIdConnectEvents();
 
-                        ctx.ProtocolMessage.Prompt = opts.Prompt;
-                        return Task.CompletedTask;
-                    }
+                // Always ensure redirect logic runs, even if custom events provided
+                var originalRedirectHandler = oidc.Events.OnRedirectToIdentityProvider;
+                oidc.Events.OnRedirectToIdentityProvider = async ctx =>
+                {
+                    if (!string.IsNullOrEmpty(opts.RedirectUri))
+                        ctx.ProtocolMessage.RedirectUri = opts.RedirectUri;
+
+                    ctx.ProtocolMessage.Prompt = opts.Prompt;
+
+                    if (originalRedirectHandler != null)
+                        await originalRedirectHandler(ctx);
                 };
             });
         }
