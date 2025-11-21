@@ -84,6 +84,7 @@ namespace GovUK.Dfe.CoreLibs.Security
 
             // Register the factory
             services.AddSingleton<IUserTokenServiceFactory, UserTokenServiceFactory>();
+            services.Configure<InternalServiceAuthOptions>(configuration.GetSection(InternalServiceAuthOptions.SectionName));
             services.AddHttpContextAccessor();
 
             return services;
@@ -211,7 +212,7 @@ namespace GovUK.Dfe.CoreLibs.Security
                 configuration.GetSection(sectionName));
             services.Configure<TestAuthenticationOptions>(configuration.GetSection(TestAuthenticationOptions.SectionName));
             services.Configure<CypressAuthenticationOptions>(configuration.GetSection(CypressAuthenticationOptions.SectionName));
-
+            services.Configure<InternalServiceAuthOptions>(configuration.GetSection(InternalServiceAuthOptions.SectionName));
             services.AddHttpClient();
 
             services.AddSingleton<IExternalIdentityValidator, ExternalIdentityValidator>();

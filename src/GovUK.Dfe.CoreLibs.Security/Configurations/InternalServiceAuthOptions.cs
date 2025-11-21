@@ -5,6 +5,8 @@
     /// </summary>
     public class InternalServiceAuthOptions : TokenSettings
     {
+        public const string SectionName = "InternalServiceAuth";
+
         /// <summary>
         /// List of authorized internal services with their credentials
         /// </summary>
