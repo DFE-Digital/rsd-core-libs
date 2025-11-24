@@ -1,11 +1,10 @@
-﻿using GovUK.Dfe.CoreLibs.Contracts.Academies.Base;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 
 namespace GovUK.Dfe.CoreLibs.Contracts.Academies.V5.Establishments;
 
 [Serializable]
 [ExcludeFromCodeCoverage]
-public class EstablishmentDto : EstablishmentBaseDto
+public class EstablishmentDto : V4.Establishments.EstablishmentDto  
 {
     public ReportCardDto? ReportCard { get; set; }
 }
