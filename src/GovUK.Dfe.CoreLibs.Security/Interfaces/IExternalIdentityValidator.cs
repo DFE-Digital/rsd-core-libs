@@ -13,6 +13,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Interfaces
         /// </summary>
         /// <param name="idToken">The raw JWT ID token to validate.</param>
         /// <param name="validCypressRequest">Whether this is a valid cypress request</param>
+        /// <param name="validInternalRequest">Whether this is a valid internal request</param>
         /// <param name="cancellationToken">An optional cancellation token.</param>
         /// <returns>
         /// A <see cref="ClaimsPrincipal"/> representing the validated token's claims.
@@ -26,6 +27,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Interfaces
         Task<ClaimsPrincipal> ValidateIdTokenAsync(
             string idToken,
             bool validCypressRequest = false,
+            bool validInternalRequest = false,
             CancellationToken cancellationToken = default);
     }
 }

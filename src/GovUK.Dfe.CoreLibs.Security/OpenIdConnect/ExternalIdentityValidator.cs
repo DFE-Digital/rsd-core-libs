@@ -23,6 +23,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         private readonly OpenIdConnectOptions _opts;
         private readonly TestAuthenticationOptions? _testOpts;
         private readonly CypressAuthenticationOptions? _cypressAuthOpts;
+        private readonly InternalServiceAuthOptions? _internalAuthOpts;
 
         /// <summary>
         /// Initializes a new instance of <see cref="ExternalIdentityValidator"/>.
@@ -38,11 +39,15 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// <param name="testOptions">
         /// Optional test authentication options for development/testing scenarios.
         /// </param>
+        /// <param name="internalAuthOpts">
+        /// Internal Authentication scheme options
+        /// </param>
         public ExternalIdentityValidator(
             IOptions<OpenIdConnectOptions> options,
             IHttpClientFactory httpClientFactory,
             IOptions<CypressAuthenticationOptions>? cypressAuthOpts = null, 
-            IOptions<TestAuthenticationOptions>? testOptions = null)
+            IOptions<TestAuthenticationOptions>? testOptions = null,
+            IOptions<InternalServiceAuthOptions>? internalAuthOpts = null)
         {
             _opts = options?.Value
                     ?? throw new ArgumentNullException(nameof(options));
@@ -50,6 +55,8 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
             _testOpts = testOptions?.Value;
 
             _cypressAuthOpts = cypressAuthOpts?.Value;
+
+            _internalAuthOpts = internalAuthOpts?.Value;
 
             // Use the built-in ConfigurationManager to handle metadata caching/refresh.
             _configManager = new ConfigurationManager<OpenIdConnectConfiguration>(
@@ -67,10 +74,17 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         public async Task<ClaimsPrincipal> ValidateIdTokenAsync(
             string idToken,
             bool validCypressRequest = false,
+            bool validInternalRequest = false,
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(idToken))
                 throw new ArgumentNullException(nameof(idToken));
+
+            // Check if internal authentication is enabled and should be used
+            if (!string.IsNullOrEmpty(_internalAuthOpts?.SecretKey) && validInternalRequest)
+            {
+                return ValidateInternalAuthToken(idToken);
+            }
 
             // Check if test authentication is enabled and should be used
             if (_testOpts?.Enabled == true || validCypressRequest)
@@ -147,6 +161,51 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
             catch (Exception ex)
             {
                 throw new SecurityTokenException($"Test token validation failed: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Validates an Internal Auth Id token using the configured authentication options.
+        /// This method bypasses OIDC discovery and uses a pre-configured signing key.
+        /// </summary>
+        /// <param name="idToken">The JWT token to validate</param>
+        /// <returns>A ClaimsPrincipal containing the validated claims</returns>
+        /// <exception cref="ArgumentNullException">Thrown when idToken is null or empty</exception>
+        /// <exception cref="InvalidOperationException">Thrown when test authentication is not properly configured</exception>
+        /// <exception cref="SecurityTokenException">Thrown when token validation fails</exception>
+        public ClaimsPrincipal ValidateInternalAuthToken(string idToken)
+        {
+            if (string.IsNullOrWhiteSpace(idToken))
+                throw new ArgumentNullException(nameof(idToken));
+
+            if (string.IsNullOrWhiteSpace(_internalAuthOpts?.SecretKey))
+                throw new InvalidOperationException("Test JWT signing key is not configured.");
+
+            // Create signing key from the configured test key
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_internalAuthOpts?.SecretKey!));
+
+            var validationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = _internalAuthOpts?.Issuer,
+                ValidateAudience = true,
+                ValidAudience = _internalAuthOpts?.Audience,
+                IssuerSigningKey = key,
+                ValidateIssuerSigningKey = true,
+            };
+
+            var handler = new JwtSecurityTokenHandler();
+
+            try
+            {
+                return handler.ValidateToken(
+                    idToken,
+                    validationParameters,
+                    out _ /* validatedToken */);
+            }
+            catch (Exception ex)
+            {
+                throw new SecurityTokenException($"Internal Auth token validation failed: {ex.Message}", ex);
             }
         }
 
