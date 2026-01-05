@@ -7,7 +7,7 @@ This repository consists of a .NET solution containing multiple class libraries,
 Deployment and versioning process
 --------------------------------------
 
-![Nuget Package Deployment](./nuget-deployment.png)
+![Nuget Package Deployment](./corelibs-deployment.jpg)
 
 
 Adding a New Library to the Repository
