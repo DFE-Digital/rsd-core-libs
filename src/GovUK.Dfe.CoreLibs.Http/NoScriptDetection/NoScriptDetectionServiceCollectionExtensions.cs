@@ -1,10 +1,5 @@
 ﻿using GovUK.Dfe.CoreLibs.Http.NoScriptDetection.Pixel;
 using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace GovUK.Dfe.CoreLibs.Http.NoScriptDetection
 {
