@@ -11,6 +11,7 @@ namespace GovUK.Dfe.CoreLibs.Http.NoScriptDetection.TagHelpers
             TagHelperOutput output)
         {
             output.TagName = "noscript";
+            output.TagMode = TagMode.StartTagAndEndTag;
 
             output.Content.SetHtmlContent($"""
                                            <img src="{Constants.EndpointPath}"
