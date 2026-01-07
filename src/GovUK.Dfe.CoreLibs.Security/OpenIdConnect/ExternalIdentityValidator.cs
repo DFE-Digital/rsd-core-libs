@@ -13,13 +13,14 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
     /// <summary>
     /// An implementation of <see cref="IExternalIdentityValidator"/> that uses the
     /// Microsoft.IdentityModel.Protocols stack to retrieve metadata and signing keys
-    /// from an OpenID Connect provider, caching them automatically.
+    /// from one or more OpenID Connect providers, caching them automatically.
+    /// Supports multi-tenant scenarios with multiple OIDC providers.
     /// Also supports test token validation for development/testing scenarios.
     /// </summary>
     public sealed class ExternalIdentityValidator
         : IExternalIdentityValidator, IDisposable
     {
-        private readonly ConfigurationManager<OpenIdConnectConfiguration> _configManager;
+        private readonly List<ConfigurationManager<OpenIdConnectConfiguration>> _configManagers;
         private readonly OpenIdConnectOptions _opts;
         private readonly TestAuthenticationOptions? _testOpts;
         private readonly CypressAuthenticationOptions? _cypressAuthOpts;
@@ -28,7 +29,9 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// Initializes a new instance of <see cref="ExternalIdentityValidator"/>.
         /// </summary>
         /// <param name="options">
-        /// The OIDC validation options, bound from configuration (issuer + discovery endpoint).
+        /// The OIDC validation options, bound from configuration.
+        /// Supports single provider (Issuer + DiscoveryEndpoint) or multiple providers
+        /// (ValidIssuers + DiscoveryEndpoints).
         /// </param>
         /// <param name="httpClientFactory">
         /// Factory for creating <see cref="System.Net.Http.HttpClient"/> instances
@@ -41,26 +44,40 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         public ExternalIdentityValidator(
             IOptions<OpenIdConnectOptions> options,
             IHttpClientFactory httpClientFactory,
-            IOptions<CypressAuthenticationOptions>? cypressAuthOpts = null, 
+            IOptions<CypressAuthenticationOptions>? cypressAuthOpts = null,
             IOptions<TestAuthenticationOptions>? testOptions = null)
         {
             _opts = options?.Value
                     ?? throw new ArgumentNullException(nameof(options));
 
             _testOpts = testOptions?.Value;
-
             _cypressAuthOpts = cypressAuthOpts?.Value;
 
-            // Use the built-in ConfigurationManager to handle metadata caching/refresh.
-            _configManager = new ConfigurationManager<OpenIdConnectConfiguration>(
-                metadataAddress: _opts.DiscoveryEndpoint,
-                configRetriever: new OpenIdConnectConfigurationRetriever(),
-                docRetriever: new HttpDocumentRetriever(
-                    httpClientFactory.CreateClient())
-                {
-                    RequireHttps = _opts.DiscoveryEndpoint!
-                        .StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-                });
+            // Create ConfigurationManager instances for all discovery endpoints
+            _configManagers = new List<ConfigurationManager<OpenIdConnectConfiguration>>();
+
+            var discoveryEndpoints = _opts.GetAllDiscoveryEndpoints().ToList();
+
+            if (!discoveryEndpoints.Any())
+            {
+                throw new ArgumentException(
+                    "At least one discovery endpoint must be configured (DiscoveryEndpoint or DiscoveryEndpoints).",
+                    nameof(options));
+            }
+
+            foreach (var endpoint in discoveryEndpoints)
+            {
+                var configManager = new ConfigurationManager<OpenIdConnectConfiguration>(
+                    metadataAddress: endpoint,
+                    configRetriever: new OpenIdConnectConfigurationRetriever(),
+                    docRetriever: new HttpDocumentRetriever(
+                        httpClientFactory.CreateClient())
+                    {
+                        RequireHttps = endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                    });
+
+                _configManagers.Add(configManager);
+            }
         }
 
         /// <inheritdoc/>
@@ -78,17 +95,27 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 return ValidateTestIdToken(idToken, validCypressRequest);
             }
 
-            // Fetch (or retrieve cached) OIDC metadata & signing keys
-            var metadata =
-                await _configManager.GetConfigurationAsync(cancellationToken);
+            // Collect signing keys from ALL configured OIDC providers
+            var allSigningKeys = new List<SecurityKey>();
+            foreach (var configManager in _configManagers)
+            {
+                var metadata = await configManager.GetConfigurationAsync(cancellationToken);
+                allSigningKeys.AddRange(metadata.SigningKeys);
+            }
+
+            // Get all valid issuers and audiences
+            var validIssuers = _opts.GetAllValidIssuers().ToList();
+            var validAudiences = _opts.GetAllValidAudiences().ToList();
 
             var validationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = _opts.ValidateIssuer,
-                ValidIssuer = _opts.Issuer,
+                ValidIssuers = validIssuers.Any() ? validIssuers : null,
                 ValidateAudience = _opts.ValidateAudience,
+                ValidAudiences = validAudiences.Any() ? validAudiences : null,
                 ValidateLifetime = _opts.ValidateLifetime,
-                IssuerSigningKeys = metadata.SigningKeys
+                IssuerSigningKeys = allSigningKeys,
+                ValidateIssuerSigningKey = true
             };
 
             var handler = new JwtSecurityTokenHandler();
@@ -155,16 +182,19 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// </summary>
         /// <returns>True if test authentication is enabled, false otherwise</returns>
         public bool IsTestAuthenticationEnabled => _testOpts?.Enabled == true;
- 
+
         /// <summary>
-        /// Disposes the internal <see cref="ConfigurationManager{OpenIdConnectConfiguration}"/>,
-        /// which stops its background metadata refresh timer.
+        /// Disposes all internal <see cref="ConfigurationManager{OpenIdConnectConfiguration}"/> instances,
+        /// which stops their background metadata refresh timers.
         /// </summary>
         public void Dispose()
         {
-            // ReSharper disable once SuspiciousTypeConversion.Global
-            if (_configManager is IDisposable disposable)
-                disposable.Dispose();
+            foreach (var configManager in _configManagers)
+            {
+                if (configManager is IDisposable disposable)
+                    disposable.Dispose();
+            }
+            _configManagers.Clear();
         }
     }
 }
