@@ -31,6 +31,20 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             return factory;
         }
 
+        /// <summary>
+        /// Helper to inject a list of stub config managers into the validator via reflection.
+        /// </summary>
+        private static void InjectConfigManagers(
+            ExternalIdentityValidator validator,
+            params StubConfigManager[] stubs)
+        {
+            var field = typeof(ExternalIdentityValidator)
+                .GetField("_configManagers", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?? throw new InvalidOperationException("_configManagers not found");
+
+            var list = new List<ConfigurationManager<OpenIdConnectConfiguration>>(stubs);
+            field.SetValue(validator, list);
+        }
 
         [Fact]
         public async Task ValidateIdTokenAsync_ValidToken_ReturnsPrincipal()
@@ -67,10 +81,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
                 Options.Create(_oidcOpts),
                 httpClientFactory);
 
-            var field = typeof(ExternalIdentityValidator)
-                .GetField("_configManager", BindingFlags.Instance | BindingFlags.NonPublic)
-                            ?? throw new InvalidOperationException("_configManager not found");
-            field.SetValue(validator, stubConfigManager);
+            InjectConfigManagers(validator, stubConfigManager);
 
             // Act
             var principal = await validator.ValidateIdTokenAsync(tokenString);
@@ -87,7 +98,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
         [Fact]
         public async Task ValidateIdTokenAsync_NullOrWhitespace_ThrowsArgumentNullException()
         {
-            // 1) Stub a manager (won’t actually be called)
+            // 1) Stub a manager (won't actually be called)
             var stubManager = new StubConfigManager(new OpenIdConnectConfiguration());
 
             // 2) Stub HttpClientFactory
@@ -100,15 +111,11 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
                 Options.Create(_oidcOpts),
                 httpClientFactory);
 
-            // Inject stub
-            var field = typeof(ExternalIdentityValidator)
-                .GetField("_configManager", BindingFlags.Instance | BindingFlags.NonPublic)
-                            ?? throw new InvalidOperationException("_configManager not found");
-            field.SetValue(validator, stubManager);
+            InjectConfigManagers(validator, stubManager);
 
             // Act & Assert
             await Assert.ThrowsAsync<ArgumentNullException>(
-                () => validator.ValidateIdTokenAsync(null!, false,cancellationToken:CancellationToken.None));
+                () => validator.ValidateIdTokenAsync(null!, false, cancellationToken: CancellationToken.None));
             await Assert.ThrowsAsync<ArgumentNullException>(
                 () => validator.ValidateIdTokenAsync("", false, cancellationToken: CancellationToken.None));
             await Assert.ThrowsAsync<ArgumentNullException>(
@@ -128,11 +135,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
                 Options.Create(_oidcOpts),
                 httpClientFactory);
 
-            // Inject stub
-            var field = typeof(ExternalIdentityValidator)
-                .GetField("_configManager", BindingFlags.Instance | BindingFlags.NonPublic)
-                            ?? throw new InvalidOperationException("_configManager not found");
-            field.SetValue(validator, stubManager);
+            InjectConfigManagers(validator, stubManager);
 
             // Act / Assert
             validator.Dispose();
@@ -180,6 +183,23 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
         }
 
         [Fact]
+        public void Constructor_NoDiscoveryEndpoints_ThrowsArgumentException()
+        {
+            var factory = CreateHttpClientFactory();
+            var opts = new OpenIdConnectOptions
+            {
+                Issuer = "https://idp.example.com/",
+                DiscoveryEndpoint = null, // No single endpoint
+                DiscoveryEndpoints = null // No array either
+            };
+
+            Assert.Throws<ArgumentException>(() =>
+                new ExternalIdentityValidator(
+                    Options.Create(opts),
+                    factory));
+        }
+
+        [Fact]
         public void IsTestAuthenticationEnabled_Default_ReturnsFalse()
         {
             var factory = CreateHttpClientFactory();
@@ -206,7 +226,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             var validator = new ExternalIdentityValidator(
                 Options.Create(_oidcOpts),
                 factory,
-                testOptions:Options.Create(testOpts));
+                testOptions: Options.Create(testOpts));
 
             Assert.True(validator.IsTestAuthenticationEnabled);
         }
@@ -356,7 +376,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
         }
 
         [Fact]
-        public async System.Threading.Tasks.Task ValidateIdTokenAsync_WithTestOptionsEnabled_UsesTestPath()
+        public async Task ValidateIdTokenAsync_WithTestOptionsEnabled_UsesTestPath()
         {
             var factory = CreateHttpClientFactory();
             var rawKey = "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD";
@@ -794,6 +814,242 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             var exception = Assert.Throws<SecurityTokenException>(() =>
                 validator.ValidateInternalAuthToken(malformedToken));
             Assert.Contains("Internal Auth token validation failed", exception.Message);
+        }
+
+        #endregion
+
+        #region Multi-Provider Tests
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_MultipleDiscoveryEndpoints_CollectsKeysFromAll()
+        {
+            // Arrange - Create two signing keys for two different "providers"
+            // Keys must be at least 32 bytes (256 bits) for HS256
+            var key1Bytes = Encoding.UTF8.GetBytes("PROVIDER1KEY12345678901234567890AB");
+            var key2Bytes = Encoding.UTF8.GetBytes("PROVIDER2KEY12345678901234567890CD");
+            var signingKey1 = new SymmetricSecurityKey(key1Bytes);
+            var signingKey2 = new SymmetricSecurityKey(key2Bytes);
+
+            // Create two OIDC configs with different signing keys
+            var config1 = new OpenIdConnectConfiguration { Issuer = "https://provider1.example.com/" };
+            config1.SigningKeys.Add(signingKey1);
+
+            var config2 = new OpenIdConnectConfiguration { Issuer = "https://provider2.example.com/" };
+            config2.SigningKeys.Add(signingKey2);
+
+            var stubManager1 = new StubConfigManager(config1);
+            var stubManager2 = new StubConfigManager(config2);
+
+            // Options with multiple issuers
+            var multiOpts = new OpenIdConnectOptions
+            {
+                DiscoveryEndpoint = "https://provider1.example.com/.well-known/openid-configuration",
+                ValidIssuers = new List<string>
+                {
+                    "https://provider1.example.com/",
+                    "https://provider2.example.com/"
+                },
+                ValidateIssuer = true,
+                ValidateAudience = false,
+                ValidateLifetime = true
+            };
+
+            var httpClientFactory = CreateHttpClientFactory();
+            var validator = new ExternalIdentityValidator(
+                Options.Create(multiOpts),
+                httpClientFactory);
+
+            // Inject BOTH stub managers
+            InjectConfigManagers(validator, stubManager1, stubManager2);
+
+            // Create a token signed by provider2's key
+            var creds = new SigningCredentials(signingKey2, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Issuer = "https://provider2.example.com/",
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "multi-provider-user"),
+                    new Claim(ClaimTypes.Email, "user@provider2.com")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var token = handler.WriteToken(handler.CreateToken(descriptor));
+
+            // Act - Should validate successfully because keys from provider2 are collected
+            var principal = await validator.ValidateIdTokenAsync(token);
+
+            // Assert
+            Assert.NotNull(principal);
+            Assert.True(principal.Identity?.IsAuthenticated);
+            Assert.Equal("multi-provider-user", principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+
+            validator.Dispose();
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_WithValidAudiences_ValidatesAgainstMultiple()
+        {
+            // Arrange
+            var secretKey = Encoding.UTF8.GetBytes("0123456789ABCDEF0123456789ABCDEF");
+            var signingKey = new SymmetricSecurityKey(secretKey);
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+
+            // Token with audience "client-b"
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Issuer = "https://idp.example.com/",
+                Audience = "client-b",
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "audience-test-user")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var token = handler.WriteToken(handler.CreateToken(descriptor));
+
+            var openIdConfig = new OpenIdConnectConfiguration { Issuer = "https://idp.example.com/" };
+            openIdConfig.SigningKeys.Add(signingKey);
+            var stubManager = new StubConfigManager(openIdConfig);
+
+            // Options with multiple valid audiences
+            var opts = new OpenIdConnectOptions
+            {
+                Issuer = "https://idp.example.com/",
+                DiscoveryEndpoint = "https://idp.example.com/.well-known/openid-configuration",
+                ValidateIssuer = true,
+                ValidateAudience = true, // Enable audience validation
+                ValidAudiences = new List<string> { "client-a", "client-b", "client-c" },
+                ValidateLifetime = true
+            };
+
+            var httpClientFactory = CreateHttpClientFactory();
+            var validator = new ExternalIdentityValidator(
+                Options.Create(opts),
+                httpClientFactory);
+
+            InjectConfigManagers(validator, stubManager);
+
+            // Act
+            var principal = await validator.ValidateIdTokenAsync(token);
+
+            // Assert
+            Assert.NotNull(principal);
+            Assert.True(principal.Identity?.IsAuthenticated);
+            Assert.Equal("audience-test-user", principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+
+            validator.Dispose();
+        }
+
+        [Fact]
+        public void Constructor_WithDiscoveryEndpointsArray_CreatesMultipleManagers()
+        {
+            // Arrange
+            var opts = new OpenIdConnectOptions
+            {
+                DiscoveryEndpoints = new List<string>
+                {
+                    "https://provider1.example.com/.well-known/openid-configuration",
+                    "https://provider2.example.com/.well-known/openid-configuration"
+                },
+                ValidIssuers = new List<string>
+                {
+                    "https://provider1.example.com/",
+                    "https://provider2.example.com/"
+                }
+            };
+
+            var httpClientFactory = CreateHttpClientFactory();
+
+            // Act
+            var validator = new ExternalIdentityValidator(
+                Options.Create(opts),
+                httpClientFactory);
+
+            // Assert - Check that multiple config managers were created
+            var field = typeof(ExternalIdentityValidator)
+                .GetField("_configManagers", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?? throw new InvalidOperationException("_configManagers not found");
+
+            var managers = field.GetValue(validator) as IList<ConfigurationManager<OpenIdConnectConfiguration>>;
+            Assert.NotNull(managers);
+            Assert.Equal(2, managers.Count);
+
+            validator.Dispose();
+        }
+
+        [Fact]
+        public void OpenIdConnectOptions_GetAllDiscoveryEndpoints_ReturnsArrayWhenPopulated()
+        {
+            var opts = new OpenIdConnectOptions
+            {
+                DiscoveryEndpoint = "https://single.example.com/.well-known",
+                DiscoveryEndpoints = new List<string>
+                {
+                    "https://multi1.example.com/.well-known",
+                    "https://multi2.example.com/.well-known"
+                }
+            };
+
+            // Array takes precedence
+            var endpoints = opts.GetAllDiscoveryEndpoints().ToList();
+            Assert.Equal(2, endpoints.Count);
+            Assert.Contains("https://multi1.example.com/.well-known", endpoints);
+            Assert.Contains("https://multi2.example.com/.well-known", endpoints);
+        }
+
+        [Fact]
+        public void OpenIdConnectOptions_GetAllDiscoveryEndpoints_FallsBackToSingle()
+        {
+            var opts = new OpenIdConnectOptions
+            {
+                DiscoveryEndpoint = "https://single.example.com/.well-known",
+                DiscoveryEndpoints = null
+            };
+
+            var endpoints = opts.GetAllDiscoveryEndpoints().ToList();
+            Assert.Single(endpoints);
+            Assert.Equal("https://single.example.com/.well-known", endpoints[0]);
+        }
+
+        [Fact]
+        public void OpenIdConnectOptions_GetAllValidIssuers_ReturnsArrayWhenPopulated()
+        {
+            var opts = new OpenIdConnectOptions
+            {
+                Issuer = "https://single-issuer.example.com/",
+                ValidIssuers = new List<string>
+                {
+                    "https://issuer1.example.com/",
+                    "https://issuer2.example.com/"
+                }
+            };
+
+            // Array takes precedence
+            var issuers = opts.GetAllValidIssuers().ToList();
+            Assert.Equal(2, issuers.Count);
+            Assert.Contains("https://issuer1.example.com/", issuers);
+            Assert.Contains("https://issuer2.example.com/", issuers);
+        }
+
+        [Fact]
+        public void OpenIdConnectOptions_GetAllValidAudiences_ReturnsArrayWhenPopulated()
+        {
+            var opts = new OpenIdConnectOptions
+            {
+                ClientId = "single-client",
+                ValidAudiences = new List<string> { "client-a", "client-b" }
+            };
+
+            // Array takes precedence
+            var audiences = opts.GetAllValidAudiences().ToList();
+            Assert.Equal(2, audiences.Count);
+            Assert.Contains("client-a", audiences);
+            Assert.Contains("client-b", audiences);
         }
 
         #endregion
