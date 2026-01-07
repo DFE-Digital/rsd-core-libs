@@ -87,7 +87,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
         [Fact]
         public async Task ValidateIdTokenAsync_NullOrWhitespace_ThrowsArgumentNullException()
         {
-            // 1) Stub a manager (won’t actually be called)
+            // 1) Stub a manager (wonâ€™t actually be called)
             var stubManager = new StubConfigManager(new OpenIdConnectConfiguration());
 
             // 2) Stub HttpClientFactory
@@ -108,11 +108,11 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
 
             // Act & Assert
             await Assert.ThrowsAsync<ArgumentNullException>(
-                () => validator.ValidateIdTokenAsync(null!, false,CancellationToken.None));
+                () => validator.ValidateIdTokenAsync(null!, false,cancellationToken:CancellationToken.None));
             await Assert.ThrowsAsync<ArgumentNullException>(
-                () => validator.ValidateIdTokenAsync("", false, CancellationToken.None));
+                () => validator.ValidateIdTokenAsync("", false, cancellationToken: CancellationToken.None));
             await Assert.ThrowsAsync<ArgumentNullException>(
-                () => validator.ValidateIdTokenAsync("   ", false, CancellationToken.None));
+                () => validator.ValidateIdTokenAsync("   ", false, cancellationToken: CancellationToken.None));
         }
 
         [Fact]
@@ -394,5 +394,408 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             Assert.Equal("async-user",
                 principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
         }
+
+        #region ValidateInternalAuthToken Tests
+
+        [Fact]
+        public void ValidateInternalAuthToken_NullOrWhitespace_ThrowsArgumentNullException()
+        {
+            var factory = CreateHttpClientFactory();
+            var internalAuthOpts = new InternalServiceAuthOptions
+            {
+                SecretKey = "internal_auth_key_that_is_long_enough_32",
+                Issuer = "internal-issuer",
+                Audience = "internal-audience"
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                internalAuthOpts: Options.Create(internalAuthOpts));
+
+            Assert.Throws<ArgumentNullException>(() => validator.ValidateInternalAuthToken(null!));
+            Assert.Throws<ArgumentNullException>(() => validator.ValidateInternalAuthToken(""));
+            Assert.Throws<ArgumentNullException>(() => validator.ValidateInternalAuthToken("   "));
+        }
+
+        [Fact]
+        public void ValidateInternalAuthToken_NoSecretKey_ThrowsInvalidOperationException()
+        {
+            var factory = CreateHttpClientFactory();
+            var internalAuthOpts = new InternalServiceAuthOptions
+            {
+                SecretKey = "", // missing
+                Issuer = "internal-issuer",
+                Audience = "internal-audience"
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                internalAuthOpts: Options.Create(internalAuthOpts));
+
+            Assert.Throws<InvalidOperationException>(() =>
+                validator.ValidateInternalAuthToken("some-token"));
+        }
+
+        [Fact]
+        public void ValidateInternalAuthToken_NullInternalAuthOptions_ThrowsInvalidOperationException()
+        {
+            var factory = CreateHttpClientFactory();
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                internalAuthOpts: null);
+
+            Assert.Throws<InvalidOperationException>(() =>
+                validator.ValidateInternalAuthToken("some-token"));
+        }
+
+        [Fact]
+        public void ValidateInternalAuthToken_InvalidSignature_ThrowsSecurityTokenException()
+        {
+            var factory = CreateHttpClientFactory();
+            var validKey = Encoding.UTF8.GetBytes("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
+            var internalAuthOpts = new InternalServiceAuthOptions
+            {
+                SecretKey = Encoding.UTF8.GetString(validKey),
+                Issuer = "internal-issuer",
+                Audience = "internal-audience"
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                internalAuthOpts: Options.Create(internalAuthOpts));
+
+            // Token signed with a *different* key
+            var badKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"));
+            var creds = new SigningCredentials(badKey, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Issuer = "internal-issuer",
+                Audience = "internal-audience",
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "internal-user")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var badToken = handler.WriteToken(handler.CreateToken(descriptor));
+
+            var exception = Assert.Throws<SecurityTokenException>(() =>
+                validator.ValidateInternalAuthToken(badToken));
+            Assert.Contains("Internal Auth token validation failed", exception.Message);
+        }
+
+        [Fact]
+        public void ValidateInternalAuthToken_InvalidIssuer_ThrowsSecurityTokenException()
+        {
+            var factory = CreateHttpClientFactory();
+            var rawKey = "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG";
+            var internalAuthOpts = new InternalServiceAuthOptions
+            {
+                SecretKey = rawKey,
+                Issuer = "expected-issuer",
+                Audience = "internal-audience"
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                internalAuthOpts: Options.Create(internalAuthOpts));
+
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(rawKey));
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Issuer = "wrong-issuer", // Different issuer
+                Audience = "internal-audience",
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "internal-user")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var token = handler.WriteToken(handler.CreateToken(descriptor));
+
+            var exception = Assert.Throws<SecurityTokenException>(() =>
+                validator.ValidateInternalAuthToken(token));
+            Assert.Contains("Internal Auth token validation failed", exception.Message);
+        }
+
+        [Fact]
+        public void ValidateInternalAuthToken_InvalidAudience_ThrowsSecurityTokenException()
+        {
+            var factory = CreateHttpClientFactory();
+            var rawKey = "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH";
+            var internalAuthOpts = new InternalServiceAuthOptions
+            {
+                SecretKey = rawKey,
+                Issuer = "internal-issuer",
+                Audience = "expected-audience"
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                internalAuthOpts: Options.Create(internalAuthOpts));
+
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(rawKey));
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Issuer = "internal-issuer",
+                Audience = "wrong-audience", // Different audience
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "internal-user")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var token = handler.WriteToken(handler.CreateToken(descriptor));
+
+            var exception = Assert.Throws<SecurityTokenException>(() =>
+                validator.ValidateInternalAuthToken(token));
+            Assert.Contains("Internal Auth token validation failed", exception.Message);
+        }
+
+        [Fact]
+        public void ValidateInternalAuthToken_ValidToken_ReturnsPrincipal()
+        {
+            var factory = CreateHttpClientFactory();
+            var rawKey = "IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII";
+            var internalAuthOpts = new InternalServiceAuthOptions
+            {
+                SecretKey = rawKey,
+                Issuer = "internal-issuer",
+                Audience = "internal-audience"
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                internalAuthOpts: Options.Create(internalAuthOpts));
+
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(rawKey));
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Issuer = "internal-issuer",
+                Audience = "internal-audience",
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "internal-user"),
+                    new Claim(ClaimTypes.Email, "internal@example.com"),
+                    new Claim(ClaimTypes.Role, "InternalService")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var token = handler.WriteToken(handler.CreateToken(descriptor));
+
+            var principal = validator.ValidateInternalAuthToken(token);
+
+            Assert.NotNull(principal);
+            Assert.True(principal.Identity?.IsAuthenticated);
+            Assert.Equal("internal-user",
+                principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            Assert.Equal("internal@example.com",
+                principal.FindFirst(ClaimTypes.Email)?.Value);
+            Assert.Equal("InternalService",
+                principal.FindFirst(ClaimTypes.Role)?.Value);
+        }
+
+        [Fact]
+        public void ValidateInternalAuthToken_ValidTokenWithMultipleClaims_ReturnsAllClaims()
+        {
+            var factory = CreateHttpClientFactory();
+            var rawKey = "JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ";
+            var internalAuthOpts = new InternalServiceAuthOptions
+            {
+                SecretKey = rawKey,
+                Issuer = "internal-issuer",
+                Audience = "internal-audience"
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                internalAuthOpts: Options.Create(internalAuthOpts));
+
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(rawKey));
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Issuer = "internal-issuer",
+                Audience = "internal-audience",
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "service-123"),
+                    new Claim(ClaimTypes.Name, "InternalService"),
+                    new Claim(ClaimTypes.Email, "service@internal.com"),
+                    new Claim(ClaimTypes.Role, "ServiceAccount"),
+                    new Claim("custom-claim", "custom-value")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var token = handler.WriteToken(handler.CreateToken(descriptor));
+
+            var principal = validator.ValidateInternalAuthToken(token);
+
+            Assert.NotNull(principal);
+            Assert.True(principal.Identity?.IsAuthenticated);
+            Assert.Equal("service-123", principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            Assert.Equal("InternalService", principal.FindFirst(ClaimTypes.Name)?.Value);
+            Assert.Equal("service@internal.com", principal.FindFirst(ClaimTypes.Email)?.Value);
+            Assert.Equal("ServiceAccount", principal.FindFirst(ClaimTypes.Role)?.Value);
+            Assert.Equal("custom-value", principal.FindFirst("custom-claim")?.Value);
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_WithValidInternalRequest_UsesInternalAuthPath()
+        {
+            var factory = CreateHttpClientFactory();
+            var rawKey = "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK";
+            var internalAuthOpts = new InternalServiceAuthOptions
+            {
+                SecretKey = rawKey,
+                Issuer = "internal-issuer",
+                Audience = "internal-audience"
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                internalAuthOpts: Options.Create(internalAuthOpts));
+
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(rawKey));
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Issuer = "internal-issuer",
+                Audience = "internal-audience",
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "async-internal-user")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var token = handler.WriteToken(handler.CreateToken(descriptor));
+
+            // Act - with validInternalRequest = true
+            var principal = await validator.ValidateIdTokenAsync(token, validCypressRequest: false, validInternalRequest: true);
+
+            Assert.NotNull(principal);
+            Assert.True(principal.Identity?.IsAuthenticated);
+            Assert.Equal("async-internal-user",
+                principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_WithInternalAuthConfigured_ButValidInternalRequestFalse_DoesNotUseInternalPath()
+        {
+            var factory = CreateHttpClientFactory();
+            var rawKey = "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL";
+            var internalAuthOpts = new InternalServiceAuthOptions
+            {
+                SecretKey = rawKey,
+                Issuer = "internal-issuer",
+                Audience = "internal-audience"
+            };
+
+            // Create a validator with internal auth configured
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                internalAuthOpts: Options.Create(internalAuthOpts));
+
+            // Create a token signed with internal auth key but wrong issuer for OIDC
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(rawKey));
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Issuer = "internal-issuer", // This won't match OIDC issuer
+                Audience = "internal-audience",
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "user")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var token = handler.WriteToken(handler.CreateToken(descriptor));
+
+            // Act & Assert - with validInternalRequest = false, it should try OIDC path and fail
+            await Assert.ThrowsAnyAsync<Exception>(() =>
+                validator.ValidateIdTokenAsync(token, validCypressRequest: false, validInternalRequest: false));
+        }
+
+        [Fact]
+        public void ValidateInternalAuthToken_ExpiredToken_ThrowsSecurityTokenException()
+        {
+            var factory = CreateHttpClientFactory();
+            var rawKey = "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM";
+            var internalAuthOpts = new InternalServiceAuthOptions
+            {
+                SecretKey = rawKey,
+                Issuer = "internal-issuer",
+                Audience = "internal-audience"
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                internalAuthOpts: Options.Create(internalAuthOpts));
+
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(rawKey));
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Issuer = "internal-issuer",
+                Audience = "internal-audience",
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "internal-user")
+                }),
+                NotBefore = DateTime.UtcNow.AddMinutes(-15), // Token valid from 15 minutes ago
+                Expires = DateTime.UtcNow.AddMinutes(-10), // Expired 10 minutes ago
+                SigningCredentials = creds
+            };
+            var token = handler.WriteToken(handler.CreateToken(descriptor));
+
+            var exception = Assert.Throws<SecurityTokenException>(() =>
+                validator.ValidateInternalAuthToken(token));
+            Assert.Contains("Internal Auth token validation failed", exception.Message);
+        }
+
+        [Fact]
+        public void ValidateInternalAuthToken_MalformedToken_ThrowsSecurityTokenException()
+        {
+            var factory = CreateHttpClientFactory();
+            var rawKey = "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN";
+            var internalAuthOpts = new InternalServiceAuthOptions
+            {
+                SecretKey = rawKey,
+                Issuer = "internal-issuer",
+                Audience = "internal-audience"
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                internalAuthOpts: Options.Create(internalAuthOpts));
+
+            var malformedToken = "this.is.not.a.valid.jwt.token";
+
+            var exception = Assert.Throws<SecurityTokenException>(() =>
+                validator.ValidateInternalAuthToken(malformedToken));
+            Assert.Contains("Internal Auth token validation failed", exception.Message);
+        }
+
+        #endregion
     }
 }

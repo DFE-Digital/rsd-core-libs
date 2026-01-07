@@ -28,6 +28,107 @@ namespace GovUK.Dfe.CoreLibs.Security
         }
 
         /// <summary>
+        /// Registers the UserTokenServiceFactory to support multiple token configurations.
+        /// This allows creating multiple UserTokenService instances with different settings.
+        /// Use this when you need to generate tokens with different configurations (e.g., different secrets, issuers, audiences).
+        /// </summary>
+        /// <param name="services">The <see cref="IServiceCollection"/> to add services to.</param>
+        /// <returns>The updated <see cref="IServiceCollection"/>.</returns>
+        /// <remarks>
+        /// After calling this method, you need to register named configurations using:
+        /// <code>
+        /// services.Configure&lt;TokenSettings&gt;("ConfigName", options => { ... });
+        /// </code>
+        /// Then inject IUserTokenServiceFactory and call GetService("ConfigName") to get instances.
+        /// </remarks>
+        public static IServiceCollection AddUserTokenServiceFactory(this IServiceCollection services)
+        {
+            services.AddSingleton<IUserTokenServiceFactory, UserTokenServiceFactory>();
+            services.AddHttpContextAccessor();
+            return services;
+        }
+
+        /// <summary>
+        /// Registers the UserTokenServiceFactory with named configurations from IConfiguration sections.
+        /// This allows creating multiple UserTokenService instances with different settings loaded from configuration.
+        /// </summary>
+        /// <param name="services">The <see cref="IServiceCollection"/> to add services to.</param>
+        /// <param name="configuration">The configuration object containing token settings.</param>
+        /// <param name="namedConfigurations">
+        /// Dictionary of configuration names and their corresponding configuration section paths.
+        /// Key: configuration name to use when calling the factory.
+        /// Value: configuration section path (e.g., "Authorization:TokenSettings:Primary").
+        /// </param>
+        /// <returns>The updated <see cref="IServiceCollection"/>.</returns>
+        /// <example>
+        /// <code>
+        /// services.AddUserTokenServiceFactory(
+        ///     configuration,
+        ///     new Dictionary&lt;string, string&gt;
+        ///     {
+        ///         { "Primary", "Authentication:Primary" },
+        ///         { "Secondary", "Authentication:Secondary" }
+        ///     });
+        /// </code>
+        /// </example>
+        public static IServiceCollection AddUserTokenServiceFactory(
+            this IServiceCollection services,
+            IConfiguration configuration,
+            Dictionary<string, string> namedConfigurations)
+        {
+            // Register each named configuration from the specified config sections
+            foreach (var (name, sectionPath) in namedConfigurations)
+            {
+                services.Configure<TokenSettings>(name, configuration.GetSection(sectionPath));
+            }
+
+            // Register the factory
+            services.AddSingleton<IUserTokenServiceFactory, UserTokenServiceFactory>();
+            services.Configure<InternalServiceAuthOptions>(configuration.GetSection(InternalServiceAuthOptions.SectionName));
+            services.AddHttpContextAccessor();
+
+            return services;
+        }
+
+        /// <summary>
+        /// Registers the UserTokenServiceFactory with named configurations using action-based setup.
+        /// This allows creating multiple UserTokenService instances with different settings configured programmatically.
+        /// </summary>
+        /// <param name="services">The <see cref="IServiceCollection"/> to add services to.</param>
+        /// <param name="namedConfigurations">
+        /// Dictionary of configuration names and their configuration actions.
+        /// Key: configuration name to use when calling the factory.
+        /// Value: action to configure TokenSettings.
+        /// </param>
+        /// <returns>The updated <see cref="IServiceCollection"/>.</returns>
+        /// <example>
+        /// <code>
+        /// services.AddUserTokenServiceFactory(
+        ///     new Dictionary&lt;string, Action&lt;TokenSettings&gt;&gt;
+        ///     {
+        ///         { "Primary", s => { s.SecretKey = "key1"; s.Issuer = "issuer1"; } },
+        ///         { "Secondary", s => { s.SecretKey = "key2"; s.Issuer = "issuer2"; } }
+        ///     });
+        /// </code>
+        /// </example>
+        public static IServiceCollection AddUserTokenServiceFactory(
+            this IServiceCollection services,
+            Dictionary<string, Action<TokenSettings>> namedConfigurations)
+        {
+            // Register each named configuration with the provided actions
+            foreach (var (name, configureAction) in namedConfigurations)
+            {
+                services.Configure<TokenSettings>(name, configureAction);
+            }
+
+            // Register the factory
+            services.AddSingleton<IUserTokenServiceFactory, UserTokenServiceFactory>();
+            services.AddHttpContextAccessor();
+
+            return services;
+        }
+
+        /// <summary>
         /// Registers the Api Obo Token Service and its dependencies in the specified <see cref="IServiceCollection"/>.
         /// </summary>
         /// <param name="services">The <see cref="IServiceCollection"/> to add services to.</param>
@@ -111,7 +212,7 @@ namespace GovUK.Dfe.CoreLibs.Security
                 configuration.GetSection(sectionName));
             services.Configure<TestAuthenticationOptions>(configuration.GetSection(TestAuthenticationOptions.SectionName));
             services.Configure<CypressAuthenticationOptions>(configuration.GetSection(CypressAuthenticationOptions.SectionName));
-
+            services.Configure<InternalServiceAuthOptions>(configuration.GetSection(InternalServiceAuthOptions.SectionName));
             services.AddHttpClient();
 
             services.AddSingleton<IExternalIdentityValidator, ExternalIdentityValidator>();
