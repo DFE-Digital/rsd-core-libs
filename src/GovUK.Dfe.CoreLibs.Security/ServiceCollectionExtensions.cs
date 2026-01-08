@@ -219,5 +219,44 @@ namespace GovUK.Dfe.CoreLibs.Security
 
             return services;
         }
+
+        /// <summary>
+        /// Registers the OpenID Connect token validator with multi-provider support
+        /// for multi-tenant scenarios. Each provider configuration is validated independently,
+        /// preventing cross-tenant token attacks.
+        /// </summary>
+        /// <param name="services">The service collection to add to.</param>
+        /// <param name="configuration">
+        /// Your application configuration root (used to bind test/cypress/internal auth options).
+        /// </param>
+        /// <param name="configure">
+        /// Action to configure the multi-provider options with tenant-specific OIDC settings.
+        /// </param>
+        /// <returns>The original <see cref="IServiceCollection"/> for chaining.</returns>
+        public static IServiceCollection AddExternalIdentityValidation(
+            this IServiceCollection services,
+            IConfiguration configuration,
+            Action<MultiProviderOpenIdConnectOptions> configure)
+        {
+            // Configure multi-provider options
+            services.Configure(configure);
+
+            // Still need a base OpenIdConnectOptions for backward compatibility in constructor
+            // (will be ignored when MultiProviderOpenIdConnectOptions has providers)
+            services.Configure<OpenIdConnectOptions>(opts =>
+            {
+                opts.DiscoveryEndpoint = "https://placeholder.example.com/.well-known/openid-configuration";
+            });
+
+            // Configure other auth options from config
+            services.Configure<TestAuthenticationOptions>(configuration.GetSection(TestAuthenticationOptions.SectionName));
+            services.Configure<CypressAuthenticationOptions>(configuration.GetSection(CypressAuthenticationOptions.SectionName));
+            services.Configure<InternalServiceAuthOptions>(configuration.GetSection(InternalServiceAuthOptions.SectionName));
+            services.AddHttpClient();
+
+            services.AddSingleton<IExternalIdentityValidator, ExternalIdentityValidator>();
+
+            return services;
+        }
     }
 }

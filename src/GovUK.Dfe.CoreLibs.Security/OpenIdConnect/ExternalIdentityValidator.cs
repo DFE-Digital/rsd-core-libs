@@ -1,5 +1,6 @@
 using GovUK.Dfe.CoreLibs.Security.Configurations;
 using GovUK.Dfe.CoreLibs.Security.Interfaces;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -11,32 +12,59 @@ using System.Text;
 namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
 {
     /// <summary>
+    /// Represents a configured OIDC provider with its options and configuration manager.
+    /// </summary>
+    internal sealed class ProviderConfiguration : IDisposable
+    {
+        public OpenIdConnectOptions Options { get; }
+        public ConfigurationManager<OpenIdConnectConfiguration> ConfigManager { get; }
+
+        public ProviderConfiguration(
+            OpenIdConnectOptions options,
+            ConfigurationManager<OpenIdConnectConfiguration> configManager)
+        {
+            Options = options;
+            ConfigManager = configManager;
+        }
+
+        public void Dispose()
+        {
+            if (ConfigManager is IDisposable disposable)
+                disposable.Dispose();
+        }
+    }
+
+    /// <summary>
     /// An implementation of <see cref="IExternalIdentityValidator"/> that uses the
     /// Microsoft.IdentityModel.Protocols stack to retrieve metadata and signing keys
     /// from one or more OpenID Connect providers, caching them automatically.
-    /// Supports multi-tenant scenarios with multiple OIDC providers.
+    /// Supports multi-tenant scenarios with multiple isolated OIDC providers.
     /// Also supports test token validation for development/testing scenarios.
     /// </summary>
     public sealed class ExternalIdentityValidator
         : IExternalIdentityValidator, IDisposable
     {
-        private readonly List<ConfigurationManager<OpenIdConnectConfiguration>> _configManagers;
-        private readonly OpenIdConnectOptions _opts;
+        private readonly List<ProviderConfiguration> _providers;
+        private readonly OpenIdConnectOptions? _singleProviderOpts;
         private readonly TestAuthenticationOptions? _testOpts;
         private readonly CypressAuthenticationOptions? _cypressAuthOpts;
         private readonly InternalServiceAuthOptions? _internalAuthOpts;
+        private readonly ILogger<ExternalIdentityValidator>? _logger;
+        private readonly bool _isMultiProviderMode;
 
         /// <summary>
         /// Initializes a new instance of <see cref="ExternalIdentityValidator"/>.
+        /// Supports both single-provider (backward compatible) and multi-provider modes.
         /// </summary>
         /// <param name="options">
-        /// The OIDC validation options, bound from configuration.
-        /// Supports single provider (Issuer + DiscoveryEndpoint) or multiple providers
-        /// (ValidIssuers + DiscoveryEndpoints).
+        /// The OIDC validation options for single-provider mode.
         /// </param>
         /// <param name="httpClientFactory">
-        /// Factory for creating <see cref="System.Net.Http.HttpClient"/> instances
-        /// to fetch the discovery document and JWKS.
+        /// Factory for creating <see cref="System.Net.Http.HttpClient"/> instances.
+        /// </param>
+        /// <param name="multiProviderOptions">
+        /// Optional multi-provider options for multi-tenant scenarios.
+        /// When provided with configured providers, takes precedence over single options.
         /// </param>
         /// <param name="cypressAuthOpts">Cypress authentication options</param>
         /// <param name="testOptions">
@@ -45,45 +73,87 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// <param name="internalAuthOpts">
         /// Internal Authentication scheme options
         /// </param>
+        /// <param name="logger">Optional logger for diagnostics</param>
         public ExternalIdentityValidator(
             IOptions<OpenIdConnectOptions> options,
             IHttpClientFactory httpClientFactory,
+            IOptions<MultiProviderOpenIdConnectOptions>? multiProviderOptions = null,
             IOptions<CypressAuthenticationOptions>? cypressAuthOpts = null,
             IOptions<TestAuthenticationOptions>? testOptions = null,
-            IOptions<InternalServiceAuthOptions>? internalAuthOpts = null)
+            IOptions<InternalServiceAuthOptions>? internalAuthOpts = null,
+            ILogger<ExternalIdentityValidator>? logger = null)
         {
-            _opts = options?.Value
-                    ?? throw new ArgumentNullException(nameof(options));
-
             _testOpts = testOptions?.Value;
             _cypressAuthOpts = cypressAuthOpts?.Value;
             _internalAuthOpts = internalAuthOpts?.Value;
+            _logger = logger;
+            _providers = new List<ProviderConfiguration>();
 
-            // Create ConfigurationManager instances for all discovery endpoints
-            _configManagers = new List<ConfigurationManager<OpenIdConnectConfiguration>>();
+            var multiOpts = multiProviderOptions?.Value;
 
-            var discoveryEndpoints = _opts.GetAllDiscoveryEndpoints().ToList();
-
-            if (!discoveryEndpoints.Any())
+            // Check if multi-provider mode should be used
+            if (multiOpts?.Providers != null && multiOpts.Providers.Any())
             {
-                throw new ArgumentException(
-                    "At least one discovery endpoint must be configured (DiscoveryEndpoint or DiscoveryEndpoints).",
-                    nameof(options));
-            }
+                _isMultiProviderMode = true;
+                _singleProviderOpts = null;
 
-            foreach (var endpoint in discoveryEndpoints)
-            {
-                var configManager = new ConfigurationManager<OpenIdConnectConfiguration>(
-                    metadataAddress: endpoint,
-                    configRetriever: new OpenIdConnectConfigurationRetriever(),
-                    docRetriever: new HttpDocumentRetriever(
-                        httpClientFactory.CreateClient())
+                foreach (var providerOpts in multiOpts.Providers)
+                {
+                    var endpoint = providerOpts.DiscoveryEndpoint;
+                    if (string.IsNullOrEmpty(endpoint))
                     {
-                        RequireHttps = endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-                    });
+                        throw new ArgumentException(
+                            $"Each provider must have a DiscoveryEndpoint configured. " +
+                            $"Provider with Issuer '{providerOpts.Issuer}' is missing DiscoveryEndpoint.");
+                    }
 
-                _configManagers.Add(configManager);
+                    var configManager = CreateConfigManager(endpoint, httpClientFactory);
+                    _providers.Add(new ProviderConfiguration(providerOpts, configManager));
+                }
+
+                _logger?.LogInformation(
+                    "ExternalIdentityValidator initialized in multi-provider mode with {Count} providers",
+                    _providers.Count);
             }
+            else
+            {
+                // Single-provider mode (backward compatible)
+                _isMultiProviderMode = false;
+                _singleProviderOpts = options?.Value
+                    ?? throw new ArgumentNullException(nameof(options));
+
+                var discoveryEndpoints = _singleProviderOpts.GetAllDiscoveryEndpoints().ToList();
+
+                if (!discoveryEndpoints.Any())
+                {
+                    throw new ArgumentException(
+                        "At least one discovery endpoint must be configured (DiscoveryEndpoint or DiscoveryEndpoints).",
+                        nameof(options));
+                }
+
+                foreach (var endpoint in discoveryEndpoints)
+                {
+                    var configManager = CreateConfigManager(endpoint, httpClientFactory);
+                    _providers.Add(new ProviderConfiguration(_singleProviderOpts, configManager));
+                }
+
+                _logger?.LogInformation(
+                    "ExternalIdentityValidator initialized in single-provider mode with {Count} discovery endpoints",
+                    discoveryEndpoints.Count);
+            }
+        }
+
+        private static ConfigurationManager<OpenIdConnectConfiguration> CreateConfigManager(
+            string endpoint,
+            IHttpClientFactory httpClientFactory)
+        {
+            return new ConfigurationManager<OpenIdConnectConfiguration>(
+                metadataAddress: endpoint,
+                configRetriever: new OpenIdConnectConfigurationRetriever(),
+                docRetriever: new HttpDocumentRetriever(httpClientFactory.CreateClient())
+                {
+                    RequireHttps = endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                });
         }
 
         /// <inheritdoc/>
@@ -108,46 +178,155 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 return ValidateTestIdToken(idToken, validCypressRequest);
             }
 
-            // Collect signing keys from ALL configured OIDC providers
-            var allSigningKeys = new List<SecurityKey>();
-            foreach (var configManager in _configManagers)
+            if (_isMultiProviderMode)
             {
-                var metadata = await configManager.GetConfigurationAsync(cancellationToken);
+                return await ValidateWithMultiProviderModeAsync(idToken, cancellationToken);
+            }
+            else
+            {
+                return await ValidateWithSingleProviderModeAsync(idToken, cancellationToken);
+            }
+        }
+
+        /// <summary>
+        /// Multi-provider mode: Try each provider until one fully validates.
+        /// Token must match the provider's issuer AND audience.
+        /// </summary>
+        private async Task<ClaimsPrincipal> ValidateWithMultiProviderModeAsync(
+            string idToken,
+            CancellationToken cancellationToken)
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var errors = new List<string>();
+
+            foreach (var provider in _providers)
+            {
+                try
+                {
+                    var metadata = await provider.ConfigManager.GetConfigurationAsync(cancellationToken);
+
+                    // Build validation parameters for THIS specific provider
+                    var validIssuers = GetValidIssuersForProvider(provider.Options);
+                    var validAudiences = GetValidAudiencesForProvider(provider.Options);
+
+                    var validationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = provider.Options.ValidateIssuer,
+                        ValidIssuers = validIssuers.Any() ? validIssuers : null,
+                        ValidIssuer = !validIssuers.Any() ? provider.Options.Issuer : null,
+                        ValidateAudience = provider.Options.ValidateAudience,
+                        ValidAudiences = validAudiences.Any() ? validAudiences : null,
+                        ValidAudience = !validAudiences.Any() ? provider.Options.ClientId : null,
+                        ValidateLifetime = provider.Options.ValidateLifetime,
+                        IssuerSigningKeys = metadata.SigningKeys,
+                        ValidateIssuerSigningKey = true
+                    };
+
+                    var principal = handler.ValidateToken(idToken, validationParameters, out _);
+
+                    _logger?.LogDebug(
+                        "Token validated successfully against provider with Issuer: {Issuer}",
+                        provider.Options.Issuer);
+
+                    return principal;
+                }
+                catch (SecurityTokenException ex)
+                {
+                    // This provider didn't match, try the next one
+                    errors.Add($"Provider '{provider.Options.Issuer}': {ex.Message}");
+                    _logger?.LogDebug(
+                        "Token did not validate against provider {Issuer}: {Error}",
+                        provider.Options.Issuer, ex.Message);
+                    continue;
+                }
+            }
+
+            // None of the providers could validate the token
+            var errorMessage = $"Token did not match any configured OIDC provider. " +
+                             $"Tried {_providers.Count} provider(s). Errors: {string.Join("; ", errors)}";
+            _logger?.LogWarning(errorMessage);
+            throw new SecurityTokenValidationException(errorMessage);
+        }
+
+        /// <summary>
+        /// Single-provider mode (backward compatible): Collect all signing keys and validate
+        /// against all configured issuers/audiences.
+        /// </summary>
+        private async Task<ClaimsPrincipal> ValidateWithSingleProviderModeAsync(
+            string idToken,
+            CancellationToken cancellationToken)
+        {
+            // Collect signing keys from ALL configured discovery endpoints
+            var allSigningKeys = new List<SecurityKey>();
+            foreach (var provider in _providers)
+            {
+                var metadata = await provider.ConfigManager.GetConfigurationAsync(cancellationToken);
                 allSigningKeys.AddRange(metadata.SigningKeys);
             }
 
-            // Get all valid issuers and audiences
-            var validIssuers = _opts.GetAllValidIssuers().ToList();
-            var validAudiences = _opts.GetAllValidAudiences().ToList();
+            // Get all valid issuers and audiences from the single options
+            var validIssuers = _singleProviderOpts!.GetAllValidIssuers().ToList();
+            var validAudiences = _singleProviderOpts.GetAllValidAudiences().ToList();
 
             var validationParameters = new TokenValidationParameters
             {
-                ValidateIssuer = _opts.ValidateIssuer,
+                ValidateIssuer = _singleProviderOpts.ValidateIssuer,
                 ValidIssuers = validIssuers.Any() ? validIssuers : null,
-                ValidateAudience = _opts.ValidateAudience,
+                ValidateAudience = _singleProviderOpts.ValidateAudience,
                 ValidAudiences = validAudiences.Any() ? validAudiences : null,
-                ValidateLifetime = _opts.ValidateLifetime,
+                ValidateLifetime = _singleProviderOpts.ValidateLifetime,
                 IssuerSigningKeys = allSigningKeys,
                 ValidateIssuerSigningKey = true
             };
 
             var handler = new JwtSecurityTokenHandler();
-            return handler.ValidateToken(
-                idToken,
-                validationParameters,
-                out _ /* validatedToken */);
+            return handler.ValidateToken(idToken, validationParameters, out _);
+        }
+
+        /// <summary>
+        /// Gets all valid issuers for a specific provider configuration.
+        /// </summary>
+        private static List<string> GetValidIssuersForProvider(OpenIdConnectOptions opts)
+        {
+            var issuers = new List<string>();
+
+            if (!string.IsNullOrEmpty(opts.Issuer))
+                issuers.Add(opts.Issuer);
+
+            if (!string.IsNullOrEmpty(opts.Authority))
+            {
+                issuers.Add(opts.Authority);
+                // Also add v2.0 variant if not already included
+                var v2Issuer = $"{opts.Authority.TrimEnd('/')}/v2.0";
+                if (!issuers.Contains(v2Issuer, StringComparer.OrdinalIgnoreCase))
+                    issuers.Add(v2Issuer);
+            }
+
+            if (opts.ValidIssuers != null)
+                issuers.AddRange(opts.ValidIssuers.Where(i => !string.IsNullOrEmpty(i)));
+
+            return issuers.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        /// <summary>
+        /// Gets all valid audiences for a specific provider configuration.
+        /// </summary>
+        private static List<string> GetValidAudiencesForProvider(OpenIdConnectOptions opts)
+        {
+            var audiences = new List<string>();
+
+            if (!string.IsNullOrEmpty(opts.ClientId))
+                audiences.Add(opts.ClientId);
+
+            if (opts.ValidAudiences != null)
+                audiences.AddRange(opts.ValidAudiences.Where(a => !string.IsNullOrEmpty(a)));
+
+            return audiences.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         /// <summary>
         /// Validates a test ID token using the configured test authentication options.
-        /// This method bypasses OIDC discovery and uses a pre-configured signing key.
         /// </summary>
-        /// <param name="idToken">The test JWT token to validate</param>
-        /// <param name="cypressRequest">Whether this is a cypress request</param>
-        /// <returns>A ClaimsPrincipal containing the validated claims</returns>
-        /// <exception cref="ArgumentNullException">Thrown when idToken is null or empty</exception>
-        /// <exception cref="InvalidOperationException">Thrown when test authentication is not properly configured</exception>
-        /// <exception cref="SecurityTokenException">Thrown when token validation fails</exception>
         public ClaimsPrincipal ValidateTestIdToken(string idToken, bool cypressRequest = false)
         {
             if (string.IsNullOrWhiteSpace(idToken))
@@ -159,7 +338,6 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
             if (string.IsNullOrWhiteSpace(_testOpts.JwtSigningKey))
                 throw new InvalidOperationException("Test JWT signing key is not configured.");
 
-            // Create signing key from the configured test key
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_testOpts.JwtSigningKey));
 
             var validationParameters = new TokenValidationParameters
@@ -171,7 +349,6 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 ValidateLifetime = _testOpts.ValidateLifetime,
                 IssuerSigningKey = key,
                 ValidateIssuerSigningKey = true,
-                // Allow some clock skew for test scenarios
                 ClockSkew = TimeSpan.FromMinutes(5)
             };
 
@@ -179,10 +356,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
 
             try
             {
-                return handler.ValidateToken(
-                    idToken,
-                    validationParameters,
-                    out _ /* validatedToken */);
+                return handler.ValidateToken(idToken, validationParameters, out _);
             }
             catch (Exception ex)
             {
@@ -192,30 +366,23 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
 
         /// <summary>
         /// Validates an Internal Auth Id token using the configured authentication options.
-        /// This method bypasses OIDC discovery and uses a pre-configured signing key.
         /// </summary>
-        /// <param name="idToken">The JWT token to validate</param>
-        /// <returns>A ClaimsPrincipal containing the validated claims</returns>
-        /// <exception cref="ArgumentNullException">Thrown when idToken is null or empty</exception>
-        /// <exception cref="InvalidOperationException">Thrown when test authentication is not properly configured</exception>
-        /// <exception cref="SecurityTokenException">Thrown when token validation fails</exception>
         public ClaimsPrincipal ValidateInternalAuthToken(string idToken)
         {
             if (string.IsNullOrWhiteSpace(idToken))
                 throw new ArgumentNullException(nameof(idToken));
 
             if (string.IsNullOrWhiteSpace(_internalAuthOpts?.SecretKey))
-                throw new InvalidOperationException("Test JWT signing key is not configured.");
+                throw new InvalidOperationException("Internal Auth signing key is not configured.");
 
-            // Create signing key from the configured test key
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_internalAuthOpts?.SecretKey!));
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_internalAuthOpts.SecretKey));
 
             var validationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = true,
-                ValidIssuer = _internalAuthOpts?.Issuer,
+                ValidIssuer = _internalAuthOpts.Issuer,
                 ValidateAudience = true,
-                ValidAudience = _internalAuthOpts?.Audience,
+                ValidAudience = _internalAuthOpts.Audience,
                 IssuerSigningKey = key,
                 ValidateIssuerSigningKey = true,
             };
@@ -224,10 +391,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
 
             try
             {
-                return handler.ValidateToken(
-                    idToken,
-                    validationParameters,
-                    out _ /* validatedToken */);
+                return handler.ValidateToken(idToken, validationParameters, out _);
             }
             catch (Exception ex)
             {
@@ -238,21 +402,28 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// <summary>
         /// Determines whether test authentication is enabled and configured.
         /// </summary>
-        /// <returns>True if test authentication is enabled, false otherwise</returns>
         public bool IsTestAuthenticationEnabled => _testOpts?.Enabled == true;
 
         /// <summary>
-        /// Disposes all internal <see cref="ConfigurationManager{OpenIdConnectConfiguration}"/> instances,
-        /// which stops their background metadata refresh timers.
+        /// Indicates whether the validator is running in multi-provider mode.
+        /// </summary>
+        public bool IsMultiProviderMode => _isMultiProviderMode;
+
+        /// <summary>
+        /// Gets the number of configured providers.
+        /// </summary>
+        public int ProviderCount => _providers.Count;
+
+        /// <summary>
+        /// Disposes all internal configuration managers.
         /// </summary>
         public void Dispose()
         {
-            foreach (var configManager in _configManagers)
+            foreach (var provider in _providers)
             {
-                if (configManager is IDisposable disposable)
-                    disposable.Dispose();
+                provider.Dispose();
             }
-            _configManagers.Clear();
+            _providers.Clear();
         }
     }
 }
