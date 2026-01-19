@@ -24,6 +24,15 @@ namespace GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response
             Error = error;
         }
 
+        [JsonConstructor]
+        public Result(T? value, bool isSuccess, string? error, DomainErrorCode? errorCode)
+        {
+            Value = value;
+            IsSuccess = isSuccess;
+            Error = error;
+            ErrorCode = errorCode;
+        }
+
         public static Result<T> Success(T v) => new Result<T>(v);
         public static Result<T> Failure(string error) => new Result<T>(DomainErrorCode.BadRequest, error);
         public static Result<T> NotFound(string msg) => new Result<T>(DomainErrorCode.NotFound, msg);
