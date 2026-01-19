@@ -31,4 +31,8 @@ public class ReportCardDto
     public string? PreviousAchievement { get; set; }
     public string? PreviousEarlyYearsProvision { get; set; }
     public string? PreviousSafeguarding { get; set; }
+    public string? LatestPost16Provision { get; set; }
+    public string? PreviousPost16Provision { get; set; }
+    public string? LatestCategoryOfConvern { get; set; }
+    public string? PreviousCategoryOfConcern { get; set; }
 }
