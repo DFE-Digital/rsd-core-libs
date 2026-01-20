@@ -6,11 +6,11 @@ namespace GovUK.Dfe.CoreLibs.Contracts.Academies.V5.Establishments;
 [ExcludeFromCodeCoverage]
 public class EstablishmentDto : V4.Establishments.EstablishmentDto  
 {
-    public ReportCardDto? ReportCard { get; set; }
+    public ReportCardFullInspectionDto? ReportCardFullInspection { get; set; }
 }
 
 [Serializable]
-public class ReportCardDto
+public class ReportCardFullInspectionDto
 {
     public string? WebLink { get; set; }
     public string? LatestInspectionDate { get; set; }
