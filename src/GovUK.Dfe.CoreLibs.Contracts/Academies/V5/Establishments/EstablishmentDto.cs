@@ -10,6 +10,7 @@ public class EstablishmentDto : V4.Establishments.EstablishmentDto
 }
 
 [Serializable]
+[ExcludeFromCodeCoverage]
 public class ReportCardFullInspectionDto
 {
     public string? WebLink { get; set; }
