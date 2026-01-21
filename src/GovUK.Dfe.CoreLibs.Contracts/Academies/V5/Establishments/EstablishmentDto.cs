@@ -6,11 +6,12 @@ namespace GovUK.Dfe.CoreLibs.Contracts.Academies.V5.Establishments;
 [ExcludeFromCodeCoverage]
 public class EstablishmentDto : V4.Establishments.EstablishmentDto  
 {
-    public ReportCardDto? ReportCard { get; set; }
+    public ReportCardFullInspectionDto? ReportCardFullInspection { get; set; }
 }
 
 [Serializable]
-public class ReportCardDto
+[ExcludeFromCodeCoverage]
+public class ReportCardFullInspectionDto
 {
     public string? WebLink { get; set; }
     public string? LatestInspectionDate { get; set; }
@@ -31,4 +32,8 @@ public class ReportCardDto
     public string? PreviousAchievement { get; set; }
     public string? PreviousEarlyYearsProvision { get; set; }
     public string? PreviousSafeguarding { get; set; }
+    public string? LatestPost16Provision { get; set; }
+    public string? PreviousPost16Provision { get; set; }
+    public string? LatestCategoryOfConvern { get; set; }
+    public string? PreviousCategoryOfConcern { get; set; }
 }
