@@ -56,24 +56,6 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// Initializes a new instance of <see cref="ExternalIdentityValidator"/>.
         /// Supports both single-provider (backward compatible) and multi-provider modes.
         /// </summary>
-        /// <param name="options">
-        /// The OIDC validation options for single-provider mode.
-        /// </param>
-        /// <param name="httpClientFactory">
-        /// Factory for creating <see cref="System.Net.Http.HttpClient"/> instances.
-        /// </param>
-        /// <param name="multiProviderOptions">
-        /// Optional multi-provider options for multi-tenant scenarios.
-        /// When provided with configured providers, takes precedence over single options.
-        /// </param>
-        /// <param name="cypressAuthOpts">Cypress authentication options</param>
-        /// <param name="testOptions">
-        /// Optional test authentication options for development/testing scenarios.
-        /// </param>
-        /// <param name="internalAuthOpts">
-        /// Internal Authentication scheme options
-        /// </param>
-        /// <param name="logger">Optional logger for diagnostics</param>
         public ExternalIdentityValidator(
             IOptions<OpenIdConnectOptions> options,
             IHttpClientFactory httpClientFactory,
@@ -157,19 +139,39 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         }
 
         /// <inheritdoc/>
-        public async Task<ClaimsPrincipal> ValidateIdTokenAsync(
+        public Task<ClaimsPrincipal> ValidateIdTokenAsync(
             string idToken,
             bool validCypressRequest = false,
             bool validInternalRequest = false,
             CancellationToken cancellationToken = default)
         {
+            // Use the configured internal auth options (backward compatible)
+            return ValidateIdTokenAsync(
+                idToken,
+                validCypressRequest,
+                validInternalRequest,
+                internalAuthOptions: null,
+                cancellationToken);
+        }
+
+        /// <inheritdoc/>
+        public async Task<ClaimsPrincipal> ValidateIdTokenAsync(
+            string idToken,
+            bool validCypressRequest,
+            bool validInternalRequest,
+            InternalServiceAuthOptions? internalAuthOptions,
+            CancellationToken cancellationToken = default)
+        {
             if (string.IsNullOrWhiteSpace(idToken))
                 throw new ArgumentNullException(nameof(idToken));
 
+            // Use provided options or fall back to configured defaults
+            var effectiveInternalAuthOpts = internalAuthOptions ?? _internalAuthOpts;
+
             // Check if internal authentication is enabled and should be used
-            if (!string.IsNullOrEmpty(_internalAuthOpts?.SecretKey) && validInternalRequest)
+            if (!string.IsNullOrEmpty(effectiveInternalAuthOpts?.SecretKey) && validInternalRequest)
             {
-                return ValidateInternalAuthToken(idToken);
+                return ValidateInternalAuthToken(idToken, effectiveInternalAuthOpts);
             }
 
             // Check if test authentication is enabled and should be used
@@ -365,24 +367,30 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         }
 
         /// <summary>
-        /// Validates an Internal Auth Id token using the configured authentication options.
+        /// Validates an Internal Auth Id token using the provided or configured authentication options.
         /// </summary>
-        public ClaimsPrincipal ValidateInternalAuthToken(string idToken)
+        /// <param name="idToken">The ID token to validate.</param>
+        /// <param name="options">
+        /// Optional internal auth options. If null, uses the configured defaults.
+        /// </param>
+        public ClaimsPrincipal ValidateInternalAuthToken(string idToken, InternalServiceAuthOptions? options = null)
         {
             if (string.IsNullOrWhiteSpace(idToken))
                 throw new ArgumentNullException(nameof(idToken));
 
-            if (string.IsNullOrWhiteSpace(_internalAuthOpts?.SecretKey))
+            var effectiveOptions = options ?? _internalAuthOpts;
+
+            if (string.IsNullOrWhiteSpace(effectiveOptions?.SecretKey))
                 throw new InvalidOperationException("Internal Auth signing key is not configured.");
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_internalAuthOpts.SecretKey));
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(effectiveOptions.SecretKey));
 
             var validationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = true,
-                ValidIssuer = _internalAuthOpts.Issuer,
+                ValidIssuer = effectiveOptions.Issuer,
                 ValidateAudience = true,
-                ValidAudience = _internalAuthOpts.Audience,
+                ValidAudience = effectiveOptions.Audience,
                 IssuerSigningKey = key,
                 ValidateIssuerSigningKey = true,
             };
