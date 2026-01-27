@@ -14,12 +14,6 @@ public class AzureFileStorageService : IFileStorageService, IAzureSpecificOperat
 {
     private readonly IShareClientWrapper _clientWrapper;
 
-    /// <summary>
-    /// Creates a new instance of the service using the provided configuration <paramref name="options"/>.
-    /// </summary>
-    /// <param name="options">Azure file storage configuration.</param>
-    /// <exception cref="ArgumentNullException">Thrown when options is null.</exception>
-    /// <exception cref="FileStorageConfigurationException">Thrown when Azure configuration is invalid.</exception>
     public AzureFileStorageService(FileStorageOptions options)
         : this(CreateClientWrapper(options))
     {
@@ -28,30 +22,29 @@ public class AzureFileStorageService : IFileStorageService, IAzureSpecificOperat
     private static IShareClientWrapper CreateClientWrapper(FileStorageOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        
+
         if (string.IsNullOrWhiteSpace(options.Azure.ConnectionString))
             throw new FileStorageConfigurationException("Azure connection string cannot be null or empty.");
-        
+
         if (string.IsNullOrWhiteSpace(options.Azure.ShareName))
             throw new FileStorageConfigurationException("Azure share name cannot be null or empty.");
 
         return new AzureShareClientWrapper(options.Azure.ConnectionString, options.Azure.ShareName);
     }
 
-    /// <summary>
-    /// Internal constructor used for testing with a custom client wrapper.
-    /// </summary>
     internal AzureFileStorageService(IShareClientWrapper clientWrapper)
     {
         _clientWrapper = clientWrapper ?? throw new ArgumentNullException(nameof(clientWrapper));
     }
 
+    #region IFileStorageService - Default
+
     /// <inheritdoc />
-    public async Task UploadAsync(string path, Stream content, string? originalFileName = null,  CancellationToken token = default)
+    public async Task UploadAsync(string path, Stream content, string? originalFileName = null, CancellationToken token = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(content);
-        
+
         if (!content.CanRead)
             throw new ArgumentException("Stream must be readable.", nameof(content));
 
@@ -75,13 +68,12 @@ public class AzureFileStorageService : IFileStorageService, IAzureSpecificOperat
         try
         {
             var fileClient = await _clientWrapper.GetFileClientAsync(path, token);
-            
-            // Check if file exists before attempting download
+
             if (!await fileClient.ExistsAsync(token))
             {
                 throw new FileNotFoundException($"File not found at path '{path}'.");
             }
-            
+
             return await fileClient.DownloadAsync(token);
         }
         catch (FileNotFoundException)
@@ -126,6 +118,43 @@ public class AzureFileStorageService : IFileStorageService, IAzureSpecificOperat
         }
     }
 
+    #endregion
+
+    #region IFileStorageService - With Options Override (Not Supported for Azure)
+
+    /// <inheritdoc />
+    /// <remarks>Azure storage does not support LocalFileStorageOptions override. The optionsOverride parameter is ignored.</remarks>
+    public Task UploadAsync(string path, Stream content, string? originalFileName, LocalFileStorageOptions? optionsOverride, CancellationToken token = default)
+    {
+        // Azure doesn't use LocalFileStorageOptions, just call the standard method
+        return UploadAsync(path, content, originalFileName, token);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Azure storage does not support LocalFileStorageOptions override. The optionsOverride parameter is ignored.</remarks>
+    public Task<Stream> DownloadAsync(string path, LocalFileStorageOptions? optionsOverride, CancellationToken token = default)
+    {
+        return DownloadAsync(path, token);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Azure storage does not support LocalFileStorageOptions override. The optionsOverride parameter is ignored.</remarks>
+    public Task DeleteAsync(string path, LocalFileStorageOptions? optionsOverride, CancellationToken token = default)
+    {
+        return DeleteAsync(path, token);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Azure storage does not support LocalFileStorageOptions override. The optionsOverride parameter is ignored.</remarks>
+    public Task<bool> ExistsAsync(string path, LocalFileStorageOptions? optionsOverride, CancellationToken token = default)
+    {
+        return ExistsAsync(path, token);
+    }
+
+    #endregion
+
+    #region IAzureSpecificOperations
+
     /// <inheritdoc />
     public async Task<string> GenerateSasTokenAsync(string path, DateTimeOffset expiresOn, string permissions = "r", CancellationToken token = default)
     {
@@ -140,8 +169,7 @@ public class AzureFileStorageService : IFileStorageService, IAzureSpecificOperat
         try
         {
             var fileClient = await _clientWrapper.GetFileClientAsync(path, token);
-            
-            // Check if file exists before generating SAS token
+
             if (!await fileClient.ExistsAsync(token))
             {
                 throw new FileNotFoundException($"File not found at path '{path}'. Cannot generate SAS token for non-existent file.");
@@ -170,4 +198,6 @@ public class AzureFileStorageService : IFileStorageService, IAzureSpecificOperat
         var expiresOn = DateTimeOffset.UtcNow.Add(duration);
         return await GenerateSasTokenAsync(path, expiresOn, permissions, token);
     }
+
+    #endregion
 }
