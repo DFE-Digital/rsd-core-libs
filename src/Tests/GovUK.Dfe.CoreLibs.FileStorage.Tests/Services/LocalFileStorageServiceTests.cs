@@ -37,28 +37,18 @@ public class LocalFileStorageServiceTests : IDisposable
         {
             try
             {
-                // Force delete all files and directories
                 Directory.Delete(_testBaseDirectory, true);
             }
             catch (IOException)
             {
-                // If files are still in use, try again after a short delay
                 try
                 {
                     Thread.Sleep(100);
                     Directory.Delete(_testBaseDirectory, true);
                 }
-                catch (Exception)
-                {
-                    // If cleanup still fails, just log it but don't throw
-                    // This prevents test failures due to cleanup issues
-                }
+                catch (Exception) { }
             }
-            catch (Exception)
-            {
-                // Catch any other exceptions during cleanup
-                // This prevents test failures due to cleanup issues
-            }
+            catch (Exception) { }
         }
     }
 
