@@ -356,6 +356,293 @@ public class NotificationServiceTests
     }
 
     [Fact]
+    public async Task GetUnreadNotificationsAsync_WithContextFilter_ShouldFilterByContext()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", IsRead = false, Context = "context-a" },
+            new() { Id = "2", IsRead = false, Context = "context-b" },
+            new() { Id = "3", IsRead = false, Context = "context-a" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        var result = await _service.GetUnreadNotificationsAsync(context: "context-a");
+
+        // Assert
+        Assert.Equal(2, result.Count());
+        Assert.All(result, n => Assert.Equal("context-a", n.Context));
+    }
+
+    [Fact]
+    public async Task GetUnreadNotificationsAsync_WithCategoryFilter_ShouldFilterByCategory()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", IsRead = false, Category = "cat-a" },
+            new() { Id = "2", IsRead = false, Category = "cat-b" },
+            new() { Id = "3", IsRead = false, Category = "cat-a" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        var result = await _service.GetUnreadNotificationsAsync(category: "cat-a");
+
+        // Assert
+        Assert.Equal(2, result.Count());
+        Assert.All(result, n => Assert.Equal("cat-a", n.Category));
+    }
+
+    [Fact]
+    public async Task GetUnreadNotificationsAsync_WithContextAndCategoryFilter_ShouldFilterByBoth()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", IsRead = false, Context = "context-a", Category = "cat-a" },
+            new() { Id = "2", IsRead = false, Context = "context-a", Category = "cat-b" },
+            new() { Id = "3", IsRead = false, Context = "context-b", Category = "cat-a" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        var result = await _service.GetUnreadNotificationsAsync(context: "context-a", category: "cat-a");
+
+        // Assert
+        var single = Assert.Single(result);
+        Assert.Equal("1", single.Id);
+    }
+
+    [Fact]
+    public async Task GetAllNotificationsAsync_WithContextFilter_ShouldFilterByContext()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", Context = "context-a" },
+            new() { Id = "2", Context = "context-b" },
+            new() { Id = "3", Context = "context-a" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        var result = await _service.GetAllNotificationsAsync(context: "context-a");
+
+        // Assert
+        Assert.Equal(2, result.Count());
+        Assert.All(result, n => Assert.Equal("context-a", n.Context));
+    }
+
+    [Fact]
+    public async Task GetAllNotificationsAsync_WithCategoryFilter_ShouldFilterByCategory()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", Category = "cat-a" },
+            new() { Id = "2", Category = "cat-b" },
+            new() { Id = "3", Category = "cat-a" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        var result = await _service.GetAllNotificationsAsync(category: "cat-a");
+
+        // Assert
+        Assert.Equal(2, result.Count());
+        Assert.All(result, n => Assert.Equal("cat-a", n.Category));
+    }
+
+    [Fact]
+    public async Task GetNotificationsByContextAsync_ShouldFilterByContext()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", Context = "test-context" },
+            new() { Id = "2", Context = "other-context" },
+            new() { Id = "3", Context = "test-context" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        var result = await _service.GetNotificationsByContextAsync("test-context");
+
+        // Assert
+        Assert.Equal(2, result.Count());
+        Assert.All(result, n => Assert.Equal("test-context", n.Context));
+    }
+
+    [Fact]
+    public async Task GetNotificationsByContextAsync_WithUnreadOnly_ShouldFilterByReadStatus()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", Context = "test-context", IsRead = false },
+            new() { Id = "2", Context = "test-context", IsRead = true },
+            new() { Id = "3", Context = "test-context", IsRead = false }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        var result = await _service.GetNotificationsByContextAsync("test-context", unreadOnly: true);
+
+        // Assert
+        Assert.Equal(2, result.Count());
+        Assert.All(result, n => Assert.False(n.IsRead));
+    }
+
+    [Fact]
+    public async Task GetNotificationsByContextAsync_WithCategoryFilter_ShouldFilterByBoth()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", Context = "test-context", Category = "cat-a" },
+            new() { Id = "2", Context = "test-context", Category = "cat-b" },
+            new() { Id = "3", Context = "other-context", Category = "cat-a" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        var result = await _service.GetNotificationsByContextAsync("test-context", category: "cat-a");
+
+        // Assert
+        var single = Assert.Single(result);
+        Assert.Equal("1", single.Id);
+    }
+
+    [Fact]
+    public async Task GetNotificationsByCategoryAsync_WithContextFilter_ShouldFilterByBoth()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", Category = "test-category", Context = "context-a" },
+            new() { Id = "2", Category = "test-category", Context = "context-b" },
+            new() { Id = "3", Category = "other-category", Context = "context-a" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        var result = await _service.GetNotificationsByCategoryAsync("test-category", context: "context-a");
+
+        // Assert
+        var single = Assert.Single(result);
+        Assert.Equal("1", single.Id);
+    }
+
+    [Fact]
+    public async Task MarkAllAsReadAsync_WithContextFilter_ShouldOnlyMarkMatchingNotifications()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", IsRead = false, Context = "context-a", UserId = "test-user" },
+            new() { Id = "2", IsRead = false, Context = "context-b", UserId = "test-user" },
+            new() { Id = "3", IsRead = false, Context = "context-a", UserId = "test-user" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        await _service.MarkAllAsReadAsync(context: "context-a");
+
+        // Assert - only 2 notifications with context-a should be marked as read
+        await _mockStorage.Received(2).UpdateNotificationAsync(
+            Arg.Is<Notification>(n => n.Context == "context-a" && n.IsRead == true),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task MarkAllAsReadAsync_WithCategoryFilter_ShouldOnlyMarkMatchingNotifications()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { Id = "1", IsRead = false, Category = "cat-a", UserId = "test-user" },
+            new() { Id = "2", IsRead = false, Category = "cat-b", UserId = "test-user" },
+            new() { Id = "3", IsRead = false, Category = "cat-a", UserId = "test-user" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        await _service.MarkAllAsReadAsync(category: "cat-a");
+
+        // Assert - only 2 notifications with cat-a should be marked as read
+        await _mockStorage.Received(2).UpdateNotificationAsync(
+            Arg.Is<Notification>(n => n.Category == "cat-a" && n.IsRead == true),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetUnreadCountAsync_WithContextFilter_ShouldReturnFilteredCount()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { IsRead = false, Context = "context-a" },
+            new() { IsRead = false, Context = "context-b" },
+            new() { IsRead = false, Context = "context-a" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        var result = await _service.GetUnreadCountAsync(context: "context-a");
+
+        // Assert
+        Assert.Equal(2, result);
+    }
+
+    [Fact]
+    public async Task GetUnreadCountAsync_WithCategoryFilter_ShouldReturnFilteredCount()
+    {
+        // Arrange
+        var notifications = new List<Notification>
+        {
+            new() { IsRead = false, Category = "cat-a" },
+            new() { IsRead = false, Category = "cat-b" },
+            new() { IsRead = false, Category = "cat-a" }
+        };
+        _mockStorage.GetNotificationsAsync("test-user", Arg.Any<CancellationToken>())
+            .Returns(notifications);
+
+        // Act
+        var result = await _service.GetUnreadCountAsync(category: "cat-a");
+
+        // Assert
+        Assert.Equal(2, result);
+    }
+
+    [Fact]
+    public async Task GetNotificationsByContextAsync_WhenStorageThrows_ShouldLogErrorAndReturnEmpty()
+    {
+        // Arrange
+        _mockStorage.GetNotificationsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IEnumerable<Notification>>(new InvalidOperationException("Storage error")));
+
+        // Act
+        var result = await _service.GetNotificationsByContextAsync("test-context");
+
+        // Assert
+        Assert.Empty(result);
+    }
+
+    [Fact]
     public async Task GetUserId_WithProvidedUserId_ShouldReturnProvidedUserId()
     {
         // Act

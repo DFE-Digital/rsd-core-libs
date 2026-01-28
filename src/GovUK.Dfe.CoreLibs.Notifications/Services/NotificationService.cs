@@ -138,17 +138,21 @@ public class NotificationService : INotificationService
     /// Get all unread notifications for the current context
     /// </summary>
     /// <param name="userId">Optional user ID for multi-user scenarios</param>
+    /// <param name="context">Optional context to filter by</param>
+    /// <param name="category">Optional category to filter by</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of unread notifications</returns>
-    public async Task<IEnumerable<Notification>> GetUnreadNotificationsAsync(string? userId = null, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<Notification>> GetUnreadNotificationsAsync(string? userId = null, string? context = null, string? category = null, CancellationToken cancellationToken = default)
     {
         try
         {
             var resolvedUserId = GetUserId(userId);
             var notifications = await _storage.GetNotificationsAsync(resolvedUserId, cancellationToken);
             
-            return notifications
-                .Where(n => !n.IsRead)
+            var filtered = notifications.Where(n => !n.IsRead);
+            filtered = ApplyContextAndCategoryFilter(filtered, context, category);
+            
+            return filtered
                 .OrderByDescending(n => n.Priority)
                 .ThenByDescending(n => n.CreatedAt);
         }
@@ -163,16 +167,20 @@ public class NotificationService : INotificationService
     /// Get all notifications (read and unread) for the current context
     /// </summary>
     /// <param name="userId">Optional user ID for multi-user scenarios</param>
+    /// <param name="context">Optional context to filter by</param>
+    /// <param name="category">Optional category to filter by</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of all notifications</returns>
-    public async Task<IEnumerable<Notification>> GetAllNotificationsAsync(string? userId = null, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<Notification>> GetAllNotificationsAsync(string? userId = null, string? context = null, string? category = null, CancellationToken cancellationToken = default)
     {
         try
         {
             var resolvedUserId = GetUserId(userId);
             var notifications = await _storage.GetNotificationsAsync(resolvedUserId, cancellationToken);
             
-            return notifications
+            var filtered = ApplyContextAndCategoryFilter(notifications, context, category);
+            
+            return filtered
                 .OrderByDescending(n => n.Priority)
                 .ThenByDescending(n => n.CreatedAt);
         }
@@ -189,9 +197,10 @@ public class NotificationService : INotificationService
     /// <param name="category">Category to filter by</param>
     /// <param name="unreadOnly">Whether to return only unread notifications</param>
     /// <param name="userId">Optional user ID for multi-user scenarios</param>
+    /// <param name="context">Optional context to filter by</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Filtered notifications</returns>
-    public async Task<IEnumerable<Notification>> GetNotificationsByCategoryAsync(string category, bool unreadOnly = false, string? userId = null, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<Notification>> GetNotificationsByCategoryAsync(string category, bool unreadOnly = false, string? userId = null, string? context = null, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -199,6 +208,11 @@ public class NotificationService : INotificationService
             var notifications = await _storage.GetNotificationsAsync(resolvedUserId, cancellationToken);
             
             var filtered = notifications.Where(n => n.Category == category);
+            
+            if (!string.IsNullOrEmpty(context))
+            {
+                filtered = filtered.Where(n => n.Context == context);
+            }
             
             if (unreadOnly)
             {
@@ -212,6 +226,45 @@ public class NotificationService : INotificationService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get notifications by category {Category} for user {UserId}", category, userId);
+            return Enumerable.Empty<Notification>();
+        }
+    }
+
+    /// <summary>
+    /// Get notifications filtered by context
+    /// </summary>
+    /// <param name="context">Context to filter by</param>
+    /// <param name="unreadOnly">Whether to return only unread notifications</param>
+    /// <param name="userId">Optional user ID for multi-user scenarios</param>
+    /// <param name="category">Optional category to filter by</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Filtered notifications</returns>
+    public async Task<IEnumerable<Notification>> GetNotificationsByContextAsync(string context, bool unreadOnly = false, string? userId = null, string? category = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var resolvedUserId = GetUserId(userId);
+            var notifications = await _storage.GetNotificationsAsync(resolvedUserId, cancellationToken);
+            
+            var filtered = notifications.Where(n => n.Context == context);
+            
+            if (!string.IsNullOrEmpty(category))
+            {
+                filtered = filtered.Where(n => n.Category == category);
+            }
+            
+            if (unreadOnly)
+            {
+                filtered = filtered.Where(n => !n.IsRead);
+            }
+            
+            return filtered
+                .OrderByDescending(n => n.Priority)
+                .ThenByDescending(n => n.CreatedAt);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get notifications by context {Context} for user {UserId}", context, userId);
             return Enumerable.Empty<Notification>();
         }
     }
@@ -247,21 +300,26 @@ public class NotificationService : INotificationService
     /// Mark all notifications as read for the current context
     /// </summary>
     /// <param name="userId">Optional user ID for multi-user scenarios</param>
+    /// <param name="context">Optional context to filter by</param>
+    /// <param name="category">Optional category to filter by</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    public async Task MarkAllAsReadAsync(string? userId = null, CancellationToken cancellationToken = default)
+    public async Task MarkAllAsReadAsync(string? userId = null, string? context = null, string? category = null, CancellationToken cancellationToken = default)
     {
         try
         {
             var resolvedUserId = GetUserId(userId);
             var notifications = await _storage.GetNotificationsAsync(resolvedUserId, cancellationToken);
             
-            foreach (var notification in notifications.Where(n => !n.IsRead))
+            var filtered = notifications.Where(n => !n.IsRead);
+            filtered = ApplyContextAndCategoryFilter(filtered, context, category);
+            
+            foreach (var notification in filtered)
             {
                 notification.IsRead = true;
                 await _storage.UpdateNotificationAsync(notification, cancellationToken);
             }
             
-            _logger.LogDebug("Marked all notifications as read for user {UserId}", resolvedUserId);
+            _logger.LogDebug("Marked all notifications as read for user {UserId} (context: {Context}, category: {Category})", resolvedUserId, context, category);
         }
         catch (Exception ex)
         {
@@ -360,16 +418,21 @@ public class NotificationService : INotificationService
     /// Get the count of unread notifications
     /// </summary>
     /// <param name="userId">Optional user ID for multi-user scenarios</param>
+    /// <param name="context">Optional context to filter by</param>
+    /// <param name="category">Optional category to filter by</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of unread notifications</returns>
-    public async Task<int> GetUnreadCountAsync(string? userId = null, CancellationToken cancellationToken = default)
+    public async Task<int> GetUnreadCountAsync(string? userId = null, string? context = null, string? category = null, CancellationToken cancellationToken = default)
     {
         try
         {
             var resolvedUserId = GetUserId(userId);
             var notifications = await _storage.GetNotificationsAsync(resolvedUserId, cancellationToken);
             
-            return notifications.Count(n => !n.IsRead);
+            var filtered = notifications.Where(n => !n.IsRead);
+            filtered = ApplyContextAndCategoryFilter(filtered, context, category);
+            
+            return filtered.Count();
         }
         catch (Exception ex)
         {
@@ -388,6 +451,23 @@ public class NotificationService : INotificationService
             return explicitUserId;
 
         return _userContextProvider.GetCurrentUserId();
+    }
+
+    private static IEnumerable<Notification> ApplyContextAndCategoryFilter(IEnumerable<Notification> notifications, string? context, string? category)
+    {
+        var filtered = notifications;
+        
+        if (!string.IsNullOrEmpty(context))
+        {
+            filtered = filtered.Where(n => n.Context == context);
+        }
+        
+        if (!string.IsNullOrEmpty(category))
+        {
+            filtered = filtered.Where(n => n.Category == category);
+        }
+        
+        return filtered;
     }
 
     private static NotificationOptions MergeWithDefaults(NotificationOptions? options, NotificationTypeSettings defaults)
