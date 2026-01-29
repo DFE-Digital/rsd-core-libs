@@ -1,3 +1,4 @@
+using GovUK.Dfe.CoreLibs.Security.Configurations;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 
@@ -28,6 +29,25 @@ namespace GovUK.Dfe.CoreLibs.Security.Interfaces
             string idToken,
             bool validCypressRequest = false,
             bool validInternalRequest = false,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Validates an ID token with optional override options for multi-tenant scenarios.
+        /// </summary>
+        /// <param name="idToken">The ID token to validate.</param>
+        /// <param name="validCypressRequest">Whether this is a valid Cypress test request.</param>
+        /// <param name="validInternalRequest">Whether this is a valid internal service request.</param>
+        /// <param name="internalAuthOptions">
+        /// Optional internal auth options to override the configured defaults.
+        /// Use this for multi-tenant scenarios where each tenant has different internal auth settings.
+        /// </param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>The validated claims principal.</returns>
+        Task<ClaimsPrincipal> ValidateIdTokenAsync(
+            string idToken,
+            bool validCypressRequest,
+            bool validInternalRequest,
+            InternalServiceAuthOptions? internalAuthOptions,
             CancellationToken cancellationToken = default);
     }
 }
