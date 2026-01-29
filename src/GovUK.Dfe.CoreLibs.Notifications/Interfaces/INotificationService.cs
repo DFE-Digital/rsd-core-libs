@@ -60,17 +60,21 @@ public interface INotificationService
     /// Get all unread notifications for the current context
     /// </summary>
     /// <param name="userId">Optional user ID for multi-user scenarios</param>
+    /// <param name="context">Optional context to filter by</param>
+    /// <param name="category">Optional category to filter by</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of unread notifications</returns>
-    Task<IEnumerable<Notification>> GetUnreadNotificationsAsync(string? userId = null, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Notification>> GetUnreadNotificationsAsync(string? userId = null, string? context = null, string? category = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Get all notifications (read and unread) for the current context
     /// </summary>
     /// <param name="userId">Optional user ID for multi-user scenarios</param>
+    /// <param name="context">Optional context to filter by</param>
+    /// <param name="category">Optional category to filter by</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of all notifications</returns>
-    Task<IEnumerable<Notification>> GetAllNotificationsAsync(string? userId = null, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Notification>> GetAllNotificationsAsync(string? userId = null, string? context = null, string? category = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Get notifications filtered by category
@@ -78,9 +82,21 @@ public interface INotificationService
     /// <param name="category">Category to filter by</param>
     /// <param name="unreadOnly">Whether to return only unread notifications</param>
     /// <param name="userId">Optional user ID for multi-user scenarios</param>
+    /// <param name="context">Optional context to filter by</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Filtered notifications</returns>
-    Task<IEnumerable<Notification>> GetNotificationsByCategoryAsync(string category, bool unreadOnly = false, string? userId = null, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Notification>> GetNotificationsByCategoryAsync(string category, bool unreadOnly = false, string? userId = null, string? context = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get notifications filtered by context
+    /// </summary>
+    /// <param name="context">Context to filter by</param>
+    /// <param name="unreadOnly">Whether to return only unread notifications</param>
+    /// <param name="userId">Optional user ID for multi-user scenarios</param>
+    /// <param name="category">Optional category to filter by</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Filtered notifications</returns>
+    Task<IEnumerable<Notification>> GetNotificationsByContextAsync(string context, bool unreadOnly = false, string? userId = null, string? category = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Mark a notification as read
@@ -93,8 +109,10 @@ public interface INotificationService
     /// Mark all notifications as read for the current context
     /// </summary>
     /// <param name="userId">Optional user ID for multi-user scenarios</param>
+    /// <param name="context">Optional context to filter by</param>
+    /// <param name="category">Optional category to filter by</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    Task MarkAllAsReadAsync(string? userId = null, CancellationToken cancellationToken = default);
+    Task MarkAllAsReadAsync(string? userId = null, string? context = null, string? category = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Remove a specific notification
@@ -130,9 +148,11 @@ public interface INotificationService
     /// Get the count of unread notifications
     /// </summary>
     /// <param name="userId">Optional user ID for multi-user scenarios</param>
+    /// <param name="context">Optional context to filter by</param>
+    /// <param name="category">Optional category to filter by</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of unread notifications</returns>
-    Task<int> GetUnreadCountAsync(string? userId = null, CancellationToken cancellationToken = default);
+    Task<int> GetUnreadCountAsync(string? userId = null, string? context = null, string? category = null, CancellationToken cancellationToken = default);
 
     #endregion
 }
