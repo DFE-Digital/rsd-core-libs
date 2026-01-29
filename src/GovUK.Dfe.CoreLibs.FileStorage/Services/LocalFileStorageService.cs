@@ -4,7 +4,6 @@ using GovUK.Dfe.CoreLibs.FileStorage.Exceptions;
 using System.IO;
 using System.Text.RegularExpressions;
 using FileNotFoundException = GovUK.Dfe.CoreLibs.FileStorage.Exceptions.FileNotFoundException;
-using System.Xml.Linq;
 
 namespace GovUK.Dfe.CoreLibs.FileStorage.Services;
 
@@ -39,7 +38,7 @@ public class LocalFileStorageService : IFileStorageService
         _allowOverwrite = localOptions.AllowOverwrite;
         _maxFileSizeBytes = localOptions.MaxFileSizeBytes;
         _allowedExtensions = localOptions.AllowedExtensions ?? Array.Empty<string>();
-        
+
         // Initialize filename pattern if specified
         if (!string.IsNullOrWhiteSpace(localOptions.AllowedFileNamePattern))
         {
@@ -86,23 +85,23 @@ public class LocalFileStorageService : IFileStorageService
     /// <summary>
     /// Internal constructor used for testing with custom settings.
     /// </summary>
-    internal LocalFileStorageService(string baseDirectory, 
-        bool createDirectoryIfNotExists = true, 
-        bool allowOverwrite = true, 
-        long maxFileSizeBytes = 100 * 1024 * 1024, 
-        string[] allowedExtensions = null, 
-        string allowedFileNamePattern = null, 
-        string? friendlyAllowedFileNamePattern = "a-z A-Z 0-9 _ - no-space", 
+    internal LocalFileStorageService(string baseDirectory,
+        bool createDirectoryIfNotExists = true,
+        bool allowOverwrite = true,
+        long maxFileSizeBytes = 100 * 1024 * 1024,
+        string[]? allowedExtensions = null,
+        string? allowedFileNamePattern = null,
+        string? friendlyAllowedFileNamePattern = "a-z A-Z 0-9 _ - no-space",
         string? friendlyAllowedFileExtensionsPattern = "\"jpg\", \"png\", \"pdf\", \"docx\"")
     {
         _baseDirectory = Path.GetFullPath(baseDirectory);
-        _friendlyAllowedFileNamePattern = friendlyAllowedFileNamePattern;
-        _friendlyAllowedFileExtensionsPattern = friendlyAllowedFileExtensionsPattern;
+        _friendlyAllowedFileNamePattern = friendlyAllowedFileNamePattern ?? "a-z A-Z 0-9 _ - no-space";
+        _friendlyAllowedFileExtensionsPattern = friendlyAllowedFileExtensionsPattern ?? "\"jpg\", \"png\", \"pdf\", \"docx\"";
         _createDirectoryIfNotExists = createDirectoryIfNotExists;
         _allowOverwrite = allowOverwrite;
         _maxFileSizeBytes = maxFileSizeBytes;
         _allowedExtensions = allowedExtensions ?? Array.Empty<string>();
-        
+
         // Initialize filename pattern if specified
         if (!string.IsNullOrWhiteSpace(allowedFileNamePattern))
         {
@@ -122,47 +121,136 @@ public class LocalFileStorageService : IFileStorageService
         }
     }
 
+    #region Public Methods - Default Options
+
     /// <inheritdoc />
-    public async Task UploadAsync(string path, Stream content, string? originalFileName = null, CancellationToken token = default)
+    public Task UploadAsync(string path, Stream content, string? originalFileName = null, CancellationToken token = default)
+    {
+        return UploadInternalAsync(path, content, originalFileName, optionsOverride: null, token);
+    }
+
+    /// <inheritdoc />
+    public Task<Stream> DownloadAsync(string path, CancellationToken token = default)
+    {
+        return DownloadInternalAsync(path, optionsOverride: null, token);
+    }
+
+    /// <inheritdoc />
+    public Task DeleteAsync(string path, CancellationToken token = default)
+    {
+        return DeleteInternalAsync(path, optionsOverride: null, token);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> ExistsAsync(string path, CancellationToken token = default)
+    {
+        return ExistsInternalAsync(path, optionsOverride: null, token);
+    }
+
+    #endregion
+
+    #region Public Methods - With Options Override (Multi-Tenant Support)
+
+    /// <inheritdoc />
+    public Task UploadAsync(string path, Stream content, string? originalFileName, LocalFileStorageOptions optionsOverride, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(optionsOverride);
+        return UploadInternalAsync(path, content, originalFileName, optionsOverride, token);
+    }
+
+    /// <inheritdoc />
+    public Task<Stream> DownloadAsync(string path, LocalFileStorageOptions optionsOverride, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(optionsOverride);
+        return DownloadInternalAsync(path, optionsOverride, token);
+    }
+
+    /// <inheritdoc />
+    public Task DeleteAsync(string path, LocalFileStorageOptions optionsOverride, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(optionsOverride);
+        return DeleteInternalAsync(path, optionsOverride, token);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> ExistsAsync(string path, LocalFileStorageOptions optionsOverride, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(optionsOverride);
+        return ExistsInternalAsync(path, optionsOverride, token);
+    }
+
+    #endregion
+
+    #region Private Implementation Methods
+
+    private async Task UploadInternalAsync(string path, Stream content, string? originalFileName, LocalFileStorageOptions? optionsOverride, CancellationToken token)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(content);
-        
+
         if (!content.CanRead)
             throw new ArgumentException("Stream must be readable.", nameof(content));
 
-        var fullPath = GetFullPath(path);
+        // Determine effective settings
+        var useOverride = optionsOverride != null;
+        var baseDirectory = useOverride ? ResolveBaseDirectory(optionsOverride!) : _baseDirectory;
+        var allowedExtensions = useOverride ? (optionsOverride!.AllowedExtensions ?? Array.Empty<string>()) : _allowedExtensions;
+        var friendlyExtensionsPattern = useOverride ? optionsOverride!.AllowedExtensionsFriendlyList : _friendlyAllowedFileExtensionsPattern;
+        var friendlyFileNamePattern = useOverride ? optionsOverride!.AllowedFileNamePatternFriendlyList : _friendlyAllowedFileNamePattern;
+        var createDirIfNotExists = useOverride ? optionsOverride!.CreateDirectoryIfNotExists : _createDirectoryIfNotExists;
+        var maxFileSize = useOverride ? optionsOverride!.MaxFileSizeBytes : _maxFileSizeBytes;
+        var allowOverwrite = useOverride ? optionsOverride!.AllowOverwrite : _allowOverwrite;
+
+        // Compile regex for override options (default options already have compiled regex)
+        Regex? fileNamePattern = null;
+        if (useOverride && !string.IsNullOrWhiteSpace(optionsOverride!.AllowedFileNamePattern))
+        {
+            try
+            {
+                fileNamePattern = new Regex(optionsOverride.AllowedFileNamePattern, RegexOptions.Compiled);
+            }
+            catch (ArgumentException ex)
+            {
+                throw new FileStorageConfigurationException($"Invalid filename pattern: {optionsOverride.AllowedFileNamePattern}", ex);
+            }
+        }
+        else if (!useOverride)
+        {
+            fileNamePattern = _allowedFileNamePattern;
+        }
+
+        var fullPath = GetFullPath(path, baseDirectory);
 
         try
         {
             // Validate file extension if restrictions are configured
-            if (_allowedExtensions.Length > 0)
+            if (allowedExtensions.Length > 0)
             {
                 var fileExtension = Path.GetExtension(path);
                 if (string.IsNullOrEmpty(fileExtension))
                 {
-                    throw new FileStorageException($"File extension is required. Allowed extensions: {_friendlyAllowedFileExtensionsPattern}");
+                    throw new FileStorageException($"File extension is required. Allowed extensions: {friendlyExtensionsPattern}");
                 }
 
                 var extensionWithoutDot = fileExtension.TrimStart('.');
-                if (!_allowedExtensions.Contains(extensionWithoutDot, StringComparer.OrdinalIgnoreCase))
+                if (!allowedExtensions.Contains(extensionWithoutDot, StringComparer.OrdinalIgnoreCase))
                 {
-                    throw new FileStorageException($"File extension '{extensionWithoutDot}' is not allowed. Allowed extensions: {_friendlyAllowedFileExtensionsPattern}");
+                    throw new FileStorageException($"File extension '{extensionWithoutDot}' is not allowed. Allowed extensions: {friendlyExtensionsPattern}");
                 }
             }
 
             // Validate filename pattern if configured
-            if (_allowedFileNamePattern != null && originalFileName != null)
+            if (fileNamePattern != null && originalFileName != null)
             {
                 var fileName = Path.GetFileNameWithoutExtension(originalFileName);
                 if (string.IsNullOrEmpty(fileName))
                 {
-                    throw new FileStorageException($"Filename is required when filename pattern validation is enabled. Pattern: {_friendlyAllowedFileNamePattern}");
+                    throw new FileStorageException($"Filename is required when filename pattern validation is enabled. Pattern: {friendlyFileNamePattern}");
                 }
 
-                if (!_allowedFileNamePattern.IsMatch(fileName))
+                if (!fileNamePattern.IsMatch(fileName))
                 {
-                    throw new FileStorageException($"Filename '{fileName}' does not match the allowed pattern. Pattern: {_friendlyAllowedFileNamePattern}");
+                    throw new FileStorageException($"Filename '{fileName}' does not match the allowed pattern. Pattern: {friendlyFileNamePattern}");
                 }
             }
 
@@ -170,7 +258,7 @@ public class LocalFileStorageService : IFileStorageService
             var directory = Path.GetDirectoryName(fullPath);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
             {
-                if (_createDirectoryIfNotExists)
+                if (createDirIfNotExists)
                 {
                     Directory.CreateDirectory(directory);
                 }
@@ -181,13 +269,13 @@ public class LocalFileStorageService : IFileStorageService
             }
 
             // Check file size if limit is set
-            if (_maxFileSizeBytes > 0 && content.Length > _maxFileSizeBytes)
+            if (maxFileSize > 0 && content.Length > maxFileSize)
             {
-                throw new FileStorageException($"File size {content.Length} bytes exceeds maximum allowed size of {_maxFileSizeBytes} bytes.");
+                throw new FileStorageException($"File size {content.Length} bytes exceeds maximum allowed size of {maxFileSize} bytes.");
             }
 
             // Check if file exists and overwrite is not allowed
-            if (File.Exists(fullPath) && !_allowOverwrite)
+            if (File.Exists(fullPath) && !allowOverwrite)
             {
                 throw new FileStorageException($"File '{path}' already exists and overwrite is not allowed.");
             }
@@ -196,18 +284,18 @@ public class LocalFileStorageService : IFileStorageService
             using var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.Read);
             await content.CopyToAsync(fileStream, token);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException && ex is not FileStorageException)
+        catch (Exception ex) when (ex is not OperationCanceledException && ex is not FileStorageException && ex is not FileStorageConfigurationException)
         {
             throw new FileStorageException($"Failed to upload file at path '{path}'.", ex);
         }
     }
 
-    /// <inheritdoc />
-    public async Task<Stream> DownloadAsync(string path, CancellationToken token = default)
+    private async Task<Stream> DownloadInternalAsync(string path, LocalFileStorageOptions? optionsOverride, CancellationToken token)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        var fullPath = GetFullPath(path);
+        var baseDirectory = optionsOverride != null ? ResolveBaseDirectory(optionsOverride) : _baseDirectory;
+        var fullPath = GetFullPath(path, baseDirectory);
 
         try
         {
@@ -231,12 +319,12 @@ public class LocalFileStorageService : IFileStorageService
         }
     }
 
-    /// <inheritdoc />
-    public async Task DeleteAsync(string path, CancellationToken token = default)
+    private async Task DeleteInternalAsync(string path, LocalFileStorageOptions? optionsOverride, CancellationToken token)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        var fullPath = GetFullPath(path);
+        var baseDirectory = optionsOverride != null ? ResolveBaseDirectory(optionsOverride) : _baseDirectory;
+        var fullPath = GetFullPath(path, baseDirectory);
 
         try
         {
@@ -254,35 +342,51 @@ public class LocalFileStorageService : IFileStorageService
         }
     }
 
-    /// <inheritdoc />
-    public async Task<bool> ExistsAsync(string path, CancellationToken token = default)
+    private async Task<bool> ExistsInternalAsync(string path, LocalFileStorageOptions? optionsOverride, CancellationToken token)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        var fullPath = GetFullPath(path);
-        
+        var baseDirectory = optionsOverride != null ? ResolveBaseDirectory(optionsOverride) : _baseDirectory;
+        var fullPath = GetFullPath(path, baseDirectory);
+
         // Check cancellation token
         token.ThrowIfCancellationRequested();
-        
+
         return File.Exists(fullPath);
+    }
+
+    #endregion
+
+    #region Private Helpers
+
+    /// <summary>
+    /// Resolves the base directory from options.
+    /// </summary>
+    private static string ResolveBaseDirectory(LocalFileStorageOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(options.BaseDirectory))
+        {
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "FileStorage");
+        }
+        return Path.GetFullPath(options.BaseDirectory);
     }
 
     /// <summary>
     /// Gets the full file system path for the given relative path.
     /// </summary>
-    /// <param name="path">Relative path within the storage.</param>
-    /// <returns>Full file system path.</returns>
-    private string GetFullPath(string path)
+    private static string GetFullPath(string path, string baseDirectory)
     {
         // Normalize the path to prevent directory traversal attacks
-        var normalizedPath = Path.GetFullPath(Path.Combine(_baseDirectory, path));
-        
+        var normalizedPath = Path.GetFullPath(Path.Combine(baseDirectory, path));
+
         // Ensure the path is within the base directory
-        if (!normalizedPath.StartsWith(_baseDirectory, StringComparison.OrdinalIgnoreCase))
+        if (!normalizedPath.StartsWith(baseDirectory, StringComparison.OrdinalIgnoreCase))
         {
             throw new FileStorageException($"Path '{path}' is outside the allowed base directory.");
         }
 
         return normalizedPath;
     }
-} 
+
+    #endregion
+}
