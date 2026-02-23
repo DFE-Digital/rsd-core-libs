@@ -49,5 +49,29 @@ namespace GovUK.Dfe.CoreLibs.Security.Interfaces
             bool validInternalRequest,
             InternalServiceAuthOptions? internalAuthOptions,
             CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Validates an ID token with tenant-specific authentication options for multi-tenant scenarios.
+        /// Use this overload when both internal and test authentication settings differ per tenant.
+        /// </summary>
+        /// <param name="idToken">The ID token to validate.</param>
+        /// <param name="validCypressRequest">Whether this is a valid Cypress test request.</param>
+        /// <param name="validInternalRequest">Whether this is a valid internal service request.</param>
+        /// <param name="internalAuthOptions">
+        /// Optional internal auth options to override the configured defaults.
+        /// </param>
+        /// <param name="testAuthOptions">
+        /// Optional test auth options to override the configured defaults.
+        /// Use this for multi-tenant scenarios where each tenant has different test auth settings.
+        /// </param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>The validated claims principal.</returns>
+        Task<ClaimsPrincipal> ValidateIdTokenAsync(
+            string idToken,
+            bool validCypressRequest,
+            bool validInternalRequest,
+            InternalServiceAuthOptions? internalAuthOptions,
+            TestAuthenticationOptions? testAuthOptions,
+            CancellationToken cancellationToken = default);
     }
 }

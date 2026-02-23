@@ -155,11 +155,25 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         }
 
         /// <inheritdoc/>
+        public Task<ClaimsPrincipal> ValidateIdTokenAsync(
+            string idToken,
+            bool validCypressRequest,
+            bool validInternalRequest,
+            InternalServiceAuthOptions? internalAuthOptions,
+            CancellationToken cancellationToken = default)
+        {
+            return ValidateIdTokenAsync(
+                idToken, validCypressRequest, validInternalRequest,
+                internalAuthOptions, testAuthOptions: null, cancellationToken);
+        }
+
+        /// <inheritdoc/>
         public async Task<ClaimsPrincipal> ValidateIdTokenAsync(
             string idToken,
             bool validCypressRequest,
             bool validInternalRequest,
             InternalServiceAuthOptions? internalAuthOptions,
+            TestAuthenticationOptions? testAuthOptions,
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(idToken))
@@ -167,6 +181,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
 
             // Use provided options or fall back to configured defaults
             var effectiveInternalAuthOpts = internalAuthOptions ?? _internalAuthOpts;
+            var effectiveTestOpts = testAuthOptions ?? _testOpts;
 
             // Check if internal authentication is enabled and should be used
             if (!string.IsNullOrEmpty(effectiveInternalAuthOpts?.SecretKey) && validInternalRequest)
@@ -175,9 +190,9 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
             }
 
             // Check if test authentication is enabled and should be used
-            if (_testOpts?.Enabled == true || validCypressRequest)
+            if (effectiveTestOpts?.Enabled == true || validCypressRequest)
             {
-                return ValidateTestIdToken(idToken, validCypressRequest);
+                return ValidateTestIdToken(idToken, validCypressRequest, effectiveTestOpts);
             }
 
             if (_isMultiProviderMode)
@@ -331,24 +346,35 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// </summary>
         public ClaimsPrincipal ValidateTestIdToken(string idToken, bool cypressRequest = false)
         {
+            return ValidateTestIdToken(idToken, cypressRequest, testOpts: null);
+        }
+
+        /// <summary>
+        /// Validates a test ID token using the provided test authentication options.
+        /// When <paramref name="testOpts"/> is supplied it takes precedence over the DI-registered defaults.
+        /// </summary>
+        public ClaimsPrincipal ValidateTestIdToken(string idToken, bool cypressRequest, TestAuthenticationOptions? testOpts)
+        {
             if (string.IsNullOrWhiteSpace(idToken))
                 throw new ArgumentNullException(nameof(idToken));
 
-            if (_testOpts == null || (!_testOpts.Enabled && !cypressRequest))
+            var opts = testOpts ?? _testOpts;
+
+            if (opts == null || (!opts.Enabled && !cypressRequest))
                 throw new InvalidOperationException("Test authentication is not enabled or configured.");
 
-            if (string.IsNullOrWhiteSpace(_testOpts.JwtSigningKey))
+            if (string.IsNullOrWhiteSpace(opts.JwtSigningKey))
                 throw new InvalidOperationException("Test JWT signing key is not configured.");
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_testOpts.JwtSigningKey));
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(opts.JwtSigningKey));
 
             var validationParameters = new TokenValidationParameters
             {
-                ValidateIssuer = _testOpts.ValidateIssuer,
-                ValidIssuer = _testOpts.ValidateIssuer ? _testOpts.JwtIssuer : null,
-                ValidateAudience = _testOpts.ValidateAudience,
-                ValidAudience = _testOpts.ValidateAudience ? _testOpts.JwtAudience : null,
-                ValidateLifetime = _testOpts.ValidateLifetime,
+                ValidateIssuer = opts.ValidateIssuer,
+                ValidIssuer = opts.ValidateIssuer ? opts.JwtIssuer : null,
+                ValidateAudience = opts.ValidateAudience,
+                ValidAudience = opts.ValidateAudience ? opts.JwtAudience : null,
+                ValidateLifetime = opts.ValidateLifetime,
                 IssuerSigningKey = key,
                 ValidateIssuerSigningKey = true,
                 ClockSkew = TimeSpan.FromMinutes(5)
