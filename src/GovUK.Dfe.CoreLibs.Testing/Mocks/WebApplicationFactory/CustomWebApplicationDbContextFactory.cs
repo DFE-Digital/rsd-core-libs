@@ -5,6 +5,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
@@ -111,12 +112,27 @@ namespace GovUK.Dfe.CoreLibs.Testing.Mocks.WebApplicationFactory
 
         private static void RemoveDbContextAndConnectionServices(IServiceCollection services)
         {
-            var dbContextDescriptors = services
-                .Where(d => d.ServiceType.IsGenericType && d.ServiceType.GetGenericTypeDefinition() == typeof(DbContextOptions<>))
+            // Remove DbContextOptions<T> registrations
+            var dbContextOptionsDescriptors = services
+                .Where(d => d.ServiceType.IsGenericType
+                            && d.ServiceType.GetGenericTypeDefinition() == typeof(DbContextOptions<>))
                 .ToList();
-            foreach (var dbContextDescriptor in dbContextDescriptors)
+            foreach (var descriptor in dbContextOptionsDescriptors)
             {
-                services.Remove(dbContextDescriptor);
+                services.Remove(descriptor);
+            }
+
+            // EF Core also registers options/configurator services for DbContextOptions<T>.
+            // If we only remove DbContextOptions<T> but leave these configurators, adding a new provider
+            // (e.g. Sqlite for tests) can result in multiple providers being registered in the final
+            // service provider (SqlServer + Sqlite), which EF Core 10 rejects.
+            var optionsRelatedDescriptors = services
+                .Where(d => IsDbContextOptionsOptionsPatternRegistration(d.ServiceType)
+                            || IsDbContextOptionsConfigurationRegistration(d.ServiceType))
+                .ToList();
+            foreach (var descriptor in optionsRelatedDescriptors)
+            {
+                services.Remove(descriptor);
             }
 
             var dbConnectionDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbConnection));
@@ -124,6 +140,37 @@ namespace GovUK.Dfe.CoreLibs.Testing.Mocks.WebApplicationFactory
             {
                 services.Remove(dbConnectionDescriptor);
             }
+        }
+
+        private static bool IsDbContextOptionsOptionsPatternRegistration(Type serviceType)
+        {
+            if (!serviceType.IsGenericType)
+            {
+                return false;
+            }
+
+            var def = serviceType.GetGenericTypeDefinition();
+            if (def != typeof(IConfigureOptions<>)
+                && def != typeof(IConfigureNamedOptions<>)
+                && def != typeof(IPostConfigureOptions<>)
+                && def != typeof(IOptionsChangeTokenSource<>))
+            {
+                return false;
+            }
+
+            var arg = serviceType.GetGenericArguments()[0];
+            return arg.IsGenericType && arg.GetGenericTypeDefinition() == typeof(DbContextOptions<>);
+        }
+
+        private static bool IsDbContextOptionsConfigurationRegistration(Type serviceType)
+        {
+            // EF Core registers an internal IDbContextOptionsConfiguration<TContext> service (name-based match).
+            if (!serviceType.IsGenericType)
+            {
+                return false;
+            }
+
+            return serviceType.Name is "IDbContextOptionsConfiguration`1" or "DbContextOptionsConfiguration`1";
         }
     }
 }
