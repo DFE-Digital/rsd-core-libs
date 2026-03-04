@@ -36,4 +36,6 @@ public class ReportCardFullInspectionDto
     public string? PreviousPost16Provision { get; set; }
     public string? LatestCategoryOfConcern { get; set; }
     public string? PreviousCategoryOfConcern { get; set; }
+    public string? LatestPublicationDate { get; set; }
+    public string? PreviousPublicationDate { get; set; }
 }
