@@ -23,6 +23,12 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.EntraSsoTests
         }
 
         [Fact]
+        public void GroupsClaimType_ShouldBeGroups()
+        {
+            Assert.Equal("groups", EntraSsoDefaults.GroupsClaimType);
+        }
+
+        [Fact]
         public void SchemeNames_ShouldBeDifferent()
         {
             Assert.NotEqual(EntraSsoDefaults.AuthenticationScheme, EntraSsoDefaults.BearerScheme);

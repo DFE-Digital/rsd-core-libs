@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using GovUK.Dfe.CoreLibs.Security.Configurations;
 using GovUK.Dfe.CoreLibs.Security.EntraSso;
 using Microsoft.AspNetCore.Authentication;
@@ -496,6 +497,166 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.EntraSsoTests
             var result = services.ConfigureEntraSso(configuration);
 
             Assert.Same(services, result);
+        }
+
+        #endregion
+
+        #region ValidateGroupMembership Tests
+
+        [Fact]
+        public void ValidateGroupMembership_WithMatchingGroup_DoesNotThrow()
+        {
+            var groupId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+            var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+            {
+                new Claim("groups", groupId),
+                new Claim("groups", "00000000-0000-0000-0000-000000000001")
+            }, "TestAuth"));
+
+            var exception = Record.Exception(() =>
+                EntraSsoServiceCollectionExtensions.ValidateGroupMembership(principal, groupId));
+
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public void ValidateGroupMembership_WithNoMatchingGroup_ThrowsUnauthorizedAccessException()
+        {
+            var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+            {
+                new Claim("groups", "00000000-0000-0000-0000-000000000001"),
+                new Claim("groups", "00000000-0000-0000-0000-000000000002")
+            }, "TestAuth"));
+
+            var ex = Assert.Throws<UnauthorizedAccessException>(() =>
+                EntraSsoServiceCollectionExtensions.ValidateGroupMembership(
+                    principal, "a1b2c3d4-e5f6-7890-abcd-ef1234567890"));
+
+            Assert.Contains("a1b2c3d4-e5f6-7890-abcd-ef1234567890", ex.Message);
+        }
+
+        [Fact]
+        public void ValidateGroupMembership_WithNoGroupClaims_ThrowsUnauthorizedAccessException()
+        {
+            var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+            {
+                new Claim(ClaimTypes.Name, "testuser")
+            }, "TestAuth"));
+
+            Assert.Throws<UnauthorizedAccessException>(() =>
+                EntraSsoServiceCollectionExtensions.ValidateGroupMembership(
+                    principal, "a1b2c3d4-e5f6-7890-abcd-ef1234567890"));
+        }
+
+        [Fact]
+        public void ValidateGroupMembership_WithNullPrincipal_ThrowsUnauthorizedAccessException()
+        {
+            Assert.Throws<UnauthorizedAccessException>(() =>
+                EntraSsoServiceCollectionExtensions.ValidateGroupMembership(
+                    null, "a1b2c3d4-e5f6-7890-abcd-ef1234567890"));
+        }
+
+        [Fact]
+        public void ValidateGroupMembership_IsCaseInsensitive()
+        {
+            var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+            {
+                new Claim("groups", "A1B2C3D4-E5F6-7890-ABCD-EF1234567890")
+            }, "TestAuth"));
+
+            var exception = Record.Exception(() =>
+                EntraSsoServiceCollectionExtensions.ValidateGroupMembership(
+                    principal, "a1b2c3d4-e5f6-7890-abcd-ef1234567890"));
+
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public void AddEntraSso_WithAllowedGroupId_ConfiguresGroupValidationEvent()
+        {
+            var settings = new Dictionary<string, string?>(CreateEnabledSettings())
+            {
+                ["EntraSso:AllowedGroupId"] = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+            };
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(settings)
+                .Build();
+
+            var services = new ServiceCollection();
+            var authBuilder = services.AddAuthentication();
+            authBuilder.AddEntraSso(configuration);
+
+            var provider = services.BuildServiceProvider();
+
+            var monitor = provider.GetRequiredService<IOptionsMonitor<MsOidcOptions>>();
+            var oidcOpts = monitor.Get(EntraSsoDefaults.AuthenticationScheme);
+
+            Assert.NotNull(oidcOpts.Events);
+            Assert.NotNull(oidcOpts.Events.OnTokenValidated);
+        }
+
+        [Fact]
+        public void AddEntraSso_WithoutAllowedGroupId_DoesNotAddGroupValidation()
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(CreateEnabledSettings())
+                .Build();
+
+            var services = new ServiceCollection();
+            var authBuilder = services.AddAuthentication();
+            authBuilder.AddEntraSso(configuration);
+
+            var provider = services.BuildServiceProvider();
+
+            var opts = provider.GetRequiredService<IOptions<EntraSsoOptions>>().Value;
+            Assert.Null(opts.AllowedGroupId);
+        }
+
+        [Fact]
+        public void AddEntraSsoTokenValidation_WithAllowedGroupId_ConfiguresGroupValidationEvent()
+        {
+            var settings = new Dictionary<string, string?>(CreateEnabledSettings())
+            {
+                ["EntraSso:AllowedGroupId"] = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+            };
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(settings)
+                .Build();
+
+            var services = new ServiceCollection();
+            var authBuilder = services.AddAuthentication();
+            authBuilder.AddEntraSsoTokenValidation(configuration);
+
+            var provider = services.BuildServiceProvider();
+
+            var monitor = provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>();
+            var jwtOpts = monitor.Get(EntraSsoDefaults.BearerScheme);
+
+            Assert.NotNull(jwtOpts.Events);
+            Assert.NotNull(jwtOpts.Events.OnTokenValidated);
+        }
+
+        [Fact]
+        public void ConfigureEntraSso_BindsAllowedGroupIdFromConfiguration()
+        {
+            var settings = new Dictionary<string, string?>(CreateEnabledSettings())
+            {
+                ["EntraSso:AllowedGroupId"] = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+            };
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(settings)
+                .Build();
+
+            var services = new ServiceCollection();
+            services.ConfigureEntraSso(configuration);
+
+            var provider = services.BuildServiceProvider();
+
+            var opts = provider.GetRequiredService<IOptions<EntraSsoOptions>>().Value;
+            Assert.Equal("a1b2c3d4-e5f6-7890-abcd-ef1234567890", opts.AllowedGroupId);
         }
 
         #endregion

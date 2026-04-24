@@ -86,6 +86,15 @@ public class EntraSsoOptions
     public string? Audience { get; set; }
 
     /// <summary>
+    /// The Object ID (GUID) of the Entra ID security group that users must be members of.
+    /// When set, only users whose token contains this group ID in the "groups" claim
+    /// will be allowed to authenticate. Requires "Groups claim" to be configured in
+    /// the Entra app registration's Token Configuration.
+    /// Leave null or empty to skip group-based access restriction.
+    /// </summary>
+    public string? AllowedGroupId { get; set; }
+
+    /// <summary>
     /// Computed authority URL from Instance and TenantId
     /// </summary>
     public string Authority => $"{Instance.TrimEnd('/')}/{TenantId}/v2.0";

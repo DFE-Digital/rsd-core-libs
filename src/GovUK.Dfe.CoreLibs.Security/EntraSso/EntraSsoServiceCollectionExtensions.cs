@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using GovUK.Dfe.CoreLibs.Security.Configurations;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -70,6 +71,20 @@ public static class EntraSsoServiceCollectionExtensions
                 if (originalRedirectHandler != null)
                     await originalRedirectHandler(ctx);
             };
+
+            if (!string.IsNullOrWhiteSpace(opts.AllowedGroupId))
+            {
+                var requiredGroupId = opts.AllowedGroupId;
+                var originalTokenValidated = oidc.Events.OnTokenValidated;
+
+                oidc.Events.OnTokenValidated = async ctx =>
+                {
+                    if (originalTokenValidated != null)
+                        await originalTokenValidated(ctx);
+
+                    ValidateGroupMembership(ctx.Principal, requiredGroupId);
+                };
+            }
         });
     }
 
@@ -121,7 +136,44 @@ public static class EntraSsoServiceCollectionExtensions
 
             if (jwtBearerEvents != null)
                 jwt.Events = jwtBearerEvents;
+
+            if (!string.IsNullOrWhiteSpace(opts.AllowedGroupId))
+            {
+                var requiredGroupId = opts.AllowedGroupId;
+                jwt.Events ??= new JwtBearerEvents();
+                var originalTokenValidated = jwt.Events.OnTokenValidated;
+
+                jwt.Events.OnTokenValidated = async ctx =>
+                {
+                    if (originalTokenValidated != null)
+                        await originalTokenValidated(ctx);
+
+                    ValidateGroupMembership(ctx.Principal, requiredGroupId);
+                };
+            }
         });
+    }
+
+    /// <summary>
+    /// Validates that the authenticated user is a member of the required Entra ID security group.
+    /// Throws <see cref="UnauthorizedAccessException"/> if the group claim is missing.
+    /// </summary>
+    /// <param name="principal">The authenticated user's claims principal</param>
+    /// <param name="requiredGroupId">The Object ID of the required group</param>
+    internal static void ValidateGroupMembership(ClaimsPrincipal? principal, string requiredGroupId)
+    {
+        if (principal == null)
+            throw new UnauthorizedAccessException("User is not a member of the required Entra ID group.");
+
+        var groupClaims = principal.FindAll(EntraSsoDefaults.GroupsClaimType);
+        var isMember = groupClaims.Any(c =>
+            string.Equals(c.Value, requiredGroupId, StringComparison.OrdinalIgnoreCase));
+
+        if (!isMember)
+        {
+            throw new UnauthorizedAccessException(
+                $"User is not a member of the required Entra ID group '{requiredGroupId}'.");
+        }
     }
 
     /// <summary>

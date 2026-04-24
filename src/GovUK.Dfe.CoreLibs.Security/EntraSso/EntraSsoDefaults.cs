@@ -19,4 +19,9 @@ public static class EntraSsoDefaults
     /// The default configuration section name
     /// </summary>
     public const string ConfigurationSection = "EntraSso";
+
+    /// <summary>
+    /// The claim type used by Entra ID for group membership ("groups")
+    /// </summary>
+    public const string GroupsClaimType = "groups";
 }

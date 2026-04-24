@@ -33,6 +33,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.EntraSsoTests
             Assert.Equal("preferred_username", options.NameClaimType);
             Assert.Equal(new List<string> { "openid", "profile", "email" }, options.Scopes);
             Assert.Null(options.Audience);
+            Assert.Null(options.AllowedGroupId);
         }
 
         [Fact]
@@ -93,7 +94,8 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.EntraSsoTests
                 ["EntraSso:Scopes:0"] = "openid",
                 ["EntraSso:Scopes:1"] = "profile",
                 ["EntraSso:Scopes:2"] = "User.Read",
-                ["EntraSso:Audience"] = "api://my-app-client-id"
+                ["EntraSso:Audience"] = "api://my-app-client-id",
+                ["EntraSso:AllowedGroupId"] = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
             };
 
             var configuration = new ConfigurationBuilder()
@@ -123,6 +125,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.EntraSsoTests
             Assert.Contains("profile", opts.Scopes);
             Assert.Contains("User.Read", opts.Scopes);
             Assert.Equal("api://my-app-client-id", opts.Audience);
+            Assert.Equal("a1b2c3d4-e5f6-7890-abcd-ef1234567890", opts.AllowedGroupId);
         }
 
         [Fact]
