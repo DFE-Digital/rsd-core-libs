@@ -80,6 +80,15 @@ public class EntraSsoOptions
     public IList<string> Scopes { get; set; } = new List<string> { "openid", "profile", "email" };
 
     /// <summary>
+    /// The full external redirect URI to use for the OIDC callback.
+    /// When deployed behind a reverse proxy (e.g. Azure Front Door), the auto-detected
+    /// host will be the internal container hostname. Set this to the external-facing URL
+    /// (e.g. "https://myapp.example.com/signin-entra") to override it.
+    /// Leave null or empty to use the auto-detected value (suitable for localhost).
+    /// </summary>
+    public string? RedirectUri { get; set; }
+
+    /// <summary>
     /// API audience for JWT bearer token validation (typically "api://{ClientId}")
     /// Used by API projects for bearer token validation
     /// </summary>
