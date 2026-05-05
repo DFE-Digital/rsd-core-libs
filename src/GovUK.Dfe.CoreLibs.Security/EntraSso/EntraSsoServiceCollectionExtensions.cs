@@ -68,6 +68,9 @@ public static class EntraSsoServiceCollectionExtensions
             var originalRedirectHandler = oidc.Events.OnRedirectToIdentityProvider;
             oidc.Events.OnRedirectToIdentityProvider = async ctx =>
             {
+                if (!string.IsNullOrEmpty(opts.RedirectUri))
+                    ctx.ProtocolMessage.RedirectUri = opts.RedirectUri;
+
                 if (originalRedirectHandler != null)
                     await originalRedirectHandler(ctx);
             };
