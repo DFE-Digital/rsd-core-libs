@@ -13,6 +13,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Configurations
         public string ClientId { get; set; } = default!;
         public string ClientSecret { get; set; } = default!;
         public string? RedirectUri { get; set; }
+        public string? SignedOutCallbackPath { get; set; }
         public string Prompt { get; set; } = "login";
         public string ResponseType { get; set; } = "code";
         public bool RequireHttpsMetadata { get; set; } = true;
