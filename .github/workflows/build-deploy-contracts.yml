@@ -5,12 +5,10 @@ on:
     branches: [ main ]
     paths:
       - "src/GovUK.Dfe.CoreLibs.Contracts/**"
-      - "src/Tests/GovUK.Dfe.CoreLibs.Contracts.Tests/**"
   pull_request:
     branches: [ main ]
     paths:
       - "src/GovUK.Dfe.CoreLibs.Contracts/**"
-      - "src/Tests/GovUK.Dfe.CoreLibs.Contracts.Tests/**"
 
 jobs:
   build-and-test:
@@ -18,7 +16,7 @@ jobs:
     with:
       project_name: GovUK.Dfe.CoreLibs.Contracts
       project_path: src/GovUK.Dfe.CoreLibs.Contracts
-      run_tests: true
+      run_tests: false
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 

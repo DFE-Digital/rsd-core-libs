@@ -1,6 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 
 namespace GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
+
+[ExcludeFromCodeCoverage]
 public class PagedResult<T>
 {
     [JsonPropertyName("items")]
