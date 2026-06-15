@@ -34,10 +34,10 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Install GitVersion (v5)
-        uses: gittools/actions/gitversion/setup@v0.9
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v4.5.0
         with:
-          versionSpec: '5.x'
+          versionSpec: '6.7.x'
 
       - name: Add .NET global tools to PATH
         run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
@@ -59,7 +59,7 @@ jobs:
             /showvariable PreReleaseNumber)
 
           if [ -n "$LABEL" ]; then
-            VERSION="${BASE}-${LABEL}-${NUM}"
+            VERSION="${BASE}-${LABEL}${NUM}"
           else
             VERSION="$BASE"
           fi

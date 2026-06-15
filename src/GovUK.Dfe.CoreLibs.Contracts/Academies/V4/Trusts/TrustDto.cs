@@ -18,4 +18,6 @@ public class TrustDto
 
     public AddressDto Address { get; set; }
 
+    public string? Gor { get; set; }
+
 }
