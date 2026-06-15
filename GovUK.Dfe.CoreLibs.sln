@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.10.35122.118
+# Visual Studio Version 18
+VisualStudioVersion = 18.4.11605.240
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GovUK.Dfe.CoreLibs.Caching", "src\GovUK.Dfe.CoreLibs.Caching\GovUK.Dfe.CoreLibs.Caching.csproj", "{D88D58F0-18C4-4C3B-805B-8A483500E73E}"
 EndProject
@@ -48,6 +48,10 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GovUK.Dfe.CoreLibs.Messaging.MassTransit", "src\GovUK.Dfe.CoreLibs.Messaging.MassTransit\GovUK.Dfe.CoreLibs.Messaging.MassTransit.csproj", "{B4EBEB86-ED60-4E4D-BDF2-DAB06CF54E84}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GovUK.Dfe.CoreLibs.Messaging.MassTransit.Tests", "src\Tests\GovUK.Dfe.CoreLibs.Messaging.MassTransit.Tests\GovUK.Dfe.CoreLibs.Messaging.MassTransit.Tests.csproj", "{1EA0F5A0-759C-4FF5-8C2C-CF4D4ACE252F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GovUK.Dfe.CoreLibs.ApplicationSettings", "src\GovUK.Dfe.CoreLibs.ApplicationSettings\GovUK.Dfe.CoreLibs.ApplicationSettings.csproj", "{7EA4DA7D-AA0D-F78A-E03A-64C584868F78}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GovUK.Dfe.CoreLibs.ApplicationSettings.Tests", "src\Tests\GovUK.Dfe.CoreLibs.ApplicationSettings.Tests\GovUK.Dfe.CoreLibs.ApplicationSettings.Tests.csproj", "{EA11C968-CDF4-6F99-F7B2-8DB18B5793F4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -142,6 +146,14 @@ Global
 		{1EA0F5A0-759C-4FF5-8C2C-CF4D4ACE252F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1EA0F5A0-759C-4FF5-8C2C-CF4D4ACE252F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1EA0F5A0-759C-4FF5-8C2C-CF4D4ACE252F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7EA4DA7D-AA0D-F78A-E03A-64C584868F78}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7EA4DA7D-AA0D-F78A-E03A-64C584868F78}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7EA4DA7D-AA0D-F78A-E03A-64C584868F78}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7EA4DA7D-AA0D-F78A-E03A-64C584868F78}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EA11C968-CDF4-6F99-F7B2-8DB18B5793F4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EA11C968-CDF4-6F99-F7B2-8DB18B5793F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EA11C968-CDF4-6F99-F7B2-8DB18B5793F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EA11C968-CDF4-6F99-F7B2-8DB18B5793F4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -156,6 +168,7 @@ Global
 		{8D3F0E0F-9C7F-6B1F-BD5C-3E4F5A6B7C8D} = {3F89DCAD-8EC7-41ED-A08F-A9EFAE263EB4}
 		{1F2A3B4C-5D6E-7F8A-9B0C-1D2E3F4A5B6C} = {3F89DCAD-8EC7-41ED-A08F-A9EFAE263EB4}
 		{1EA0F5A0-759C-4FF5-8C2C-CF4D4ACE252F} = {3F89DCAD-8EC7-41ED-A08F-A9EFAE263EB4}
+		{EA11C968-CDF4-6F99-F7B2-8DB18B5793F4} = {3F89DCAD-8EC7-41ED-A08F-A9EFAE263EB4}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {01D11FBC-6C66-43E4-8F1F-46B105EDD95C}

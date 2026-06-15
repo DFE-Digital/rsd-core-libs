@@ -37,6 +37,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
                 [$"{SectionName}:ClientId"] = "my-client",
                 [$"{SectionName}:ClientSecret"] = "topsecret",
                 [$"{SectionName}:RedirectUri"] = "https://app/callback",
+                [$"{SectionName}:SignedOutCallbackPath"] = "/signout-callback-oidc",
                 [$"{SectionName}:Prompt"] = "login",
                 [$"{SectionName}:ResponseType"] = "code",
                 [$"{SectionName}:RequireHttpsMetadata"] = "false",
@@ -55,6 +56,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             Assert.Equal("my-client", opts.ClientId);
             Assert.Equal("topsecret", opts.ClientSecret);
             Assert.Equal("https://app/callback", opts.RedirectUri);
+            Assert.Equal("/signout-callback-oidc", opts.SignedOutCallbackPath);
             Assert.Equal("login", opts.Prompt);
             Assert.Equal("code", opts.ResponseType);
             Assert.False(opts.RequireHttpsMetadata);
@@ -73,6 +75,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
                 [$"{SectionName}:Authority"] = "https://example.com/oidc2",
                 [$"{SectionName}:ClientId"] = "client2",
                 [$"{SectionName}:ClientSecret"] = "secret2",
+                [$"{SectionName}:SignedOutCallbackPath"] = "/custom-signout-callback",
                 [$"{SectionName}:Scopes:0"] = "openid",
                 [$"{SectionName}:Scopes:1"] = "email",
             };
@@ -91,8 +94,26 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             Assert.True(oidcOpts.UseTokenLifetime);
             Assert.Equal("email", oidcOpts.TokenValidationParameters.NameClaimType);
             Assert.Equal(new List<string> { "openid", "email" }, oidcOpts.Scope);
+            Assert.Equal("/custom-signout-callback", oidcOpts.SignedOutCallbackPath);
             Assert.NotNull(oidcOpts.Events);
             Assert.NotNull(oidcOpts.Events.OnRedirectToIdentityProvider);
+        }
+
+        [Fact]
+        public void AddCustomOpenIdConnect_WhenSignedOutCallbackPathNotConfigured_ConfigOptionIsNull()
+        {
+            var settings = new Dictionary<string, string?>
+            {
+                [$"{SectionName}:Authority"] = "https://example.com/oidc",
+                [$"{SectionName}:ClientId"] = "client",
+                [$"{SectionName}:ClientSecret"] = "secret",
+                [$"{SectionName}:Scopes:0"] = "openid",
+            };
+
+            var provider = BuildServiceProvider(settings);
+            var opts = provider.GetRequiredService<IOptions<Configurations.OpenIdConnectOptions>>().Value;
+
+            Assert.Null(opts.SignedOutCallbackPath);
         }
 
         [Fact]

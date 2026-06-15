@@ -33,7 +33,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 oidc.TokenValidationParameters.NameClaimType = opts.NameClaimType;
                 oidc.SaveTokens = opts.SaveTokens;
                 oidc.UseTokenLifetime = opts.UseTokenLifetime;
-
+                oidc.SignedOutCallbackPath = opts.SignedOutCallbackPath;
                 oidc.Scope.Clear();
                 foreach (var scope in opts.Scopes)
                     oidc.Scope.Add(scope);
