@@ -59,7 +59,7 @@ jobs:
             /showvariable PreReleaseNumber)
 
           if [ -n "$LABEL" ]; then
-            VERSION="${BASE}-${LABEL}-${NUM}"
+            VERSION="${BASE}-${LABEL}${NUM}"
           else
             VERSION="$BASE"
           fi
