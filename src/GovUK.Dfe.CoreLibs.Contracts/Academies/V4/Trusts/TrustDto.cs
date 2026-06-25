@@ -19,8 +19,5 @@ public class TrustDto
     public AddressDto Address { get; set; }
 
     public string? Gor { get; set; }
-    public string? GroupUid { get; set; }
-
-    public string? OpenDate { get; set; }
 
 }
