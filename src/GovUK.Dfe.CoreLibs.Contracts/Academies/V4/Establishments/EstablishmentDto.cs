@@ -36,6 +36,7 @@ public class EstablishmentDto
 
     public NameAndCodeDto Diocese { get; set; }
     public NameAndCodeDto EstablishmentType { get; set; }
+    public NameAndCodeDto EstablishmentGroupType { get; set; }
     public NameAndCodeDto Gor { get; set; }
     public NameAndCodeDto PhaseOfEducation { get; set; }
     public NameAndCodeDto ReligiousCharacter { get; set; }
