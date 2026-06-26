@@ -20,4 +20,8 @@ public class TrustDto
 
     public string? Gor { get; set; }
 
+    public string? GroupUid { get; set; }
+
+    public string? OpenDate { get; set; }
+
 }
