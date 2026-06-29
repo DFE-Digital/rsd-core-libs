@@ -10,12 +10,7 @@
 	  <Authors>DFE-Digital</Authors>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Compile Remove="ExternalApplications\Models\Response\CustomApplicationStatusDto.cs" />
-  </ItemGroup>
-
 	<ItemGroup>
-		<None Include="ExternalApplications\Models\Response\CustomApplicationStatusDto.cs" />
 		<None Include="readme.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
