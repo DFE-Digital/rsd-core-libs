@@ -3,7 +3,6 @@ using System;
 
 namespace GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response
 {
-
     public sealed class CustomApplicationStatusDto    {
 
         public Guid? CustomApplicationStatusId { get; set; }
