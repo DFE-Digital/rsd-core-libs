@@ -17,9 +17,8 @@ namespace GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response
         public string? Label { get; set; }
         [JsonPropertyName("createdOn")]
         public DateTime CreatedOn { get; set; }
-        [JsonPropertyName("CreatedBy")]
+        [JsonPropertyName("createdBy")]
         public Guid CreatedBy { get; set; }
 
     }
-
 }
