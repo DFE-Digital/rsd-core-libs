@@ -6,6 +6,4 @@
         string Target,
         DateTime LoadedAtUtc,
         IReadOnlyDictionary<string, string?> Configuration);
-
-
 }
