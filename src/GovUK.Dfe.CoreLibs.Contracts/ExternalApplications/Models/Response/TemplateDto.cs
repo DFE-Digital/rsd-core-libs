@@ -18,4 +18,11 @@ public class TemplateDto
 
     [JsonPropertyName("latestVersionNumber")]
     public string? LatestVersionNumber { get; set; }
+
+    /// <summary>
+    /// When <c>true</c>, end users with permission can access this template.
+    /// Admins receive all catalogue templates and can use this flag for publish/preview UX.
+    /// </summary>
+    [JsonPropertyName("isLive")]
+    public bool IsLive { get; set; }
 }
