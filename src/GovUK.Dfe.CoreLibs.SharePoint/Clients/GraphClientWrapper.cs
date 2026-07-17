@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography.X509Certificates;
 using Azure.Core;
 using Azure.Identity;
@@ -19,8 +20,8 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
 
     private readonly GraphServiceClient _graphClient;
     private readonly SharePointOptions _options;
-    private readonly SemaphoreSlim _driveLock = new(1, 1);
-    private string? _resolvedDriveId;
+    private readonly ConcurrentDictionary<string, string> _driveIdsByLibraryName =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public GraphClientWrapper(SharePointOptions options)
         : this(options, CreateGraphClient(options))
@@ -35,12 +36,13 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
 
     public async Task CreateFolderAsync(string folderPath, CancellationToken cancellationToken = default)
     {
-        var driveId = await GetDriveIdAsync(cancellationToken).ConfigureAwait(false);
-        var segments = SplitPath(folderPath);
+        var (libraryName, relativePath) = SplitLibraryAndPath(folderPath);
+        if (string.IsNullOrEmpty(relativePath))
+            throw new SharePointException(
+                "Folder path must include a folder within the document library.");
 
-        if (segments.Count == 0)
-            throw new SharePointException("Folder path must not be empty.");
-
+        var driveId = await ResolveDriveIdAsync(libraryName, cancellationToken).ConfigureAwait(false);
+        var segments = SplitPath(relativePath);
         var currentPath = string.Empty;
 
         foreach (var segment in segments)
@@ -84,21 +86,22 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
             }
             catch (ODataError ex)
             {
-                throw MapODataError(ex, $"Failed to create folder '{currentPath}'.");
+                throw MapODataError(ex, $"Failed to create folder '{libraryName}/{currentPath}'.");
             }
         }
     }
 
     public async Task<IReadOnlyList<SharePointFileInfo>> ListFilesAsync(string folderPath, CancellationToken cancellationToken = default)
     {
-        var driveId = await GetDriveIdAsync(cancellationToken).ConfigureAwait(false);
-        var normalizedPath = NormalizePath(folderPath);
+        var (libraryName, relativePath) = SplitLibraryAndPath(folderPath);
+        var driveId = await ResolveDriveIdAsync(libraryName, cancellationToken).ConfigureAwait(false);
+        var displayPath = string.IsNullOrEmpty(relativePath) ? libraryName : $"{libraryName}/{relativePath}";
 
         try
         {
             DriveItemCollectionResponse? response;
 
-            if (string.IsNullOrEmpty(normalizedPath))
+            if (string.IsNullOrEmpty(relativePath))
             {
                 response = await _graphClient.Drives[driveId].Items["root"].Children
                     .GetAsync(cancellationToken: cancellationToken)
@@ -107,7 +110,7 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
             else
             {
                 response = await _graphClient.Drives[driveId].Root
-                    .ItemWithPath(normalizedPath)
+                    .ItemWithPath(relativePath)
                     .Children
                     .GetAsync(cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
@@ -115,7 +118,7 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
 
             var files = new List<SharePointFileInfo>();
 
-            await foreach (var item in EnumeratePagesAsync(response, driveId, normalizedPath, cancellationToken).ConfigureAwait(false))
+            await foreach (var item in EnumeratePagesAsync(response, driveId, relativePath, cancellationToken).ConfigureAwait(false))
             {
                 if (item.File is null || string.IsNullOrEmpty(item.Name))
                     continue;
@@ -134,11 +137,11 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
         }
         catch (ODataError ex) when (IsNotFound(ex))
         {
-            throw new SharePointNotFoundException($"Folder '{normalizedPath}' was not found.", ex);
+            throw new SharePointNotFoundException($"Folder '{displayPath}' was not found.", ex);
         }
         catch (ODataError ex)
         {
-            throw MapODataError(ex, $"Failed to list files in folder '{normalizedPath}'.");
+            throw MapODataError(ex, $"Failed to list files in folder '{displayPath}'.");
         }
     }
 
@@ -147,9 +150,10 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         ArgumentNullException.ThrowIfNull(content);
 
-        var driveId = await GetDriveIdAsync(cancellationToken).ConfigureAwait(false);
-        var normalizedFolder = NormalizePath(folderPath);
-        var itemPath = string.IsNullOrEmpty(normalizedFolder) ? fileName : $"{normalizedFolder}/{fileName}";
+        var (libraryName, relativePath) = SplitLibraryAndPath(folderPath);
+        var driveId = await ResolveDriveIdAsync(libraryName, cancellationToken).ConfigureAwait(false);
+        var itemPath = string.IsNullOrEmpty(relativePath) ? fileName : $"{relativePath}/{fileName}";
+        var displayFolder = string.IsNullOrEmpty(relativePath) ? libraryName : $"{libraryName}/{relativePath}";
 
         try
         {
@@ -161,11 +165,11 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
         }
         catch (ODataError ex) when (IsNotFound(ex))
         {
-            throw new SharePointNotFoundException($"Folder '{normalizedFolder}' was not found.", ex);
+            throw new SharePointNotFoundException($"Folder '{displayFolder}' was not found.", ex);
         }
         catch (ODataError ex)
         {
-            throw MapODataError(ex, $"Failed to upload file '{itemPath}'.");
+            throw MapODataError(ex, $"Failed to upload file '{libraryName}/{itemPath}'.");
         }
     }
 
@@ -173,9 +177,9 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
-        var driveId = await GetDriveIdAsync(cancellationToken).ConfigureAwait(false);
-        var normalizedFolder = NormalizePath(folderPath);
-        var itemPath = string.IsNullOrEmpty(normalizedFolder) ? fileName : $"{normalizedFolder}/{fileName}";
+        var (libraryName, relativePath) = SplitLibraryAndPath(folderPath);
+        var driveId = await ResolveDriveIdAsync(libraryName, cancellationToken).ConfigureAwait(false);
+        var itemPath = string.IsNullOrEmpty(relativePath) ? fileName : $"{relativePath}/{fileName}";
 
         try
         {
@@ -186,63 +190,73 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
                 .ConfigureAwait(false);
 
             if (stream is null)
-                throw new SharePointNotFoundException($"File '{itemPath}' was not found.");
+                throw new SharePointNotFoundException($"File '{libraryName}/{itemPath}' was not found.");
 
             return stream;
         }
         catch (ODataError ex) when (IsNotFound(ex))
         {
-            throw new SharePointNotFoundException($"File '{itemPath}' was not found.", ex);
+            throw new SharePointNotFoundException($"File '{libraryName}/{itemPath}' was not found.", ex);
         }
         catch (ODataError ex)
         {
-            throw MapODataError(ex, $"Failed to download file '{itemPath}'.");
+            throw MapODataError(ex, $"Failed to download file '{libraryName}/{itemPath}'.");
         }
     }
 
-    private async Task<string> GetDriveIdAsync(CancellationToken cancellationToken)
+    public async Task DeleteFileAsync(string folderPath, string fileName, CancellationToken cancellationToken = default)
     {
-        if (!string.IsNullOrWhiteSpace(_options.DriveId))
-            return _options.DriveId;
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
-        if (!string.IsNullOrWhiteSpace(_resolvedDriveId))
-            return _resolvedDriveId;
+        var (libraryName, relativePath) = SplitLibraryAndPath(folderPath);
+        var driveId = await ResolveDriveIdAsync(libraryName, cancellationToken).ConfigureAwait(false);
+        var itemPath = string.IsNullOrEmpty(relativePath) ? fileName : $"{relativePath}/{fileName}";
 
-        await _driveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!string.IsNullOrWhiteSpace(_resolvedDriveId))
-                return _resolvedDriveId;
-
-            var siteId = await ResolveSiteIdAsync(cancellationToken).ConfigureAwait(false);
-
-            DriveCollectionResponse? drives;
-            try
-            {
-                drives = await _graphClient.Sites[siteId].Drives
-                    .GetAsync(cancellationToken: cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (ODataError ex)
-            {
-                throw MapODataError(ex, "Failed to list document libraries for the configured site.");
-            }
-
-            var libraryName = _options.LibraryName;
-            var drive = drives?.Value?.FirstOrDefault(d =>
-                string.Equals(d.Name, libraryName, StringComparison.OrdinalIgnoreCase));
-
-            if (drive?.Id is null)
-                throw new SharePointConfigurationException(
-                    $"Document library '{libraryName}' was not found on the configured site.");
-
-            _resolvedDriveId = drive.Id;
-            return _resolvedDriveId;
+            await _graphClient.Drives[driveId].Root
+                .ItemWithPath(itemPath)
+                .DeleteAsync(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
         }
-        finally
+        catch (ODataError ex) when (IsNotFound(ex))
         {
-            _driveLock.Release();
+            throw new SharePointNotFoundException($"File '{libraryName}/{itemPath}' was not found.", ex);
         }
+        catch (ODataError ex)
+        {
+            throw MapODataError(ex, $"Failed to delete file '{libraryName}/{itemPath}'.");
+        }
+    }
+    
+    private async Task<string> ResolveDriveIdAsync(string libraryName, CancellationToken cancellationToken)
+    {
+        if (_driveIdsByLibraryName.TryGetValue(libraryName, out var cached))
+            return cached;
+
+        var siteId = await ResolveSiteIdAsync(cancellationToken).ConfigureAwait(false);
+
+        DriveCollectionResponse? drives;
+        try
+        {
+            drives = await _graphClient.Sites[siteId].Drives
+                .GetAsync(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (ODataError ex)
+        {
+            throw MapODataError(ex, "Failed to list document libraries for the configured site.");
+        }
+
+        var drive = drives?.Value?.FirstOrDefault(d =>
+            string.Equals(d.Name, libraryName, StringComparison.OrdinalIgnoreCase));
+
+        if (drive?.Id is null)
+            throw new SharePointNotFoundException(
+                $"Document library '{libraryName}' was not found on the configured site.");
+
+        _driveIdsByLibraryName[libraryName] = drive.Id;
+        return drive.Id;
     }
 
     private async Task<string> ResolveSiteIdAsync(CancellationToken cancellationToken)
@@ -357,6 +371,22 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
         }
 
         return new ClientSecretCredential(options.TenantId, options.ClientId, options.ClientSecret);
+    }
+
+    private static (string LibraryName, string RelativePath) SplitLibraryAndPath(string folderPath)
+    {
+        var segments = SplitPath(folderPath);
+
+        if (segments.Count == 0)
+            throw new SharePointException(
+                "Path must start with a document library name.");
+
+        var libraryName = segments[0];
+        var relativePath = segments.Count == 1
+            ? string.Empty
+            : string.Join('/', segments.Skip(1));
+
+        return (libraryName, relativePath);
     }
 
     private static List<string> SplitPath(string path)

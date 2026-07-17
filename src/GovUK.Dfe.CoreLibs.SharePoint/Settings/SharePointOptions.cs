@@ -49,14 +49,4 @@ public class SharePointOptions
     /// Site-relative path (e.g. /sites/MySite). Used with <see cref="SiteHostname"/> when <see cref="SiteId"/> is not set.
     /// </summary>
     public string SitePath { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Document library drive ID. Required when <see cref="LibraryName"/> is not provided.
-    /// </summary>
-    public string DriveId { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Document library display name (e.g. Documents). Used to resolve the drive when <see cref="DriveId"/> is not set.
-    /// </summary>
-    public string LibraryName { get; set; } = "Documents";
 }

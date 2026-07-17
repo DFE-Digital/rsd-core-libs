@@ -28,7 +28,7 @@ public sealed class SharePointService : ISharePointService
     /// <inheritdoc />
     public async Task CreateFolderAsync(string folderPath, CancellationToken cancellationToken = default)
     {
-        var normalized = NormalizeRequiredFolderPath(folderPath);
+        var normalized = NormalizeLibraryPath(folderPath);
 
         try
         {
@@ -48,7 +48,7 @@ public sealed class SharePointService : ISharePointService
     /// <inheritdoc />
     public async Task<IReadOnlyList<SharePointFileInfo>> ListFilesAsync(string folderPath, CancellationToken cancellationToken = default)
     {
-        var normalized = NormalizeOptionalFolderPath(folderPath);
+        var normalized = NormalizeLibraryPath(folderPath);
 
         try
         {
@@ -74,7 +74,7 @@ public sealed class SharePointService : ISharePointService
         if (fileName.Contains('/') || fileName.Contains('\\'))
             throw new ArgumentException("File name must not contain path separators.", nameof(fileName));
 
-        var normalized = NormalizeOptionalFolderPath(folderPath);
+        var normalized = NormalizeLibraryPath(folderPath);
 
         try
         {
@@ -99,7 +99,7 @@ public sealed class SharePointService : ISharePointService
         if (fileName.Contains('/') || fileName.Contains('\\'))
             throw new ArgumentException("File name must not contain path separators.", nameof(fileName));
 
-        var normalized = NormalizeOptionalFolderPath(folderPath);
+        var normalized = NormalizeLibraryPath(folderPath);
 
         try
         {
@@ -116,23 +116,41 @@ public sealed class SharePointService : ISharePointService
         }
     }
 
-    private static string NormalizeRequiredFolderPath(string folderPath)
+    /// <inheritdoc />
+    public async Task DeleteFileAsync(string folderPath, string fileName, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(folderPath))
-            throw new ArgumentException("Folder path is required.", nameof(folderPath));
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
-        var normalized = NormalizeOptionalFolderPath(folderPath);
-        if (string.IsNullOrEmpty(normalized))
-            throw new ArgumentException("Folder path is required.", nameof(folderPath));
+        if (fileName.Contains('/') || fileName.Contains('\\'))
+            throw new ArgumentException("File name must not contain path separators.", nameof(fileName));
 
-        return normalized;
+        var normalized = NormalizeLibraryPath(folderPath);
+
+        try
+        {
+            _logger.LogDebug("Deleting file '{FileName}' from SharePoint folder '{FolderPath}'.", fileName, normalized);
+            await _graphClient.DeleteFileAsync(normalized, fileName, cancellationToken).ConfigureAwait(false);
+        }
+        catch (SharePointException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new SharePointException($"Failed to delete file '{fileName}' from folder '{normalized}'.", ex);
+        }
     }
 
-    private static string NormalizeOptionalFolderPath(string? folderPath)
+    private static string NormalizeLibraryPath(string folderPath)
     {
-        if (string.IsNullOrWhiteSpace(folderPath))
-            return string.Empty;
+        ArgumentNullException.ThrowIfNull(folderPath);
 
-        return folderPath.Replace('\\', '/').Trim().Trim('/');
+        var normalized = folderPath.Replace('\\', '/').Trim().Trim('/');
+        if (string.IsNullOrEmpty(normalized))
+            throw new ArgumentException(
+                "Path must start with a document library name (e.g. Documents or Documents/folder).",
+                nameof(folderPath));
+
+        return normalized;
     }
 }

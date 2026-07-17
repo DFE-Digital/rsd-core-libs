@@ -17,8 +17,7 @@ public class ServiceCollectionExtensionsTests
             ["SharePoint:TenantId"] = "tenant-id",
             ["SharePoint:ClientId"] = "client-id",
             ["SharePoint:ClientSecret"] = "secret",
-            ["SharePoint:SiteId"] = "site-id",
-            ["SharePoint:DriveId"] = "drive-id"
+            ["SharePoint:SiteId"] = "site-id"
         });
 
         var services = new ServiceCollection();
@@ -119,19 +118,6 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddSharePointServices_MissingDrive_Throws()
-    {
-        var options = CreateValidOptions();
-        options.DriveId = string.Empty;
-        options.LibraryName = string.Empty;
-
-        var ex = Assert.Throws<SharePointConfigurationException>(() =>
-            new ServiceCollection().AddSharePointServices(options));
-
-        Assert.Contains("DriveId", ex.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
     public void AddSharePointServices_WithSiteHostnameAndPath_Succeeds()
     {
         var options = CreateValidOptions();
@@ -166,8 +152,7 @@ public class ServiceCollectionExtensionsTests
         TenantId = "tenant-id",
         ClientId = "client-id",
         ClientSecret = "secret",
-        SiteId = "site-id",
-        DriveId = "drive-id"
+        SiteId = "site-id"
     };
 
     private static IConfiguration BuildConfiguration(Dictionary<string, string?> values) =>

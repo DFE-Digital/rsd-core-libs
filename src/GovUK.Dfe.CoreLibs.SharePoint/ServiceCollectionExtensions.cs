@@ -49,7 +49,7 @@ public static class ServiceCollectionExtensions
         ValidateOptions(options);
 
         services.AddSingleton(options);
-        services.AddSingleton<IGraphClientWrapper>(sp => new GraphClientWrapper(options));
+        services.AddSingleton<IGraphClientWrapper>(_ => new GraphClientWrapper(options));
         services.AddSingleton<ISharePointService>(sp =>
             new SharePointService(
                 sp.GetRequiredService<IGraphClientWrapper>(),
@@ -80,12 +80,5 @@ public static class ServiceCollectionExtensions
         if (!hasSiteId && !hasSitePath)
             throw new SharePointConfigurationException(
                 "SharePoint site resolution requires either SiteId or both SiteHostname and SitePath.");
-
-        var hasDriveId = !string.IsNullOrWhiteSpace(options.DriveId);
-        var hasLibraryName = !string.IsNullOrWhiteSpace(options.LibraryName);
-
-        if (!hasDriveId && !hasLibraryName)
-            throw new SharePointConfigurationException(
-                "SharePoint drive resolution requires either DriveId or LibraryName.");
     }
 }

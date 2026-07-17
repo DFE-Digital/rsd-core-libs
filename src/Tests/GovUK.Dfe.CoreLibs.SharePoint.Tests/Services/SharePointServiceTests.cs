@@ -22,19 +22,32 @@ public class SharePointServiceTests
     [Fact]
     public async Task CreateFolderAsync_NormalizesPath_AndDelegates()
     {
-        await _sut.CreateFolderAsync(" reports\\2024/ ");
+        await _sut.CreateFolderAsync(" Documents\\reports\\2024/ ");
 
-        await _graphClient.Received(1).CreateFolderAsync("reports/2024", Arg.Any<CancellationToken>());
+        await _graphClient.Received(1).CreateFolderAsync("Documents/reports/2024", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CreateFolderAsync_LibraryRootOnly_Delegates()
+    {
+        await _sut.CreateFolderAsync("Documents");
+
+        await _graphClient.Received(1).CreateFolderAsync("Documents", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CreateFolderAsync_NullPath_Throws()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(() => _sut.CreateFolderAsync(null!));
     }
 
     [Theory]
-    [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("/")]
-    public async Task CreateFolderAsync_EmptyPath_Throws(string? path)
+    public async Task CreateFolderAsync_EmptyPath_Throws(string path)
     {
-        await Assert.ThrowsAsync<ArgumentException>(() => _sut.CreateFolderAsync(path!));
+        await Assert.ThrowsAsync<ArgumentException>(() => _sut.CreateFolderAsync(path));
     }
 
     [Fact]
@@ -44,25 +57,36 @@ public class SharePointServiceTests
         {
             new() { Id = "1", Name = "a.txt", Size = 10 }
         };
-        _graphClient.ListFilesAsync("reports", Arg.Any<CancellationToken>()).Returns(expected);
+        _graphClient.ListFilesAsync("Documents/reports", Arg.Any<CancellationToken>()).Returns(expected);
 
-        var result = await _sut.ListFilesAsync("reports");
+        var result = await _sut.ListFilesAsync("Documents/reports");
 
         Assert.Same(expected, result);
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("/")]
-    public async Task ListFilesAsync_RootPath_UsesEmptyPath(string? path)
+    [Fact]
+    public async Task ListFilesAsync_LibraryRoot_Delegates()
     {
-        _graphClient.ListFilesAsync(string.Empty, Arg.Any<CancellationToken>())
+        _graphClient.ListFilesAsync("Documents", Arg.Any<CancellationToken>())
             .Returns(Array.Empty<SharePointFileInfo>());
 
-        await _sut.ListFilesAsync(path!);
+        await _sut.ListFilesAsync("Documents");
 
-        await _graphClient.Received(1).ListFilesAsync(string.Empty, Arg.Any<CancellationToken>());
+        await _graphClient.Received(1).ListFilesAsync("Documents", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ListFilesAsync_NullPath_Throws()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(() => _sut.ListFilesAsync(null!));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("/")]
+    public async Task ListFilesAsync_EmptyPath_Throws(string path)
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => _sut.ListFilesAsync(path));
     }
 
     [Fact]
@@ -70,16 +94,16 @@ public class SharePointServiceTests
     {
         await using var stream = new MemoryStream([1, 2, 3]);
 
-        await _sut.UploadFileAsync("reports", "file.pdf", stream);
+        await _sut.UploadFileAsync("Documents/reports", "file.pdf", stream);
 
-        await _graphClient.Received(1).UploadFileAsync("reports", "file.pdf", stream, Arg.Any<CancellationToken>());
+        await _graphClient.Received(1).UploadFileAsync("Documents/reports", "file.pdf", stream, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task UploadFileAsync_NullContent_Throws()
     {
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            _sut.UploadFileAsync("reports", "file.pdf", null!));
+            _sut.UploadFileAsync("Documents/reports", "file.pdf", null!));
     }
 
     [Fact]
@@ -88,28 +112,42 @@ public class SharePointServiceTests
         await using var stream = new MemoryStream();
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            _sut.UploadFileAsync("reports", "sub/file.pdf", stream));
+            _sut.UploadFileAsync("Documents/reports", "sub/file.pdf", stream));
     }
 
     [Fact]
     public async Task DownloadFileAsync_ReturnsStreamFromClient()
     {
         var expected = new MemoryStream([9, 8, 7]);
-        _graphClient.DownloadFileAsync("reports", "file.pdf", Arg.Any<CancellationToken>())
+        _graphClient.DownloadFileAsync("Documents/reports", "file.pdf", Arg.Any<CancellationToken>())
             .Returns(expected);
 
-        var result = await _sut.DownloadFileAsync("reports", "file.pdf");
+        var result = await _sut.DownloadFileAsync("Documents/reports", "file.pdf");
 
         Assert.Same(expected, result);
+    }
+    
+    [Fact]
+    public async Task DeleteFileAsync_DelegatesToClient()
+    {
+        await _sut.DeleteFileAsync("Documents/reports", "file.pdf");
+        await _graphClient.Received(1).DeleteFileAsync("Documents/reports", "file.pdf", Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task DownloadFileAsync_EmptyFileName_Throws()
     {
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            _sut.DownloadFileAsync("reports", " "));
+            _sut.DownloadFileAsync("Documents/reports", " "));
     }
-
+    
+    [Fact]
+    public async Task DeleteFileAsync_EmptyFileName_Throws()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _sut.DeleteFileAsync("Documents/reports", " "));
+    }
+    
     [Fact]
     public async Task CreateFolderAsync_WrapsUnexpectedExceptions()
     {
@@ -117,7 +155,7 @@ public class SharePointServiceTests
             .ThrowsAsync(new InvalidOperationException("boom"));
 
         var ex = await Assert.ThrowsAsync<SharePointException>(() =>
-            _sut.CreateFolderAsync("reports"));
+            _sut.CreateFolderAsync("Documents/reports"));
 
         Assert.Contains("Failed to create folder", ex.Message);
         Assert.IsType<InvalidOperationException>(ex.InnerException);
@@ -130,6 +168,6 @@ public class SharePointServiceTests
             .ThrowsAsync(new SharePointNotFoundException("missing"));
 
         await Assert.ThrowsAsync<SharePointNotFoundException>(() =>
-            _sut.ListFilesAsync("missing"));
+            _sut.ListFilesAsync("Documents/missing"));
     }
 }

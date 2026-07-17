@@ -26,4 +26,9 @@ internal interface IGraphClientWrapper
     /// Downloads a file from the given folder path.
     /// </summary>
     Task<Stream> DownloadFileAsync(string folderPath, string fileName, CancellationToken cancellationToken = default);
+    
+    /// <summary>
+    /// Deletes a file from the given folder path.
+    /// </summary>
+    Task DeleteFileAsync(string folderPath, string fileName, CancellationToken cancellationToken = default);
 }
