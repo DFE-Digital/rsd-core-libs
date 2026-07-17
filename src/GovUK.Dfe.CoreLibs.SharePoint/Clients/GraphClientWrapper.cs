@@ -229,7 +229,7 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
         }
     }
     
-    private async Task<string> ResolveDriveIdAsync(string libraryName, CancellationToken cancellationToken)
+    internal async Task<string> ResolveDriveIdAsync(string libraryName, CancellationToken cancellationToken)
     {
         if (_driveIdsByLibraryName.TryGetValue(libraryName, out var cached))
             return cached;
@@ -259,7 +259,7 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
         return drive.Id;
     }
 
-    private async Task<string> ResolveSiteIdAsync(CancellationToken cancellationToken)
+    internal async Task<string> ResolveSiteIdAsync(CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(_options.SiteId))
             return _options.SiteId;
@@ -287,7 +287,7 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
         }
     }
 
-    private async Task<bool> FolderExistsAsync(string driveId, string folderPath, CancellationToken cancellationToken)
+    internal async Task<bool> FolderExistsAsync(string driveId, string folderPath, CancellationToken cancellationToken)
     {
         try
         {
@@ -373,7 +373,7 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
         return new ClientSecretCredential(options.TenantId, options.ClientId, options.ClientSecret);
     }
 
-    private static (string LibraryName, string RelativePath) SplitLibraryAndPath(string folderPath)
+    internal static (string LibraryName, string RelativePath) SplitLibraryAndPath(string folderPath)
     {
         var segments = SplitPath(folderPath);
 
