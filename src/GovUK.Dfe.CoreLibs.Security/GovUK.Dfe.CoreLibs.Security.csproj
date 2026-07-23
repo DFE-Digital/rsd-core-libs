@@ -16,10 +16,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="GovUK.Dfe.CoreLibs.Caching" Version="1.0.10" />
+		<PackageReference Include="GovUK.Dfe.CoreLibs.Caching" Version="1.0.13" />
 		<PackageReference Include="Microsoft.AspNetCore.Authorization" Version="8.0.11" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
-		<PackageReference Include="Microsoft.Identity.Web" Version="3.8.2" />
+		<PackageReference Include="Microsoft.Identity.Web" Version="4.13.2" />
 	</ItemGroup>
 
 	<ItemGroup>
