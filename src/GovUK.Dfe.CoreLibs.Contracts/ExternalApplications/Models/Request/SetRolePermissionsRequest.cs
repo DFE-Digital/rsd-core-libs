@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 
 namespace GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
@@ -7,8 +8,13 @@ namespace GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 /// </summary>
 public class RolePermissionGrantDto
 {
+    [JsonPropertyName("resourceType")]
     public ResourceType ResourceType { get; set; }
+
+    [JsonPropertyName("resourceKey")]
     public string ResourceKey { get; set; } = null!;
+
+    [JsonPropertyName("accessType")]
     public AccessType AccessType { get; set; }
 }
 
@@ -17,6 +23,7 @@ public class RolePermissionGrantDto
 /// </summary>
 public class SetRolePermissionsRequest
 {
+    [JsonPropertyName("permissions")]
     public IReadOnlyCollection<RolePermissionGrantDto> Permissions { get; set; }
         = Array.Empty<RolePermissionGrantDto>();
 }
