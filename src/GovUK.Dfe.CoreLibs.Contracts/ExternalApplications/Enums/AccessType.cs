@@ -4,6 +4,7 @@ namespace GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums
     {
         Read = 0,
         Write = 1,
-        Delete = 2
+        Delete = 2,
+        Manage = 3
     }
 }
