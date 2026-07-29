@@ -1296,6 +1296,70 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             Assert.Contains("client-b", audiences);
         }
 
+        [Fact]
+        public void ReloadProviders_UpdatesProviderCount_InMultiProviderMode()
+        {
+            var multiOpts = Options.Create(new MultiProviderOpenIdConnectOptions
+            {
+                Providers =
+                [
+                    new OpenIdConnectOptions
+                    {
+                        Issuer = "https://idp-a.example.com/",
+                        ClientId = "client-a",
+                        DiscoveryEndpoint = "https://idp-a.example.com/.well-known/openid-configuration"
+                    }
+                ]
+            });
+
+            var validator = new ExternalIdentityValidator(
+                Options.Create(new OpenIdConnectOptions
+                {
+                    DiscoveryEndpoint = "https://placeholder.example.com/.well-known/openid-configuration"
+                }),
+                CreateHttpClientFactory(),
+                multiOpts);
+
+            Assert.Equal(1, validator.ProviderCount);
+
+            validator.ReloadProviders(
+            [
+                new OpenIdConnectOptions
+                {
+                    Issuer = "https://idp-a.example.com/",
+                    ClientId = "client-a",
+                    DiscoveryEndpoint = "https://idp-a.example.com/.well-known/openid-configuration"
+                },
+                new OpenIdConnectOptions
+                {
+                    Issuer = "https://idp-b.example.com/",
+                    ClientId = "client-b",
+                    DiscoveryEndpoint = "https://idp-b.example.com/.well-known/openid-configuration"
+                }
+            ]);
+
+            Assert.Equal(2, validator.ProviderCount);
+        }
+
+        [Fact]
+        public void ReloadProviders_Throws_WhenStartedInSingleProviderMode()
+        {
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                CreateHttpClientFactory());
+
+            Assert.Throws<InvalidOperationException>(() =>
+                validator.ReloadProviders(
+                [
+                    new OpenIdConnectOptions
+                    {
+                        Issuer = "https://idp.example.com/",
+                        ClientId = "client",
+                        DiscoveryEndpoint = "https://idp.example.com/.well-known/openid-configuration"
+                    }
+                ]));
+        }
+
         #endregion
     }
 }
