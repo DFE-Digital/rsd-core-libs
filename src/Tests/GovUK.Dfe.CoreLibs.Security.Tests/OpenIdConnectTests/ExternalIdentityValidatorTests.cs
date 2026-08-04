@@ -446,6 +446,79 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
                 principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
         }
 
+        [Fact]
+        public async Task ValidateIdTokenAsync_TestEnabled_UsesTestPath_ForHmacToken_WithoutCypress()
+        {
+            var factory = CreateHttpClientFactory();
+            var rawKey = "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD";
+            var testOpts = new TestAuthenticationOptions
+            {
+                Enabled = true,
+                JwtSigningKey = rawKey,
+                JwtIssuer = "test-external-applications",
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = false
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                multiProviderOptions: null,
+                cypressAuthOpts: null,
+                testOptions: Options.Create(testOpts));
+
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(rawKey));
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var token = handler.WriteToken(handler.CreateToken(new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "test-user")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            }));
+
+            var principal = await validator.ValidateIdTokenAsync(
+                token,
+                validCypressRequest: false,
+                validInternalRequest: false,
+                internalAuthOptions: null,
+                testAuthOptions: testOpts);
+
+            Assert.Equal("test-user", principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+        }
+
+        [Theory]
+        [InlineData("RS256", "https://test-oidc.signin.education.gov.uk:443", false)]
+        [InlineData("HS256", "test-external-applications", true)]
+        [InlineData("HS256", "other-issuer", true)]
+        public void LooksLikeTestAuthenticationToken_ClassifiesByAlgAndIssuer(
+            string alg,
+            string issuer,
+            bool expected)
+        {
+            // Minimal unsigned JWT for header/payload classification (signature ignored by ReadJwtToken).
+            var header = Convert.ToBase64String(
+                    Encoding.UTF8.GetBytes($"{{\"alg\":\"{alg}\",\"typ\":\"JWT\"}}"))
+                .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            var payload = Convert.ToBase64String(
+                    Encoding.UTF8.GetBytes($"{{\"iss\":\"{issuer}\"}}"))
+                .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            var token = $"{header}.{payload}.sig";
+
+            var opts = new TestAuthenticationOptions
+            {
+                Enabled = true,
+                JwtIssuer = "test-external-applications"
+            };
+
+            Assert.Equal(
+                expected,
+                ExternalIdentityValidator.LooksLikeTestAuthenticationToken(token, opts));
+        }
+
         #region ValidateInternalAuthToken Tests
 
         [Fact]

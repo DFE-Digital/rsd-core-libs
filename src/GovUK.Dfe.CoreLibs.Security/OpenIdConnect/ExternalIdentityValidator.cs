@@ -240,10 +240,18 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 return ValidateInternalAuthToken(idToken, effectiveInternalAuthOpts);
             }
 
-            // Check if test authentication is enabled and should be used
+            // Test auth may stay Enabled while interactive login uses DSI/Entra (SaaS).
+            // Only force the HMAC test path for Cypress or tokens that look like test JWTs;
+            // otherwise fall through to OIDC providers.
             if (effectiveTestOpts?.Enabled == true || validCypressRequest)
             {
-                return ValidateTestIdToken(idToken, validCypressRequest, effectiveTestOpts);
+                if (validCypressRequest || LooksLikeTestAuthenticationToken(idToken, effectiveTestOpts))
+                {
+                    return ValidateTestIdToken(idToken, validCypressRequest, effectiveTestOpts);
+                }
+
+                _logger?.LogDebug(
+                    "TestAuthentication is enabled but the subject token does not look like a test JWT; validating via OIDC providers.");
             }
 
             if (_isMultiProviderMode)
@@ -391,6 +399,48 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 audiences.AddRange(opts.ValidAudiences.Where(a => !string.IsNullOrEmpty(a)));
 
             return audiences.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> when <paramref name="idToken"/> appears to be a Test Authentication JWT
+        /// (HMAC-signed and/or issued as the configured test issuer), as opposed to DSI/Entra RS256/ES256.
+        /// </summary>
+        public static bool LooksLikeTestAuthenticationToken(string idToken, TestAuthenticationOptions? testOpts)
+        {
+            if (string.IsNullOrWhiteSpace(idToken))
+            {
+                return false;
+            }
+
+            var handler = new JwtSecurityTokenHandler();
+            if (!handler.CanReadToken(idToken))
+            {
+                return false;
+            }
+
+            try
+            {
+                var jwt = handler.ReadJwtToken(idToken);
+                var alg = jwt.Header.Alg;
+                if (!string.IsNullOrEmpty(alg)
+                    && alg.StartsWith("HS", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (testOpts is not null
+                    && !string.IsNullOrWhiteSpace(testOpts.JwtIssuer)
+                    && string.Equals(jwt.Issuer, testOpts.JwtIssuer, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>
