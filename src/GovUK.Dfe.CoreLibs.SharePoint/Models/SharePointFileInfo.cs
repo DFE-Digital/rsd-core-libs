@@ -29,4 +29,14 @@ public class SharePointFileInfo
     /// Web URL of the file, if available.
     /// </summary>
     public string? WebUrl { get; set; }
+
+    /// <summary>
+    /// Created date and time of the file in SharePoint, if available.
+    /// </summary>
+    public DateTimeOffset? CreatedDateTime { get; set; }
+
+    /// <summary>
+    /// Content type of the file, if available.
+    /// </summary>
+    public string? ContentType { get; set; }
 }
