@@ -116,11 +116,18 @@ public class GraphClientWrapperOperationTests
                 Arg.Any<CancellationToken>())
             .ThrowsAsync(new ODataError
             {
-                Error = new MainError { Code = "nameAlreadyExists", Message = "exists" },
+                Error = new MainError
+                {
+                    Code = "nameAlreadyExists",
+                    Message = "exists"
+                },
                 ResponseStatusCode = 409
             });
 
-        await sut.CreateFolderAsync("Documents/reports");
+        var exception = await Record.ExceptionAsync(
+            () => sut.CreateFolderAsync("Documents/reports"));
+
+        Assert.Null(exception);
     }
 
     [Fact]
