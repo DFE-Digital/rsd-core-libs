@@ -4,7 +4,6 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.0.94</Version>
 	  <PackageReadmeFile>readme.md</PackageReadmeFile>
 	  <Title>GovUK.Dfe.CoreLibs.Contracts</Title>
 	  <Description>A library providing reusable contract definitions for use across different domains and services.</Description>
