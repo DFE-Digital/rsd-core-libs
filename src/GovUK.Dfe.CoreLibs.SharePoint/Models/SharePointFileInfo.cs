@@ -39,4 +39,9 @@ public class SharePointFileInfo
     /// Content type of the file, if available.
     /// </summary>
     public string? ContentType { get; set; }
+    
+    /// <summary>
+    /// Parent path of the file in SharePoint, if available.
+    /// </summary>
+    public string? ParentPath { get; set; }
 }
