@@ -131,6 +131,7 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
                     LastModified = item.LastModifiedDateTime,
                     WebUrl = item.WebUrl,
                     CreatedDateTime = item.CreatedDateTime,
+                    ParentPath = item.ParentReference?.Path,
                     ContentType = item.ListItem?.ContentType?.Name,
                 });
             }
