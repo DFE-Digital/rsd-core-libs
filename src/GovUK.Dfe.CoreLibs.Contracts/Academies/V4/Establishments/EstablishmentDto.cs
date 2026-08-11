@@ -45,6 +45,10 @@ public class EstablishmentDto
     public MisEstablishmentDto MISEstablishment { get; set; }
     public AddressDto Address { get; set; }
     public PreviousEstablishmentDto? PreviousEstablishment { get; set; }
+    
+    public string NurseryProvision { get; set; }
+    public string TrustName { get; set; }
+    public DateTime DateJoinedTrust { get; set;  }
 }
 
 [Serializable]
