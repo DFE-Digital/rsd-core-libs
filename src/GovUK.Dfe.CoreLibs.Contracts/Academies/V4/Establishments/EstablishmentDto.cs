@@ -47,8 +47,8 @@ public class EstablishmentDto
     public PreviousEstablishmentDto? PreviousEstablishment { get; set; }
     
     public string NurseryProvision { get; set; }
-    public string TrustName { get; set; }
-    public DateTime DateJoinedTrust { get; set;  }
+    public string? TrustName { get; set; }
+    public DateTime? DateJoinedTrust { get; set;  }
 }
 
 [Serializable]
