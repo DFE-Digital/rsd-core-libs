@@ -100,9 +100,9 @@ namespace GovUK.Dfe.CoreLibs.Http.Tests.Middlewares
 
             // Assert
             _logger.Received(1).Log(
-                LogLevel.Information,
+                LogLevel.Debug,
                 Arg.Any<EventId>(),
-                Arg.Is<object>(v => v.ToString().Contains("Detected header x-correlationId, but value cannot be parsed to a GUID")),
+                Arg.Is<object>(v => v.ToString()!.Contains("could not be parsed as GUID")),
                 Arg.Any<Exception>(),
                 Arg.Any<Func<object, Exception, string>>()!);
 

@@ -529,6 +529,66 @@ public class SecurityExceptionHandler : ICustomExceptionHandler
 }
 ```
 
+## SaaS support playbook (ErrorId → CorrelationId → tenant/user/template)
+
+When a user reports an error, they should provide the **ErrorId** shown on the error page (for example `P-123456`). Use Application Insights to trace the full request journey across Web and API.
+
+### 1. Find the error by ErrorId
+
+```kusto
+union traces, exceptions
+| where customDimensions.ErrorId == "P-123456"
+| project timestamp, cloud_RoleName, message, customDimensions.ErrorId, customDimensions.CorrelationId,
+          customDimensions.TenantId, customDimensions.UserEmail, customDimensions.TemplateId
+| order by timestamp asc
+```
+
+### 2. Follow the request chain by CorrelationId
+
+```kusto
+union traces, exceptions
+| where customDimensions.CorrelationId == "550e8400-e29b-41d4-a716-446655440000"
+| project timestamp, cloud_RoleName, message, customDimensions.ErrorId, customDimensions.TenantId,
+          customDimensions.UserEmail, customDimensions.TemplateId, customDimensions.ApplicationReference
+| order by timestamp asc
+```
+
+### 3. Filter tenant or user issues
+
+```kusto
+traces
+| where customDimensions.TenantId == "<tenant-guid>"
+| where customDimensions.UserEmail == "user@example.org"
+| where timestamp > ago(24h)
+| project timestamp, message, customDimensions.ErrorId, customDimensions.CorrelationId, customDimensions.TemplateId
+| order by timestamp desc
+```
+
+### 4. Filter by form template
+
+```kusto
+traces
+| where customDimensions.TemplateId == "<template-guid>"
+| where timestamp > ago(7d)
+| summarize count() by tostring(customDimensions.ErrorId), bin(timestamp, 1h)
+| order by timestamp desc
+```
+
+### Canonical customDimension keys
+
+| Key | Description |
+|-----|-------------|
+| `ErrorId` | Support ticket identifier from exception responses |
+| `CorrelationId` | End-to-end request hop (Web → API) |
+| `TenantId` | Resolved tenant GUID |
+| `TenantName` | Tenant display name |
+| `UserEmail` | Authenticated user email |
+| `TemplateId` | Active form template |
+| `ApplicationReference` | Application reference when in a form journey |
+| `ServiceName` | `flexforms-web` or `flexforms-api` |
+
+Login audit events use the same property names: `ExchangeToken succeeded. UserEmail=... TenantId=...`.
+
 ## Integration with Application Insights
 
 The middleware automatically includes error IDs and correlation IDs in logs, making it easy to track issues:
