@@ -128,7 +128,7 @@ public class GlobalExceptionHandlerMiddleware
 
         // Serialize and write response
         var jsonResponse = JsonSerializer.Serialize(errorResponse, _jsonOptions);
-        await context.Response.WriteAsync(jsonResponse);
+        await context.Response.WriteAsync(jsonResponse, context.RequestAborted);
     }
 
     private ExceptionResponse GetExceptionResponse(Exception exception, Dictionary<string, object> context, IServiceProvider serviceProvider)

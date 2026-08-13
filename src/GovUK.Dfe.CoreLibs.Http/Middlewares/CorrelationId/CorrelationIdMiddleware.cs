@@ -55,7 +55,7 @@ public class CorrelationIdMiddleware
 
             httpContext.Response.StatusCode = (int)HttpStatusCode.BadRequest;
             httpContext.Response.ContentType = "text/json";
-            return httpContext.Response.WriteAsync(result.ToString());
+            return httpContext.Response.WriteAsync(result.ToString(), httpContext.RequestAborted);
         }
 
         httpContext.Request.Headers[Keys.HeaderKey] = thisCorrelationId.ToString();
