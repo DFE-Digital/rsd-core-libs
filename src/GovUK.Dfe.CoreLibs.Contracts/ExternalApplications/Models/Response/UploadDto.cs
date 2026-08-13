@@ -1,3 +1,4 @@
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using System.Text.Json.Serialization;
 
 namespace GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response
@@ -34,5 +35,14 @@ namespace GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response
 
         [JsonPropertyName("uploadedOn")]
         public DateTime UploadedOn { get; set; }
+
+        [JsonPropertyName("validationStatus")]
+        public FileValidationStatus ValidationStatus { get; set; } = FileValidationStatus.NotRequired;
+
+        [JsonPropertyName("validationMessage")]
+        public string? ValidationMessage { get; set; }
+
+        [JsonPropertyName("validatedOn")]
+        public DateTime? ValidatedOn { get; set; }
     }
 }
