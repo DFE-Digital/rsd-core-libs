@@ -13,7 +13,7 @@ public class RequestTelemetryContextTests
             CorrelationId = "550e8400-e29b-41d4-a716-446655440000",
             TenantId = "11111111-1111-4111-8111-111111111111",
             UserEmail = "user@example.com",
-            TemplateId = "template-1"
+            ServiceName = "example-api"
         };
 
         var scope = context.ToScopeDictionary();
@@ -22,6 +22,6 @@ public class RequestTelemetryContextTests
         Assert.Equal(context.CorrelationId, scope[LogContextKeys.CorrelationId]);
         Assert.Equal(context.TenantId, scope[LogContextKeys.TenantId]);
         Assert.Equal(context.UserEmail, scope[LogContextKeys.UserEmail]);
-        Assert.Equal(context.TemplateId, scope[LogContextKeys.TemplateId]);
+        Assert.Equal(context.ServiceName, scope[LogContextKeys.ServiceName]);
     }
 }

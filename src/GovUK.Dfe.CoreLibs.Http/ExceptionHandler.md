@@ -529,9 +529,9 @@ public class SecurityExceptionHandler : ICustomExceptionHandler
 }
 ```
 
-## SaaS support playbook (ErrorId → CorrelationId → tenant/user/template)
+## SaaS support playbook (ErrorId → CorrelationId → tenant/user)
 
-When a user reports an error, they should provide the **ErrorId** shown on the error page (for example `P-123456`). Use Application Insights to trace the full request journey across Web and API.
+When a user reports an error, they should provide the **ErrorId** shown on the error page (for example `P-123456`). Use Application Insights to trace the full request journey.
 
 ### 1. Find the error by ErrorId
 
@@ -539,7 +539,7 @@ When a user reports an error, they should provide the **ErrorId** shown on the e
 union traces, exceptions
 | where customDimensions.ErrorId == "P-123456"
 | project timestamp, cloud_RoleName, message, customDimensions.ErrorId, customDimensions.CorrelationId,
-          customDimensions.TenantId, customDimensions.UserEmail, customDimensions.TemplateId
+          customDimensions.TenantId, customDimensions.UserEmail
 | order by timestamp asc
 ```
 
@@ -549,7 +549,7 @@ union traces, exceptions
 union traces, exceptions
 | where customDimensions.CorrelationId == "550e8400-e29b-41d4-a716-446655440000"
 | project timestamp, cloud_RoleName, message, customDimensions.ErrorId, customDimensions.TenantId,
-          customDimensions.UserEmail, customDimensions.TemplateId, customDimensions.ApplicationReference
+          customDimensions.UserEmail, customDimensions.ServiceName
 | order by timestamp asc
 ```
 
@@ -560,34 +560,23 @@ traces
 | where customDimensions.TenantId == "<tenant-guid>"
 | where customDimensions.UserEmail == "user@example.org"
 | where timestamp > ago(24h)
-| project timestamp, message, customDimensions.ErrorId, customDimensions.CorrelationId, customDimensions.TemplateId
+| project timestamp, message, customDimensions.ErrorId, customDimensions.CorrelationId
 | order by timestamp desc
 ```
 
-### 4. Filter by form template
-
-```kusto
-traces
-| where customDimensions.TemplateId == "<template-guid>"
-| where timestamp > ago(7d)
-| summarize count() by tostring(customDimensions.ErrorId), bin(timestamp, 1h)
-| order by timestamp desc
-```
-
-### Canonical customDimension keys
+### Canonical customDimension keys (this package)
 
 | Key | Description |
 |-----|-------------|
 | `ErrorId` | Support ticket identifier from exception responses |
-| `CorrelationId` | End-to-end request hop (Web → API) |
+| `CorrelationId` | End-to-end request hop |
 | `TenantId` | Resolved tenant GUID |
 | `TenantName` | Tenant display name |
 | `UserEmail` | Authenticated user email |
-| `TemplateId` | Active form template |
-| `ApplicationReference` | Application reference when in a form journey |
-| `ServiceName` | `flexforms-web` or `flexforms-api` |
+| `UserId` | Authenticated user id |
+| `ServiceName` | Host service name |
 
-Login audit events use the same property names: `ExchangeToken succeeded. UserEmail=... TenantId=...`.
+Product-specific dimensions (for example form `TemplateId`) belong in the consuming application: add them via `ILogger.BeginScope` and/or `ExceptionResponse.Context`.
 
 ## Integration with Application Insights
 

@@ -1,7 +1,9 @@
 using AutoFixture;
 using AutoFixture.Xunit2;
+using FluentAssertions;
 using GovUK.Dfe.CoreLibs.Http.Interfaces;
 using GovUK.Dfe.CoreLibs.Http.Middlewares.CorrelationId;
+using GovUK.Dfe.CoreLibs.Http.Middlewares.RequestTelemetry;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Customizations;
 using Microsoft.AspNetCore.Http;
@@ -26,6 +28,15 @@ namespace GovUK.Dfe.CoreLibs.Http.Tests.Middlewares
             _middleware = new CorrelationIdMiddleware(_nextDelegate, _logger);
         }
 
+        [Fact]
+        public void Constructor_ShouldThrow_WhenLoggerIsNull()
+        {
+            var act = () => new CorrelationIdMiddleware(_nextDelegate, null!);
+
+            var exception = Assert.Throws<ArgumentNullException>(act);
+            Assert.Equal("logger", exception.ParamName);
+        }
+
         [Theory]
         [CustomAutoData(typeof(HttpContextCustomization))]
         public async Task Invoke_ShouldSetNewCorrelationId_WhenHeaderNotPresent(
@@ -41,6 +52,21 @@ namespace GovUK.Dfe.CoreLibs.Http.Tests.Middlewares
             await _middleware.Invoke(context, _correlationContext);
 
             // Assert
+            Assert.True(Guid.TryParse(context.Response.Headers[Keys.HeaderKey], out var correlationId));
+            Assert.NotEqual(Guid.Empty, correlationId);
+            _correlationContext.Received(1).SetContext(Arg.Any<Guid>());
+        }
+
+        [Theory]
+        [CustomAutoData(typeof(HttpContextCustomization))]
+        public async Task Invoke_ShouldSetNewCorrelationId_WhenHeaderIsWhitespace(DefaultHttpContext context)
+        {
+            context.Request.Headers[Keys.HeaderKey] = "   ";
+            context.Response.Body = new System.IO.MemoryStream();
+            _nextDelegate.Invoke(context).Returns(Task.CompletedTask);
+
+            await _middleware.Invoke(context, _correlationContext);
+
             Assert.True(Guid.TryParse(context.Response.Headers[Keys.HeaderKey], out var correlationId));
             Assert.NotEqual(Guid.Empty, correlationId);
             _correlationContext.Received(1).SetContext(Arg.Any<Guid>());
@@ -107,6 +133,24 @@ namespace GovUK.Dfe.CoreLibs.Http.Tests.Middlewares
                 Arg.Any<Func<object, Exception, string>>()!);
 
             _correlationContext.Received(1).SetContext(Arg.Any<Guid>());
+        }
+
+        [Theory]
+        [CustomAutoData(typeof(HttpContextCustomization))]
+        public async Task Invoke_ShouldSetRequestTelemetryCorrelationId_WhenTelemetryProvided(
+            DefaultHttpContext context,
+            [Frozen] IFixture fixture)
+        {
+            var existingCorrelationId = fixture.Create<Guid>();
+            var requestTelemetry = new RequestTelemetryContext();
+
+            context.Request.Headers[Keys.HeaderKey] = existingCorrelationId.ToString();
+            context.Response.Body = new System.IO.MemoryStream();
+            _nextDelegate.Invoke(context).Returns(Task.CompletedTask);
+
+            await _middleware.Invoke(context, _correlationContext, requestTelemetry);
+
+            requestTelemetry.CorrelationId.Should().Be(existingCorrelationId.ToString());
         }
 
         private static string ReadResponseBody(HttpContext context)

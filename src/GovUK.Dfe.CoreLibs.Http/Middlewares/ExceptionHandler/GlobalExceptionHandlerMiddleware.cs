@@ -167,11 +167,10 @@ public class GlobalExceptionHandlerMiddleware
     {
         _logger.LogError(
             exception,
-            "Unhandled exception. ErrorId={ErrorId} CorrelationId={CorrelationId} TenantId={TenantId} UserEmail={UserEmail} TemplateId={TemplateId}",
+            "Unhandled exception. ErrorId={ErrorId} CorrelationId={CorrelationId} TenantId={TenantId} UserEmail={UserEmail}",
             errorId,
             errorResponse.CorrelationId,
             errorResponse.TenantId,
-            errorResponse.UserEmail,
-            errorResponse.TemplateId);
+            errorResponse.UserEmail);
     }
 } 

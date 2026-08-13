@@ -11,9 +11,6 @@ public sealed class RequestTelemetryContext : IRequestTelemetryContext
     public string? TenantName { get; set; }
     public string? UserId { get; set; }
     public string? UserEmail { get; set; }
-    public string? TemplateId { get; set; }
-    public string? ApplicationId { get; set; }
-    public string? ApplicationReference { get; set; }
     public string? ServiceName { get; set; }
 
     public IReadOnlyDictionary<string, object> ToScopeDictionary()
@@ -25,9 +22,6 @@ public sealed class RequestTelemetryContext : IRequestTelemetryContext
         AddIfPresent(scope, LogContextKeys.TenantName, TenantName);
         AddIfPresent(scope, LogContextKeys.UserId, UserId);
         AddIfPresent(scope, LogContextKeys.UserEmail, UserEmail);
-        AddIfPresent(scope, LogContextKeys.TemplateId, TemplateId);
-        AddIfPresent(scope, LogContextKeys.ApplicationId, ApplicationId);
-        AddIfPresent(scope, LogContextKeys.ApplicationReference, ApplicationReference);
         AddIfPresent(scope, LogContextKeys.ServiceName, ServiceName);
 
         return scope;

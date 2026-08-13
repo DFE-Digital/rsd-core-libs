@@ -1,8 +1,9 @@
 namespace GovUK.Dfe.CoreLibs.Http.Interfaces;
 
 /// <summary>
-/// Ambient per-request telemetry bag populated by host middleware (tenant, user, template, etc.).
+/// Ambient per-request telemetry bag populated by host middleware (tenant, user, service).
 /// Read by the global exception handler and logging helpers.
+/// Product-specific fields should live in the consuming application and be added via log scopes / ExceptionResponse.Context.
 /// </summary>
 public interface IRequestTelemetryContext
 {
@@ -11,9 +12,6 @@ public interface IRequestTelemetryContext
     string? TenantName { get; set; }
     string? UserId { get; set; }
     string? UserEmail { get; set; }
-    string? TemplateId { get; set; }
-    string? ApplicationId { get; set; }
-    string? ApplicationReference { get; set; }
     string? ServiceName { get; set; }
 
     /// <summary>

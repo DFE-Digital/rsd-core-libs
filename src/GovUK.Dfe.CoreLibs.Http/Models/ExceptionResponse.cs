@@ -68,13 +68,8 @@ public class ExceptionResponse
     public string? UserEmail { get; set; }
 
     /// <summary>
-    /// Active form template identifier when available.
-    /// </summary>
-    [JsonPropertyName("templateId")]
-    public string? TemplateId { get; set; }
-
-    /// <summary>
-    /// Additional context information (optional).
+    /// Additional context information (optional). Product-specific keys (e.g. form template id)
+    /// should be added here by the consuming application.
     /// </summary>
     [JsonPropertyName("context")]
     public Dictionary<string, object>? Context { get; set; }

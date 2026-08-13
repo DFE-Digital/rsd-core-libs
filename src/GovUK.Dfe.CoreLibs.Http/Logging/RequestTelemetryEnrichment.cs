@@ -16,14 +16,11 @@ public static class RequestTelemetryEnrichment
         response.TenantId ??= telemetry.TenantId;
         response.TenantName ??= telemetry.TenantName;
         response.UserEmail ??= telemetry.UserEmail;
-        response.TemplateId ??= telemetry.TemplateId;
         response.CorrelationId ??= telemetry.CorrelationId;
 
         response.Context ??= new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
         MergeContext(response.Context, LogContextKeys.UserId, telemetry.UserId);
-        MergeContext(response.Context, LogContextKeys.ApplicationId, telemetry.ApplicationId);
-        MergeContext(response.Context, LogContextKeys.ApplicationReference, telemetry.ApplicationReference);
         MergeContext(response.Context, LogContextKeys.ServiceName, telemetry.ServiceName);
     }
 
