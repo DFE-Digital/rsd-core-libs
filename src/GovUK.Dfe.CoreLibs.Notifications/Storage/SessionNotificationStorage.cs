@@ -38,8 +38,8 @@ public class SessionNotificationStorage : INotificationStorage
     {
         var notifications = GetNotificationsFromSession();
         
-        // Remove existing notifications with same context if specified
-        if (!string.IsNullOrEmpty(notification.Context))
+        if (notification.ReplaceExistingContext
+            && !string.IsNullOrEmpty(notification.Context))
         {
             notifications.RemoveAll(n => n.Context == notification.Context);
         }
@@ -112,7 +112,7 @@ public class SessionNotificationStorage : INotificationStorage
     public Task RemoveNotificationsByContextAsync(string context, string userId, CancellationToken cancellationToken = default)
     {
         var notifications = GetNotificationsFromSession();
-        notifications.RemoveAll(n => n.Context == context);
+        notifications.RemoveAll(n => NotificationContextHelper.BelongsToScope(n.Context, context));
         SaveNotificationsToSession(notifications);
         return Task.CompletedTask;
     }

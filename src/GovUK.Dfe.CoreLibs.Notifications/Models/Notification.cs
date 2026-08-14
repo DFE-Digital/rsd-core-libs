@@ -75,4 +75,11 @@ public class Notification
     /// Priority level for notification ordering and display
     /// </summary>
     public NotificationPriority Priority { get; set; } = NotificationPriority.Normal;
+
+    /// <summary>
+    /// When true, storing replaces any existing notification with the same <see cref="Context"/>.
+    /// Not persisted — only applies at creation time.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool ReplaceExistingContext { get; set; } = true;
 }
