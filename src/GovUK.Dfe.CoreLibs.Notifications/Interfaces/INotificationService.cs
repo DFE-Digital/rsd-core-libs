@@ -102,8 +102,9 @@ public interface INotificationService
     /// Mark a notification as read
     /// </summary>
     /// <param name="notificationId">Notification ID</param>
+    /// <param name="userId">Optional user ID for multi-user scenarios</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    Task MarkAsReadAsync(string notificationId, CancellationToken cancellationToken = default);
+    Task MarkAsReadAsync(string notificationId, string? userId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Mark all notifications as read for the current context
@@ -118,8 +119,9 @@ public interface INotificationService
     /// Remove a specific notification
     /// </summary>
     /// <param name="notificationId">Notification ID</param>
+    /// <param name="userId">Optional user ID for multi-user scenarios</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    Task RemoveNotificationAsync(string notificationId, CancellationToken cancellationToken = default);
+    Task RemoveNotificationAsync(string notificationId, string? userId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Clear all notifications for the current context

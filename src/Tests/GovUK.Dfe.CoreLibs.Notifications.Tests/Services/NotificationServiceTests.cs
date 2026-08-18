@@ -306,6 +306,14 @@ public class NotificationServiceTests
     }
 
     [Fact]
+    public async Task RemoveNotificationAsync_WithExplicitUserId_ShouldUseProvidedUser()
+    {
+        await _service.RemoveNotificationAsync("test-id", "explicit-user");
+
+        await _mockStorage.Received(1).RemoveNotificationAsync("test-id", "explicit-user", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ClearAllNotificationsAsync_ShouldCallStorageClearAll()
     {
         // Act

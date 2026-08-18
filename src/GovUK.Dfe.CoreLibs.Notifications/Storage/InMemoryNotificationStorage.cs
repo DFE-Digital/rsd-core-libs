@@ -38,8 +38,8 @@ public class InMemoryNotificationStorage : INotificationStorage
         {
             var notifications = _storage.GetOrAdd(userId, _ => new List<Notification>());
             
-            // Remove existing notifications with same context if specified
-            if (!string.IsNullOrEmpty(notification.Context))
+            if (notification.ReplaceExistingContext
+                && !string.IsNullOrEmpty(notification.Context))
             {
                 notifications.RemoveAll(n => n.Context == notification.Context);
             }
@@ -127,7 +127,7 @@ public class InMemoryNotificationStorage : INotificationStorage
         {
             if (_storage.TryGetValue(userId, out var notifications))
             {
-                notifications.RemoveAll(n => n.Context == context);
+                notifications.RemoveAll(n => NotificationContextHelper.BelongsToScope(n.Context, context));
             }
         }
 
