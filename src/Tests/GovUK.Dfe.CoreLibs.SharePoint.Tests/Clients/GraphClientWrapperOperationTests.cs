@@ -116,11 +116,18 @@ public class GraphClientWrapperOperationTests
                 Arg.Any<CancellationToken>())
             .ThrowsAsync(new ODataError
             {
-                Error = new MainError { Code = "nameAlreadyExists", Message = "exists" },
+                Error = new MainError
+                {
+                    Code = "nameAlreadyExists",
+                    Message = "exists"
+                },
                 ResponseStatusCode = 409
             });
 
-        await sut.CreateFolderAsync("Documents/reports");
+        var exception = await Record.ExceptionAsync(
+            () => sut.CreateFolderAsync("Documents/reports"));
+
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -154,6 +161,7 @@ public class GraphClientWrapperOperationTests
     [Fact]
     public async Task ListFilesAsync_ReturnsOnlyFiles_AndMapsMetadata()
     {
+        var created = new DateTimeOffset(2024, 5, 1, 12, 0, 0, TimeSpan.Zero);
         var modified = new DateTimeOffset(2024, 6, 1, 12, 0, 0, TimeSpan.Zero);
         var (sut, requestAdapter) = CreateSutWithDrive("Documents");
 
@@ -172,11 +180,14 @@ public class GraphClientWrapperOperationTests
                         Id = "file-1",
                         Name = "a.txt",
                         Size = 42,
+                        CreatedDateTime = created,
                         LastModifiedDateTime = modified,
+                        ParentReference = new ItemReference {  Path = "/sites/" },
                         WebUrl = "https://contoso/a.txt",
-                        File = new FileObject()
+                        File = new FileObject(),
+                        ListItem = new ListItem { ContentType = new ContentTypeInfo { Name = "Document" } }
                     },
-                    new DriveItem { Id = "folder-1", Name = "sub", Folder = new Folder() },
+                    new DriveItem { Id = "folder-1", Name = "sub", Folder = new Folder()},
                     new DriveItem { Id = "file-2", Name = "", File = new FileObject() },
                     new DriveItem { Id = "file-3", Name = null, File = new FileObject() }
                 ]
@@ -190,6 +201,9 @@ public class GraphClientWrapperOperationTests
         Assert.Equal(42, file.Size);
         Assert.Equal(modified, file.LastModified);
         Assert.Equal("https://contoso/a.txt", file.WebUrl);
+        Assert.Equal("/sites/", file.ParentPath);
+        Assert.Equal("Document", file.ContentType);
+        Assert.Equal(created, file.CreatedDateTime);
     }
 
     [Fact]
