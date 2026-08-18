@@ -25,6 +25,12 @@ namespace GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response
         
         [JsonPropertyName("dateSubmitted")]
         public DateTime? DateSubmitted { get; set; }
+
+        [JsonPropertyName("dateDeleted")]
+        public DateTime? DateDeleted { get; set; } = null;
+
+        [JsonPropertyName("deletedBy")]
+        public UserDto? DeletedBy { get; init; } = null;
         
         [JsonPropertyName("createdBy")]
         public UserDto? CreatedBy { get; init; } = null;
