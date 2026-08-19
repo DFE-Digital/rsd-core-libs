@@ -1,6 +1,7 @@
 using GovUK.Dfe.CoreLibs.Http.Configuration;
 using GovUK.Dfe.CoreLibs.Http.Handlers;
 using GovUK.Dfe.CoreLibs.Http.Interfaces;
+using GovUK.Dfe.CoreLibs.Http.Logging;
 using GovUK.Dfe.CoreLibs.Http.Models;
 using GovUK.Dfe.CoreLibs.Http.Utils;
 using Microsoft.AspNetCore.Http;
@@ -82,6 +83,8 @@ public class GlobalExceptionHandlerMiddleware
             correlationId = correlationContext?.CorrelationId.ToString();
         }
 
+        var requestTelemetry = context.RequestServices.GetService<IRequestTelemetryContext>();
+
         // Create context dictionary for handlers to use
         var handlerContext = new Dictionary<string, object>();
 
@@ -101,6 +104,8 @@ public class GlobalExceptionHandlerMiddleware
             Context = exceptionResponse.Context ?? (handlerContext.Any() ? handlerContext : null)
         };
 
+        RequestTelemetryEnrichment.ApplyToExceptionResponse(errorResponse, requestTelemetry);
+
         // Execute shared post-processing action if configured
         try
         {
@@ -114,7 +119,7 @@ public class GlobalExceptionHandlerMiddleware
         // Log the exception
         if (_options.LogExceptions)
         {
-            LogException(exception, errorId, correlationId);
+            LogException(exception, errorId, errorResponse);
         }
 
         // Set response
@@ -123,7 +128,7 @@ public class GlobalExceptionHandlerMiddleware
 
         // Serialize and write response
         var jsonResponse = JsonSerializer.Serialize(errorResponse, _jsonOptions);
-        await context.Response.WriteAsync(jsonResponse);
+        await context.Response.WriteAsync(jsonResponse, context.RequestAborted);
     }
 
     private ExceptionResponse GetExceptionResponse(Exception exception, Dictionary<string, object> context, IServiceProvider serviceProvider)
@@ -158,17 +163,14 @@ public class GlobalExceptionHandlerMiddleware
         };
     }
 
-    private void LogException(Exception exception, string errorId, string? correlationId)
+    private void LogException(Exception exception, string errorId, ExceptionResponse errorResponse)
     {
-        var logMessage = "Exception occurred with ErrorId: {ErrorId}";
-        var logArgs = new object[] { errorId };
-
-        if (!string.IsNullOrEmpty(correlationId))
-        {
-            logMessage += ", CorrelationId: {CorrelationId}";
-            logArgs = logArgs.Concat(new object[] { correlationId }).ToArray();
-        }
-
-        _logger.LogError(exception, logMessage, logArgs);
+        _logger.LogError(
+            exception,
+            "Unhandled exception. ErrorId={ErrorId} CorrelationId={CorrelationId} TenantId={TenantId} UserEmail={UserEmail}",
+            errorId,
+            errorResponse.CorrelationId,
+            errorResponse.TenantId,
+            errorResponse.UserEmail);
     }
 } 
