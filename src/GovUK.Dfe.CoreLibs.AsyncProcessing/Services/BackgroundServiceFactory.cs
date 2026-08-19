@@ -211,8 +211,8 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Services
             }
             finally
             {
-                // Complete the channel to signal no more writes
-                _taskChannel.Writer.Complete();
+                // TryComplete is idempotent: StopAsync may already have closed the channel.
+                _taskChannel.Writer.TryComplete();
             }
         }
 
@@ -288,8 +288,8 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Services
         {
             _logger.LogInformation("BackgroundServiceFactory is stopping...");
 
-            // Complete the channel writer to signal no more items
-            _taskChannel.Writer.Complete();
+            // TryComplete is idempotent: ExecuteAsync's finally, or a second host Stop/Dispose, may already have closed it.
+            _taskChannel.Writer.TryComplete();
 
             // Wait for workers to finish processing remaining items
             await base.StopAsync(cancellationToken).ConfigureAwait(false);
