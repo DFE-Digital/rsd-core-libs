@@ -42,13 +42,15 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
     /// Also supports test token validation for development/testing scenarios.
     /// </summary>
     public sealed class ExternalIdentityValidator
-        : IExternalIdentityValidator, IDisposable
+        : IExternalIdentityValidator, IMultiProviderExternalIdentityReloader, IDisposable
     {
-        private readonly List<ProviderConfiguration> _providers;
+        private readonly object _providersGate = new();
+        private IReadOnlyList<ProviderConfiguration> _providers;
         private readonly OpenIdConnectOptions? _singleProviderOpts;
         private readonly TestAuthenticationOptions? _testOpts;
         private readonly CypressAuthenticationOptions? _cypressAuthOpts;
         private readonly InternalServiceAuthOptions? _internalAuthOpts;
+        private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<ExternalIdentityValidator>? _logger;
         private readonly bool _isMultiProviderMode;
 
@@ -68,8 +70,9 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
             _testOpts = testOptions?.Value;
             _cypressAuthOpts = cypressAuthOpts?.Value;
             _internalAuthOpts = internalAuthOpts?.Value;
+            _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
             _logger = logger;
-            _providers = new List<ProviderConfiguration>();
+            _providers = Array.Empty<ProviderConfiguration>();
 
             var multiOpts = multiProviderOptions?.Value;
 
@@ -78,20 +81,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
             {
                 _isMultiProviderMode = true;
                 _singleProviderOpts = null;
-
-                foreach (var providerOpts in multiOpts.Providers)
-                {
-                    var endpoint = providerOpts.DiscoveryEndpoint;
-                    if (string.IsNullOrEmpty(endpoint))
-                    {
-                        throw new ArgumentException(
-                            $"Each provider must have a DiscoveryEndpoint configured. " +
-                            $"Provider with Issuer '{providerOpts.Issuer}' is missing DiscoveryEndpoint.");
-                    }
-
-                    var configManager = CreateConfigManager(endpoint, httpClientFactory);
-                    _providers.Add(new ProviderConfiguration(providerOpts, configManager));
-                }
+                _providers = BuildProviderConfigurations(multiOpts.Providers, _httpClientFactory);
 
                 _logger?.LogInformation(
                     "ExternalIdentityValidator initialized in multi-provider mode with {Count} providers",
@@ -113,16 +103,77 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                         nameof(options));
                 }
 
+                var singleProviders = new List<ProviderConfiguration>(discoveryEndpoints.Count);
                 foreach (var endpoint in discoveryEndpoints)
                 {
-                    var configManager = CreateConfigManager(endpoint, httpClientFactory);
-                    _providers.Add(new ProviderConfiguration(_singleProviderOpts, configManager));
+                    var configManager = CreateConfigManager(endpoint, _httpClientFactory);
+                    singleProviders.Add(new ProviderConfiguration(_singleProviderOpts, configManager));
                 }
+
+                _providers = singleProviders;
 
                 _logger?.LogInformation(
                     "ExternalIdentityValidator initialized in single-provider mode with {Count} discovery endpoints",
                     discoveryEndpoints.Count);
             }
+        }
+
+        /// <inheritdoc />
+        public void ReloadProviders(IReadOnlyList<OpenIdConnectOptions> providers)
+        {
+            if (!_isMultiProviderMode)
+            {
+                throw new InvalidOperationException(
+                    "ReloadProviders is only supported when ExternalIdentityValidator was started in multi-provider mode.");
+            }
+
+            ArgumentNullException.ThrowIfNull(providers);
+
+            if (providers.Count == 0)
+            {
+                throw new ArgumentException("At least one OIDC provider is required.", nameof(providers));
+            }
+
+            var next = BuildProviderConfigurations(providers, _httpClientFactory);
+            IReadOnlyList<ProviderConfiguration> previous;
+
+            lock (_providersGate)
+            {
+                previous = _providers;
+                _providers = next;
+            }
+
+            foreach (var provider in previous)
+            {
+                provider.Dispose();
+            }
+
+            _logger?.LogInformation(
+                "ExternalIdentityValidator reloaded multi-provider list with {Count} providers",
+                next.Count);
+        }
+
+        private static IReadOnlyList<ProviderConfiguration> BuildProviderConfigurations(
+            IEnumerable<OpenIdConnectOptions> providers,
+            IHttpClientFactory httpClientFactory)
+        {
+            var list = new List<ProviderConfiguration>();
+            foreach (var providerOpts in providers)
+            {
+                var endpoint = providerOpts.DiscoveryEndpoint;
+                if (string.IsNullOrEmpty(endpoint))
+                {
+                    throw new ArgumentException(
+                        $"Each provider must have a DiscoveryEndpoint configured. " +
+                        $"Provider with Issuer '{providerOpts.Issuer}' is missing DiscoveryEndpoint.");
+                }
+
+                list.Add(new ProviderConfiguration(
+                    providerOpts,
+                    CreateConfigManager(endpoint, httpClientFactory)));
+            }
+
+            return list;
         }
 
         private static ConfigurationManager<OpenIdConnectConfiguration> CreateConfigManager(
@@ -189,10 +240,18 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 return ValidateInternalAuthToken(idToken, effectiveInternalAuthOpts);
             }
 
-            // Check if test authentication is enabled and should be used
+            // Test auth may stay Enabled while interactive login uses DSI/Entra (SaaS).
+            // Only force the HMAC test path for Cypress or tokens that look like test JWTs;
+            // otherwise fall through to OIDC providers.
             if (effectiveTestOpts?.Enabled == true || validCypressRequest)
             {
-                return ValidateTestIdToken(idToken, validCypressRequest, effectiveTestOpts);
+                if (validCypressRequest || LooksLikeTestAuthenticationToken(idToken, effectiveTestOpts))
+                {
+                    return ValidateTestIdToken(idToken, validCypressRequest, effectiveTestOpts);
+                }
+
+                _logger?.LogDebug(
+                    "TestAuthentication is enabled but the subject token does not look like a test JWT; validating via OIDC providers.");
             }
 
             if (_isMultiProviderMode)
@@ -215,8 +274,9 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         {
             var handler = new JwtSecurityTokenHandler();
             var errors = new List<string>();
+            var providers = SnapshotProviders();
 
-            foreach (var provider in _providers)
+            foreach (var provider in providers)
             {
                 try
                 {
@@ -260,7 +320,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
 
             // None of the providers could validate the token
             var errorMessage = $"Token did not match any configured OIDC provider. " +
-                             $"Tried {_providers.Count} provider(s). Errors: {string.Join("; ", errors)}";
+                             $"Tried {providers.Count} provider(s). Errors: {string.Join("; ", errors)}";
             _logger?.LogWarning(errorMessage);
             throw new SecurityTokenValidationException(errorMessage);
         }
@@ -275,7 +335,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         {
             // Collect signing keys from ALL configured discovery endpoints
             var allSigningKeys = new List<SecurityKey>();
-            foreach (var provider in _providers)
+            foreach (var provider in SnapshotProviders())
             {
                 var metadata = await provider.ConfigManager.GetConfigurationAsync(cancellationToken);
                 allSigningKeys.AddRange(metadata.SigningKeys);
@@ -339,6 +399,48 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 audiences.AddRange(opts.ValidAudiences.Where(a => !string.IsNullOrEmpty(a)));
 
             return audiences.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> when <paramref name="idToken"/> appears to be a Test Authentication JWT
+        /// (HMAC-signed and/or issued as the configured test issuer), as opposed to DSI/Entra RS256/ES256.
+        /// </summary>
+        public static bool LooksLikeTestAuthenticationToken(string idToken, TestAuthenticationOptions? testOpts)
+        {
+            if (string.IsNullOrWhiteSpace(idToken))
+            {
+                return false;
+            }
+
+            var handler = new JwtSecurityTokenHandler();
+            if (!handler.CanReadToken(idToken))
+            {
+                return false;
+            }
+
+            try
+            {
+                var jwt = handler.ReadJwtToken(idToken);
+                var alg = jwt.Header.Alg;
+                if (!string.IsNullOrEmpty(alg)
+                    && alg.StartsWith("HS", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (testOpts is not null
+                    && !string.IsNullOrWhiteSpace(testOpts.JwtIssuer)
+                    && string.Equals(jwt.Issuer, testOpts.JwtIssuer, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>
@@ -443,21 +545,42 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// </summary>
         public bool IsMultiProviderMode => _isMultiProviderMode;
 
-        /// <summary>
-        /// Gets the number of configured providers.
-        /// </summary>
-        public int ProviderCount => _providers.Count;
+        /// <inheritdoc />
+        public int ProviderCount
+        {
+            get
+            {
+                lock (_providersGate)
+                {
+                    return _providers.Count;
+                }
+            }
+        }
+
+        private IReadOnlyList<ProviderConfiguration> SnapshotProviders()
+        {
+            lock (_providersGate)
+            {
+                return _providers;
+            }
+        }
 
         /// <summary>
         /// Disposes all internal configuration managers.
         /// </summary>
         public void Dispose()
         {
-            foreach (var provider in _providers)
+            IReadOnlyList<ProviderConfiguration> providers;
+            lock (_providersGate)
+            {
+                providers = _providers;
+                _providers = Array.Empty<ProviderConfiguration>();
+            }
+
+            foreach (var provider in providers)
             {
                 provider.Dispose();
             }
-            _providers.Clear();
         }
     }
 }

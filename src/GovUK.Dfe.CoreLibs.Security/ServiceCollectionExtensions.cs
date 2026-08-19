@@ -254,7 +254,9 @@ namespace GovUK.Dfe.CoreLibs.Security
             services.Configure<InternalServiceAuthOptions>(configuration.GetSection(InternalServiceAuthOptions.SectionName));
             services.AddHttpClient();
 
-            services.AddSingleton<IExternalIdentityValidator, ExternalIdentityValidator>();
+            services.AddSingleton<ExternalIdentityValidator>();
+            services.AddSingleton<IExternalIdentityValidator>(sp => sp.GetRequiredService<ExternalIdentityValidator>());
+            services.AddSingleton<IMultiProviderExternalIdentityReloader>(sp => sp.GetRequiredService<ExternalIdentityValidator>());
 
             return services;
         }
