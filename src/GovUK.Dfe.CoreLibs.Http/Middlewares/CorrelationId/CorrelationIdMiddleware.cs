@@ -1,4 +1,5 @@
 using GovUK.Dfe.CoreLibs.Http.Interfaces;
+using GovUK.Dfe.CoreLibs.Http.Logging;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using Microsoft.AspNetCore.Http;
@@ -6,9 +7,9 @@ using Microsoft.AspNetCore.Http;
 namespace GovUK.Dfe.CoreLibs.Http.Middlewares.CorrelationId;
 
 /// <summary>
-/// Middleware that checks incoming requests for a correlation and causation id header. If not found then default values will be created.
-/// Saves these values in the correlationContext instance. Be sure to register correlation context as scoped or the equivalent in you ioc container.
-/// Header used in requests is 'x-correlationId'
+/// Middleware that checks incoming requests for a correlation id header. If not found then a new value is created.
+/// Saves the value in <see cref="ICorrelationContext"/> and <see cref="IRequestTelemetryContext"/>.
+/// Header used in requests is 'x-correlationId'.
 /// </summary>
 public class CorrelationIdMiddleware
 {
@@ -21,30 +22,27 @@ public class CorrelationIdMiddleware
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    // ReSharper disable once UnusedMember.Global
-    // Invoked by asp.net
-    public Task Invoke(HttpContext httpContext, ICorrelationContext correlationContext)
+    public Task Invoke(
+        HttpContext httpContext,
+        ICorrelationContext correlationContext,
+        IRequestTelemetryContext? requestTelemetry = null)
     {
         Guid thisCorrelationId;
 
-        // correlation id. An ID that spans many requests
         if (httpContext.Request.Headers.ContainsKey(Keys.HeaderKey)
             && !string.IsNullOrWhiteSpace(httpContext.Request.Headers[Keys.HeaderKey]))
         {
             if (!Guid.TryParse(httpContext.Request.Headers[Keys.HeaderKey], out thisCorrelationId))
             {
                 thisCorrelationId = Guid.NewGuid();
-                _logger.LogInformation("Detected header x-correlationId, but value cannot be parsed to a GUID. Other values are not supported. Generated a new one: {CorrelationId}", thisCorrelationId);
-            }
-            else
-            {
-                _logger.LogInformation("CorrelationIdMiddleware:Invoke - x-correlationId detected in request headers: {CorrelationId}", thisCorrelationId);
+                _logger.LogDebug(
+                    "x-correlationId header could not be parsed as GUID; generated {CorrelationId}",
+                    thisCorrelationId);
             }
         }
         else
         {
             thisCorrelationId = Guid.NewGuid();
-            _logger.LogInformation("CorrelationIdMiddleware:Invoke - x-correlationId not detected in request headers. Generated a new one: {CorrelationId}", thisCorrelationId);
         }
 
         if (thisCorrelationId == Guid.Empty)
@@ -55,19 +53,25 @@ public class CorrelationIdMiddleware
                 Message = $"Bad Request. {Keys.HeaderKey} header cannot be an empty GUID"
             };
 
-
             httpContext.Response.StatusCode = (int)HttpStatusCode.BadRequest;
             httpContext.Response.ContentType = "text/json";
-            return httpContext.Response.WriteAsync(result.ToString());
+            return httpContext.Response.WriteAsync(result.ToString(), httpContext.RequestAborted);
         }
 
-
         httpContext.Request.Headers[Keys.HeaderKey] = thisCorrelationId.ToString();
-
         correlationContext.SetContext(thisCorrelationId);
-
         httpContext.Response.Headers[Keys.HeaderKey] = thisCorrelationId.ToString();
-        using (_logger.BeginScope("x-correlationId: {x-correlationId}", correlationContext.CorrelationId.ToString()))
+
+        var correlationIdString = thisCorrelationId.ToString();
+        if (requestTelemetry is not null)
+            requestTelemetry.CorrelationId = correlationIdString;
+
+        var scope = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+        {
+            [LogContextKeys.CorrelationId] = correlationIdString
+        };
+
+        using (_logger.BeginScope(scope))
         {
             return _next(httpContext);
         }

@@ -118,7 +118,8 @@ public class NotificationService : INotificationService
                 AutoDismissSeconds = options?.AutoDismissSeconds ?? 5,
                 ActionUrl = options?.ActionUrl,
                 Metadata = options?.Metadata,
-                Priority = options?.Priority ?? NotificationPriority.Normal
+                Priority = options?.Priority ?? NotificationPriority.Normal,
+                ReplaceExistingContext = options?.ReplaceExistingContext ?? true
             };
 
             await _storage.StoreNotificationAsync(notification, cancellationToken);
@@ -211,7 +212,7 @@ public class NotificationService : INotificationService
             
             if (!string.IsNullOrEmpty(context))
             {
-                filtered = filtered.Where(n => n.Context == context);
+                filtered = filtered.Where(n => NotificationContextHelper.BelongsToScope(n.Context, context));
             }
             
             if (unreadOnly)
@@ -246,7 +247,7 @@ public class NotificationService : INotificationService
             var resolvedUserId = GetUserId(userId);
             var notifications = await _storage.GetNotificationsAsync(resolvedUserId, cancellationToken);
             
-            var filtered = notifications.Where(n => n.Context == context);
+            var filtered = notifications.Where(n => NotificationContextHelper.BelongsToScope(n.Context, context));
             
             if (!string.IsNullOrEmpty(category))
             {
@@ -274,19 +275,19 @@ public class NotificationService : INotificationService
     /// </summary>
     /// <param name="notificationId">Notification ID</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    public async Task MarkAsReadAsync(string notificationId, CancellationToken cancellationToken = default)
+    public async Task MarkAsReadAsync(string notificationId, string? userId = null, CancellationToken cancellationToken = default)
     {
         try
         {
-            var userId = GetUserId();
-            var notification = await _storage.GetNotificationAsync(notificationId, userId, cancellationToken);
+            var resolvedUserId = GetUserId(userId);
+            var notification = await _storage.GetNotificationAsync(notificationId, resolvedUserId, cancellationToken);
             
             if (notification != null)
             {
                 notification.IsRead = true;
                 await _storage.UpdateNotificationAsync(notification, cancellationToken);
                 
-                _logger.LogDebug("Marked notification {NotificationId} as read for user {UserId}", notificationId, userId);
+                _logger.LogDebug("Marked notification {NotificationId} as read for user {UserId}", notificationId, resolvedUserId);
             }
         }
         catch (Exception ex)
@@ -333,14 +334,14 @@ public class NotificationService : INotificationService
     /// </summary>
     /// <param name="notificationId">Notification ID</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    public async Task RemoveNotificationAsync(string notificationId, CancellationToken cancellationToken = default)
+    public async Task RemoveNotificationAsync(string notificationId, string? userId = null, CancellationToken cancellationToken = default)
     {
         try
         {
-            var userId = GetUserId();
-            await _storage.RemoveNotificationAsync(notificationId, userId, cancellationToken);
+            var resolvedUserId = GetUserId(userId);
+            await _storage.RemoveNotificationAsync(notificationId, resolvedUserId, cancellationToken);
             
-            _logger.LogDebug("Removed notification {NotificationId} for user {UserId}", notificationId, userId);
+            _logger.LogDebug("Removed notification {NotificationId} for user {UserId}", notificationId, resolvedUserId);
         }
         catch (Exception ex)
         {
@@ -459,7 +460,7 @@ public class NotificationService : INotificationService
         
         if (!string.IsNullOrEmpty(context))
         {
-            filtered = filtered.Where(n => n.Context == context);
+            filtered = filtered.Where(n => NotificationContextHelper.BelongsToScope(n.Context, context));
         }
         
         if (!string.IsNullOrEmpty(category))

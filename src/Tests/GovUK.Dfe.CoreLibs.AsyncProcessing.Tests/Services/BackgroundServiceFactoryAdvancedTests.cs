@@ -204,6 +204,21 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
         }
 
         [Fact]
+        public async Task StopAsync_WhenCalledTwice_ShouldNotThrow()
+        {
+            var options = Options.Create(new BackgroundServiceOptions());
+            var factory = new BackgroundServiceFactory(_logger, options);
+
+            await factory.StartAsync(_cts.Token);
+            await factory.StopAsync(CancellationToken.None);
+
+            var exception = await Record.ExceptionAsync(() => factory.StopAsync(CancellationToken.None));
+
+            Assert.Null(exception);
+            factory.Dispose();
+        }
+
+        [Fact]
         public async Task Dispose_ShouldCleanupResources()
         {
             // Arrange

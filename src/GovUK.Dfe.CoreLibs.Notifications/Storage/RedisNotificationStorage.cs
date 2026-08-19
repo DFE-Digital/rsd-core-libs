@@ -41,8 +41,9 @@ public class RedisNotificationStorage : INotificationStorage
         // Get existing notifications
         var existingNotifications = await GetNotificationsFromRedis(userId);
         
-        // Remove existing notifications with same context if specified
-        if (!string.IsNullOrEmpty(notification.Context))
+        // Replace only when requested — same context is the dedupe key.
+        if (notification.ReplaceExistingContext
+            && !string.IsNullOrEmpty(notification.Context))
         {
             existingNotifications.RemoveAll(n => n.Context == notification.Context);
         }
@@ -126,7 +127,7 @@ public class RedisNotificationStorage : INotificationStorage
     public async Task RemoveNotificationsByContextAsync(string context, string userId, CancellationToken cancellationToken = default)
     {
         var notifications = await GetNotificationsFromRedis(userId);
-        notifications.RemoveAll(n => n.Context == context);
+        notifications.RemoveAll(n => NotificationContextHelper.BelongsToScope(n.Context, context));
         
         var key = GetUserKey(userId);
         var json = JsonSerializer.Serialize(notifications);

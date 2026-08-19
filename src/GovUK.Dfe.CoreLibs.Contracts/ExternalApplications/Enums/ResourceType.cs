@@ -12,6 +12,6 @@ namespace GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums
         ApplicationFiles = 7,
         File = 8,
         Notifications = 9,
-
+        FileValidation = 10,
     }
 }

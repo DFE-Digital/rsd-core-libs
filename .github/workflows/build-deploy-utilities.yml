@@ -22,6 +22,9 @@ jobs:
   pack-and-release:
     needs: build-and-test
     if: needs.build-and-test.result == 'success'
+    permissions:
+      contents: write
+      packages: write
     uses: ./.github/workflows/pack-template.yml
     with:
       project_name: GovUK.Dfe.CoreLibs.Utilities

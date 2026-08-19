@@ -50,7 +50,26 @@ public class ExceptionResponse
     public string? CorrelationId { get; set; }
 
     /// <summary>
-    /// Additional context information (optional).
+    /// Tenant identifier when resolved for the request.
+    /// </summary>
+    [JsonPropertyName("tenantId")]
+    public string? TenantId { get; set; }
+
+    /// <summary>
+    /// Tenant display name when resolved for the request.
+    /// </summary>
+    [JsonPropertyName("tenantName")]
+    public string? TenantName { get; set; }
+
+    /// <summary>
+    /// Authenticated user email when available.
+    /// </summary>
+    [JsonPropertyName("userEmail")]
+    public string? UserEmail { get; set; }
+
+    /// <summary>
+    /// Additional context information (optional). Product-specific keys (e.g. form template id)
+    /// should be added here by the consuming application.
     /// </summary>
     [JsonPropertyName("context")]
     public Dictionary<string, object>? Context { get; set; }
