@@ -446,6 +446,192 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
                 principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
         }
 
+        [Fact]
+        public async Task ValidateIdTokenAsync_TestEnabled_UsesTestPath_ForHmacToken_WithoutCypress()
+        {
+            var factory = CreateHttpClientFactory();
+            var rawKey = "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD";
+            var testOpts = new TestAuthenticationOptions
+            {
+                Enabled = true,
+                JwtSigningKey = rawKey,
+                JwtIssuer = "test-external-applications",
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = false
+            };
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                factory,
+                multiProviderOptions: null,
+                cypressAuthOpts: null,
+                testOptions: Options.Create(testOpts));
+
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(rawKey));
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var token = handler.WriteToken(handler.CreateToken(new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "test-user")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            }));
+
+            var principal = await validator.ValidateIdTokenAsync(
+                token,
+                validCypressRequest: false,
+                validInternalRequest: false,
+                internalAuthOptions: null,
+                testAuthOptions: testOpts);
+
+            Assert.Equal("test-user", principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_TestEnabled_FallsThroughToOidc_ForRs256Token()
+        {
+            // Reproduce SaaS: TestAuthentication Enabled, but subject token is a real OIDC (DSI) JWT.
+            using var rsa = System.Security.Cryptography.RSA.Create(2048);
+            var signingKey = new RsaSecurityKey(rsa);
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.RsaSha256);
+
+            var handler = new JwtSecurityTokenHandler();
+            var token = handler.WriteToken(handler.CreateToken(new SecurityTokenDescriptor
+            {
+                Issuer = _oidcOpts.Issuer,
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "dsi-user"),
+                    new Claim(ClaimTypes.Email, "dsi@example.com")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            }));
+
+            var openIdConfig = new OpenIdConnectConfiguration { Issuer = _oidcOpts.Issuer };
+            openIdConfig.SigningKeys.Add(signingKey);
+
+            var testOpts = new TestAuthenticationOptions
+            {
+                Enabled = true,
+                JwtSigningKey = "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+                JwtIssuer = "test-external-applications",
+                JwtAudience = "test-audience"
+            };
+
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                CreateHttpClientFactory(),
+                multiProviderOptions: null,
+                cypressAuthOpts: null,
+                testOptions: Options.Create(testOpts));
+
+            InjectSingleProvider(validator, new StubConfigManager(openIdConfig));
+
+            var principal = await validator.ValidateIdTokenAsync(
+                token,
+                validCypressRequest: false,
+                validInternalRequest: false,
+                internalAuthOptions: null,
+                testAuthOptions: testOpts);
+
+            Assert.Equal("dsi-user", principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            Assert.Equal("dsi@example.com", principal.FindFirst(ClaimTypes.Email)?.Value);
+
+            validator.Dispose();
+        }
+
+        [Fact]
+        public void LooksLikeTestAuthenticationToken_ReturnsFalse_ForNullOrWhitespace()
+        {
+            Assert.False(ExternalIdentityValidator.LooksLikeTestAuthenticationToken(null!, null));
+            Assert.False(ExternalIdentityValidator.LooksLikeTestAuthenticationToken("", null));
+            Assert.False(ExternalIdentityValidator.LooksLikeTestAuthenticationToken("   ", null));
+        }
+
+        [Fact]
+        public void LooksLikeTestAuthenticationToken_ReturnsFalse_ForUnreadableToken()
+        {
+            Assert.False(ExternalIdentityValidator.LooksLikeTestAuthenticationToken("not-a-jwt", null));
+        }
+
+        [Fact]
+        public void LooksLikeTestAuthenticationToken_ReturnsTrue_WhenRs256IssuerMatchesTestIssuer()
+        {
+            var token = CreateUnsignedJwt("RS256", "test-external-applications");
+            var opts = new TestAuthenticationOptions
+            {
+                Enabled = true,
+                JwtIssuer = "test-external-applications"
+            };
+
+            Assert.True(ExternalIdentityValidator.LooksLikeTestAuthenticationToken(token, opts));
+        }
+
+        [Fact]
+        public void LooksLikeTestAuthenticationToken_ReturnsFalse_WhenRs256AndNullOrEmptyTestIssuer()
+        {
+            var token = CreateUnsignedJwt("RS256", "https://test-oidc.signin.education.gov.uk:443");
+
+            Assert.False(ExternalIdentityValidator.LooksLikeTestAuthenticationToken(token, null));
+            Assert.False(ExternalIdentityValidator.LooksLikeTestAuthenticationToken(
+                token,
+                new TestAuthenticationOptions { Enabled = true, JwtIssuer = "" }));
+            Assert.False(ExternalIdentityValidator.LooksLikeTestAuthenticationToken(
+                token,
+                new TestAuthenticationOptions { Enabled = true, JwtIssuer = "   " }));
+        }
+
+        [Fact]
+        public void LooksLikeTestAuthenticationToken_ReturnsFalse_WhenReadJwtTokenThrows()
+        {
+            // CanReadToken accepts this shape, but payload is not valid Base64Url JSON → ReadJwtToken throws.
+            var header = Base64Url(Encoding.UTF8.GetBytes("{\"alg\":\"RS256\",\"typ\":\"JWT\"}"));
+            var token = $"{header}.%%%not-base64%%%.sig";
+
+            Assert.False(ExternalIdentityValidator.LooksLikeTestAuthenticationToken(
+                token,
+                new TestAuthenticationOptions { Enabled = true, JwtIssuer = "test-external-applications" }));
+        }
+
+        [Theory]
+        [InlineData("RS256", "https://test-oidc.signin.education.gov.uk:443", false)]
+        [InlineData("HS256", "test-external-applications", true)]
+        [InlineData("HS256", "other-issuer", true)]
+        [InlineData("HS384", "other-issuer", true)]
+        [InlineData("ES256", "test-external-applications", true)]
+        [InlineData("ES256", "other-issuer", false)]
+        public void LooksLikeTestAuthenticationToken_ClassifiesByAlgAndIssuer(
+            string alg,
+            string issuer,
+            bool expected)
+        {
+            var token = CreateUnsignedJwt(alg, issuer);
+
+            var opts = new TestAuthenticationOptions
+            {
+                Enabled = true,
+                JwtIssuer = "test-external-applications"
+            };
+
+            Assert.Equal(
+                expected,
+                ExternalIdentityValidator.LooksLikeTestAuthenticationToken(token, opts));
+        }
+
+        private static string CreateUnsignedJwt(string alg, string issuer)
+        {
+            var header = Base64Url(Encoding.UTF8.GetBytes($"{{\"alg\":\"{alg}\",\"typ\":\"JWT\"}}"));
+            var payload = Base64Url(Encoding.UTF8.GetBytes($"{{\"iss\":\"{issuer}\"}}"));
+            return $"{header}.{payload}.sig";
+        }
+
+        private static string Base64Url(byte[] bytes)
+            => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
         #region ValidateInternalAuthToken Tests
 
         [Fact]
@@ -1294,6 +1480,70 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             Assert.Equal(2, audiences.Count);
             Assert.Contains("client-a", audiences);
             Assert.Contains("client-b", audiences);
+        }
+
+        [Fact]
+        public void ReloadProviders_UpdatesProviderCount_InMultiProviderMode()
+        {
+            var multiOpts = Options.Create(new MultiProviderOpenIdConnectOptions
+            {
+                Providers =
+                [
+                    new OpenIdConnectOptions
+                    {
+                        Issuer = "https://idp-a.example.com/",
+                        ClientId = "client-a",
+                        DiscoveryEndpoint = "https://idp-a.example.com/.well-known/openid-configuration"
+                    }
+                ]
+            });
+
+            var validator = new ExternalIdentityValidator(
+                Options.Create(new OpenIdConnectOptions
+                {
+                    DiscoveryEndpoint = "https://placeholder.example.com/.well-known/openid-configuration"
+                }),
+                CreateHttpClientFactory(),
+                multiOpts);
+
+            Assert.Equal(1, validator.ProviderCount);
+
+            validator.ReloadProviders(
+            [
+                new OpenIdConnectOptions
+                {
+                    Issuer = "https://idp-a.example.com/",
+                    ClientId = "client-a",
+                    DiscoveryEndpoint = "https://idp-a.example.com/.well-known/openid-configuration"
+                },
+                new OpenIdConnectOptions
+                {
+                    Issuer = "https://idp-b.example.com/",
+                    ClientId = "client-b",
+                    DiscoveryEndpoint = "https://idp-b.example.com/.well-known/openid-configuration"
+                }
+            ]);
+
+            Assert.Equal(2, validator.ProviderCount);
+        }
+
+        [Fact]
+        public void ReloadProviders_Throws_WhenStartedInSingleProviderMode()
+        {
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                CreateHttpClientFactory());
+
+            Assert.Throws<InvalidOperationException>(() =>
+                validator.ReloadProviders(
+                [
+                    new OpenIdConnectOptions
+                    {
+                        Issuer = "https://idp.example.com/",
+                        ClientId = "client",
+                        DiscoveryEndpoint = "https://idp.example.com/.well-known/openid-configuration"
+                    }
+                ]));
         }
 
         #endregion
