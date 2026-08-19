@@ -129,7 +129,10 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
                     Name = item.Name,
                     Size = item.Size ?? 0,
                     LastModified = item.LastModifiedDateTime,
-                    WebUrl = item.WebUrl
+                    WebUrl = item.WebUrl,
+                    CreatedDateTime = item.CreatedDateTime,
+                    ParentPath = item.ParentReference?.Path,
+                    ContentType = item.ListItem?.ContentType?.Name,
                 });
             }
 
@@ -309,10 +312,10 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
     }
 
     private async IAsyncEnumerable<DriveItem> EnumeratePagesAsync(
-        DriveItemCollectionResponse? firstPage,
-        string driveId,
-        string folderPath,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    DriveItemCollectionResponse? firstPage,
+    string driveId,
+    string folderPath,
+    [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var page = firstPage;
 
@@ -333,7 +336,14 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
                 {
                     page = await _graphClient.Drives[driveId].Items["root"].Children
                         .WithUrl(page.OdataNextLink)
-                        .GetAsync(cancellationToken: cancellationToken)
+                        .GetAsync(requestConfiguration =>
+                        {
+                            requestConfiguration.QueryParameters.Expand =
+                            [
+                                "listItem($expand=contentType)"
+                            ];
+                        },
+                        cancellationToken)
                         .ConfigureAwait(false);
                 }
                 else
@@ -342,7 +352,14 @@ internal sealed class GraphClientWrapper : IGraphClientWrapper
                         .ItemWithPath(folderPath)
                         .Children
                         .WithUrl(page.OdataNextLink)
-                        .GetAsync(cancellationToken: cancellationToken)
+                        .GetAsync(requestConfiguration =>
+                        {
+                            requestConfiguration.QueryParameters.Expand =
+                            [
+                                "listItem($expand=contentType)"
+                            ];
+                        },
+                        cancellationToken)
                         .ConfigureAwait(false);
                 }
             }
