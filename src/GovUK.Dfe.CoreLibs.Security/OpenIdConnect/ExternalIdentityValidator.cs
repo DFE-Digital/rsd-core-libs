@@ -206,8 +206,10 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         }
 
         /// <summary>
-        /// Multi-provider mode: Try each provider until one fully validates.
-        /// Token must match the provider's issuer AND audience.
+        /// Multi-provider mode: Prefer providers whose configured issuers match the token
+        /// <c>iss</c> claim, then try each until one fully validates (issuer + audience).
+        /// Falls back to all providers when <c>iss</c> is missing or no issuer match is found,
+        /// preserving previous try-all behaviour for edge cases.
         /// </summary>
         private async Task<ClaimsPrincipal> ValidateWithMultiProviderModeAsync(
             string idToken,
@@ -215,8 +217,9 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         {
             var handler = new JwtSecurityTokenHandler();
             var errors = new List<string>();
+            var providersToTry = SelectProvidersForToken(idToken);
 
-            foreach (var provider in _providers)
+            foreach (var provider in providersToTry)
             {
                 try
                 {
@@ -260,9 +263,88 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
 
             // None of the providers could validate the token
             var errorMessage = $"Token did not match any configured OIDC provider. " +
-                             $"Tried {_providers.Count} provider(s). Errors: {string.Join("; ", errors)}";
+                             $"Tried {providersToTry.Count} provider(s). Errors: {string.Join("; ", errors)}";
             _logger?.LogWarning(errorMessage);
             throw new SecurityTokenValidationException(errorMessage);
+        }
+
+        /// <summary>
+        /// Selects providers to attempt for the given token based on the unsigned <c>iss</c> claim.
+        /// Providers with <see cref="OpenIdConnectOptions.ValidateIssuer"/> set to <c>false</c>
+        /// are always included. When no issuer match is found, returns all providers.
+        /// </summary>
+        private List<ProviderConfiguration> SelectProvidersForToken(string idToken)
+        {
+            string? tokenIssuer = null;
+            try
+            {
+                var jwt = new JwtSecurityTokenHandler().ReadJwtToken(idToken);
+                tokenIssuer = jwt.Issuer;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug(
+                    ex,
+                    "Could not read token issuer for provider selection; trying all providers.");
+                return _providers.ToList();
+            }
+
+            if (string.IsNullOrWhiteSpace(tokenIssuer))
+            {
+                _logger?.LogDebug("Token has no issuer claim; trying all providers.");
+                return _providers.ToList();
+            }
+
+            var matched = _providers
+                .Where(p => ProviderAcceptsIssuer(p.Options, tokenIssuer))
+                .ToList();
+
+            if (matched.Count == 0)
+            {
+                _logger?.LogDebug(
+                    "No provider matched token issuer {TokenIssuer}; falling back to all {Count} providers.",
+                    tokenIssuer,
+                    _providers.Count);
+                return _providers.ToList();
+            }
+
+            if (matched.Count < _providers.Count)
+            {
+                _logger?.LogDebug(
+                    "Selected {MatchedCount} of {TotalCount} providers for token issuer {TokenIssuer}.",
+                    matched.Count,
+                    _providers.Count,
+                    tokenIssuer);
+            }
+
+            return matched;
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> when the provider should be attempted for the given token issuer.
+        /// </summary>
+        private static bool ProviderAcceptsIssuer(OpenIdConnectOptions options, string tokenIssuer)
+        {
+            // Providers that do not validate issuer must still be tried for any token.
+            if (!options.ValidateIssuer)
+                return true;
+
+            var configuredIssuers = GetValidIssuersForProvider(options);
+            if (configuredIssuers.Count == 0)
+                return true;
+
+            return configuredIssuers.Any(configured => IssuersMatch(configured, tokenIssuer));
+        }
+
+        /// <summary>
+        /// Compares issuer URLs ignoring case and trailing slashes.
+        /// </summary>
+        private static bool IssuersMatch(string configuredIssuer, string tokenIssuer)
+        {
+            return string.Equals(
+                configuredIssuer.TrimEnd('/'),
+                tokenIssuer.TrimEnd('/'),
+                StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

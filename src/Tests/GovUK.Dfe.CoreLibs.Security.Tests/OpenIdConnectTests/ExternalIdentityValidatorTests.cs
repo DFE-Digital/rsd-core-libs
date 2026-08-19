@@ -171,6 +171,8 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
         {
             private readonly OpenIdConnectConfiguration _config;
 
+            public int GetConfigurationCallCount { get; private set; }
+
             public StubConfigManager(OpenIdConnectConfiguration config)
                 : base(
                     metadataAddress: "ignored",
@@ -186,6 +188,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             public override Task<OpenIdConnectConfiguration> GetConfigurationAsync(
                 CancellationToken cancellationToken)
             {
+                GetConfigurationCallCount++;
                 return Task.FromResult(_config);
             }
         }
@@ -1225,6 +1228,257 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             // Should fail because the key doesn't match tenant2's expected key
             await Assert.ThrowsAsync<SecurityTokenValidationException>(() =>
                 validator.ValidateIdTokenAsync(token));
+
+            validator.Dispose();
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_MultiProviderMode_SkipsProvidersWithMismatchedIssuer()
+        {
+            var httpClientFactory = CreateHttpClientFactory();
+
+            var dsiKey = Encoding.UTF8.GetBytes("DSIKEY123456789012345678901234567890");
+            var entraKey = Encoding.UTF8.GetBytes("ENTRAKEY1234567890123456789012345678");
+            var dsiSigningKey = new SymmetricSecurityKey(dsiKey);
+            var entraSigningKey = new SymmetricSecurityKey(entraKey);
+
+            var dsiConfig = new OpenIdConnectConfiguration { Issuer = "https://test-oidc.signin.education.gov.uk" };
+            dsiConfig.SigningKeys.Add(dsiSigningKey);
+
+            var entraConfig = new OpenIdConnectConfiguration
+            {
+                Issuer = "https://login.microsoftonline.com/fad277c9-c60a-4da1-b5f3-b3b8b34a82f9/v2.0"
+            };
+            entraConfig.SigningKeys.Add(entraSigningKey);
+
+            var dsiOpts = new OpenIdConnectOptions
+            {
+                Issuer = "https://test-oidc.signin.education.gov.uk",
+                ClientId = "dsi-client",
+                DiscoveryEndpoint = "https://test-oidc.signin.education.gov.uk/.well-known",
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidIssuers = new List<string>
+                {
+                    "https://test-oidc.signin.education.gov.uk:443",
+                    "https://test-oidc.signin.education.gov.uk",
+                    "https://test-oidc.signin.education.gov.uk/v2.0"
+                }
+            };
+
+            var entraOpts = new OpenIdConnectOptions
+            {
+                Issuer = "https://login.microsoftonline.com/fad277c9-c60a-4da1-b5f3-b3b8b34a82f9/v2.0",
+                ClientId = "entra-client",
+                DiscoveryEndpoint = "https://login.microsoftonline.com/fad277c9-c60a-4da1-b5f3-b3b8b34a82f9/v2.0/.well-known",
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidIssuers = new List<string>
+                {
+                    "https://login.microsoftonline.com/fad277c9-c60a-4da1-b5f3-b3b8b34a82f9/v2.0",
+                    "https://sts.windows.net/fad277c9-c60a-4da1-b5f3-b3b8b34a82f9/"
+                }
+            };
+
+            var multiProviderOpts = new MultiProviderOpenIdConnectOptions
+            {
+                Providers = new List<OpenIdConnectOptions> { dsiOpts, entraOpts }
+            };
+
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                httpClientFactory,
+                multiProviderOptions: Options.Create(multiProviderOpts));
+
+            var dsiManager = new StubConfigManager(dsiConfig);
+            var entraManager = new StubConfigManager(entraConfig);
+
+            InjectProviders(validator,
+                (dsiOpts, dsiManager),
+                (entraOpts, entraManager));
+
+            var creds = new SigningCredentials(entraSigningKey, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Issuer = "https://login.microsoftonline.com/fad277c9-c60a-4da1-b5f3-b3b8b34a82f9/v2.0",
+                Audience = "entra-client",
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "entra-user"),
+                    new Claim(ClaimTypes.Email, "entra-user@example.com")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var token = handler.WriteToken(handler.CreateToken(descriptor));
+
+            var principal = await validator.ValidateIdTokenAsync(token);
+
+            Assert.NotNull(principal);
+            Assert.Equal("entra-user", principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            Assert.Equal(0, dsiManager.GetConfigurationCallCount);
+            Assert.Equal(1, entraManager.GetConfigurationCallCount);
+
+            validator.Dispose();
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_MultiProviderMode_IncludesProvidersWithValidateIssuerDisabled()
+        {
+            var httpClientFactory = CreateHttpClientFactory();
+
+            var key1 = Encoding.UTF8.GetBytes("PROVIDER1KEY1234567890123456789012");
+            var key2 = Encoding.UTF8.GetBytes("PROVIDER2KEY1234567890123456789012");
+            var signingKey1 = new SymmetricSecurityKey(key1);
+            var signingKey2 = new SymmetricSecurityKey(key2);
+
+            var config1 = new OpenIdConnectConfiguration { Issuer = "https://strict.example.com/" };
+            config1.SigningKeys.Add(signingKey1);
+
+            var config2 = new OpenIdConnectConfiguration { Issuer = "https://any.example.com/" };
+            config2.SigningKeys.Add(signingKey2);
+
+            var strictOpts = new OpenIdConnectOptions
+            {
+                Issuer = "https://strict.example.com/",
+                ClientId = "strict-client",
+                DiscoveryEndpoint = "https://strict.example.com/.well-known",
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true
+            };
+
+            // No issuer configured; ValidateIssuer=false means this provider is always a candidate.
+            var openOpts = new OpenIdConnectOptions
+            {
+                Issuer = "https://any.example.com/",
+                ClientId = "open-client",
+                DiscoveryEndpoint = "https://any.example.com/.well-known",
+                ValidateIssuer = false,
+                ValidateAudience = true,
+                ValidateLifetime = true
+            };
+
+            var multiProviderOpts = new MultiProviderOpenIdConnectOptions
+            {
+                Providers = new List<OpenIdConnectOptions> { strictOpts, openOpts }
+            };
+
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                httpClientFactory,
+                multiProviderOptions: Options.Create(multiProviderOpts));
+
+            var strictManager = new StubConfigManager(config1);
+            var openManager = new StubConfigManager(config2);
+
+            InjectProviders(validator,
+                (strictOpts, strictManager),
+                (openOpts, openManager));
+
+            var creds = new SigningCredentials(signingKey2, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Issuer = "https://unlisted-issuer.example.com/",
+                Audience = "open-client",
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "open-user")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var token = handler.WriteToken(handler.CreateToken(descriptor));
+
+            var principal = await validator.ValidateIdTokenAsync(token);
+
+            Assert.NotNull(principal);
+            Assert.Equal("open-user", principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            Assert.Equal(0, strictManager.GetConfigurationCallCount);
+            Assert.Equal(1, openManager.GetConfigurationCallCount);
+
+            validator.Dispose();
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_MultiProviderMode_FallsBackToAllProvidersWhenIssuerUnknown()
+        {
+            var httpClientFactory = CreateHttpClientFactory();
+
+            var key1 = Encoding.UTF8.GetBytes("TENANT1KEY123456789012345678901234");
+            var key2 = Encoding.UTF8.GetBytes("TENANT2KEY123456789012345678901234");
+            var signingKey1 = new SymmetricSecurityKey(key1);
+            var signingKey2 = new SymmetricSecurityKey(key2);
+
+            var config1 = new OpenIdConnectConfiguration { Issuer = "https://tenant1.example.com/" };
+            config1.SigningKeys.Add(signingKey1);
+
+            var config2 = new OpenIdConnectConfiguration { Issuer = "https://tenant2.example.com/" };
+            config2.SigningKeys.Add(signingKey2);
+
+            var opts1 = new OpenIdConnectOptions
+            {
+                Issuer = "https://tenant1.example.com/",
+                ClientId = "client-tenant1",
+                DiscoveryEndpoint = "https://tenant1.example.com/.well-known",
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true
+            };
+
+            var opts2 = new OpenIdConnectOptions
+            {
+                Issuer = "https://tenant2.example.com/",
+                ClientId = "client-tenant2",
+                DiscoveryEndpoint = "https://tenant2.example.com/.well-known",
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true
+            };
+
+            var multiProviderOpts = new MultiProviderOpenIdConnectOptions
+            {
+                Providers = new List<OpenIdConnectOptions> { opts1, opts2 }
+            };
+
+            var validator = new ExternalIdentityValidator(
+                Options.Create(_oidcOpts),
+                httpClientFactory,
+                multiProviderOptions: Options.Create(multiProviderOpts));
+
+            var manager1 = new StubConfigManager(config1);
+            var manager2 = new StubConfigManager(config2);
+
+            InjectProviders(validator,
+                (opts1, manager1),
+                (opts2, manager2));
+
+            // Token issuer does not match either provider's configured issuer list.
+            // Fallback should attempt both providers (and ultimately fail signature/issuer checks).
+            var creds = new SigningCredentials(signingKey1, SecurityAlgorithms.HmacSha256);
+            var handler = new JwtSecurityTokenHandler();
+            var descriptor = new SecurityTokenDescriptor
+            {
+                Issuer = "https://unknown-issuer.example.com/",
+                Audience = "client-tenant1",
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "unknown-user")
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = creds
+            };
+            var token = handler.WriteToken(handler.CreateToken(descriptor));
+
+            await Assert.ThrowsAsync<SecurityTokenValidationException>(() =>
+                validator.ValidateIdTokenAsync(token));
+
+            Assert.Equal(1, manager1.GetConfigurationCallCount);
+            Assert.Equal(1, manager2.GetConfigurationCallCount);
 
             validator.Dispose();
         }
