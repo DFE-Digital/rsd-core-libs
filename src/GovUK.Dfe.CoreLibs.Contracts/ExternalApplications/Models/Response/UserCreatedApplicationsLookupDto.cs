@@ -34,6 +34,9 @@ public sealed class CreatedApplicationWithInviteesDto
     [JsonPropertyName("templateName")]
     public string TemplateName { get; set; } = string.Empty;
 
+    [JsonPropertyName("templateId")]
+    public Guid TemplateId { get; set; }
+
     [JsonPropertyName("dateCreated")]
     public DateTime DateCreated { get; set; }
 
