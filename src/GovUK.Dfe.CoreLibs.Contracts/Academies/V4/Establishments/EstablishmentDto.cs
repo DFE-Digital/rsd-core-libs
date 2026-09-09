@@ -84,6 +84,10 @@ public class CensusDto
     public string PercentageFsmLastSixYears { get; set; }
     public string PercentageEnglishAsSecondLanguage { get; set; }
     public string PercentageSen { get; set; }
+    public string NumberEhcPlan { get; set; }
+    public string PercentageEhcPlan { get; set;  }
+    public string NumberSen { get; set;  }
+    public string NumberEnglishAsSecondLanguage { get; set;  }
 }
 
 [Serializable]
