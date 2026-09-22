@@ -7,7 +7,8 @@ public sealed record TenantSettingAuditEntryDto(
     string Action,
     string ActorEmail,
     DateTime ChangedAtUtc,
-    bool WasSecret);
+    bool WasSecret,
+    string? Details = null);
 
 public sealed record GetTenantSettingAuditLogDto(
     Guid TenantId,

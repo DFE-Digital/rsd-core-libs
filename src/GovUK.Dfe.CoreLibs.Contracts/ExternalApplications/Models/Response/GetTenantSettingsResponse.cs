@@ -1,7 +1,7 @@
 namespace GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response
 {
     /// <summary>
-    /// Raw TenantConfig settings rows for a tenant (for SuperAdmin editing).
+    /// TenantConfig settings rows for a tenant. Secret-bearing leaves are redacted.
     /// </summary>
     public sealed record GetTenantSettingsResponse(
         Guid TenantId,

@@ -7,7 +7,7 @@
 	  <PackageReadmeFile>readme.md</PackageReadmeFile>
 	  <Title>GovUK.Dfe.CoreLibs.Contracts</Title>
 	  <Description>A library providing reusable contract definitions for use across different domains and services.</Description>
-	  <Authors>DFE-Digital</Authors>
+    <Authors>DFE-Digital</Authors>
   </PropertyGroup>
 
 	<ItemGroup>
