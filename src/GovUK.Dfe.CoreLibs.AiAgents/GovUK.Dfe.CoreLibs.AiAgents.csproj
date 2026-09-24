@@ -26,4 +26,10 @@
 		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.3" />
 	</ItemGroup>
 
+	  <ItemGroup>
+	    <None Update="readme.md">
+	      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	    </None>
+	  </ItemGroup>
+
 </Project>
