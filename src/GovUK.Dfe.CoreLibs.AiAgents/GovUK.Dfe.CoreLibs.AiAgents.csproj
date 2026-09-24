@@ -28,7 +28,7 @@
 
 	  <ItemGroup>
 	    <None Update="readme.md">
-	      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 	    </None>
 	  </ItemGroup>
 
