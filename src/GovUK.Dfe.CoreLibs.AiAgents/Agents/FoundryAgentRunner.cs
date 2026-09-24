@@ -96,7 +96,7 @@ public sealed class FoundryAgentRunner(IAgentFactory agentFactory, IFoundryConve
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Agent {AgentName} failed", agent.Name);
-            throw;
+            throw new InvalidOperationException(string.Format(ErrorMessages.AgentRunFailed, agent.Name), ex);
         }
     }
      
@@ -112,11 +112,15 @@ public sealed class FoundryAgentRunner(IAgentFactory agentFactory, IFoundryConve
             return;
         }
 
-        var detail = response.Error is not null
-            ? $": {response.Error.Message}"
-            : response.IncompleteStatusDetails?.Reason is { } reason
-                ? $": {reason}"
-                : string.Empty;
+        var detail = string.Empty;
+        if (response.Error is not null)
+        {
+            detail = $": {response.Error.Message}";
+        }
+        else if (response.IncompleteStatusDetails?.Reason is { } reason)
+        {
+            detail = $": {reason}";
+        }
 
         throw new InvalidOperationException(
             string.Format(ErrorMessages.ResponseDidNotComplete, agentName, response.Id, response.Status, detail));
@@ -139,14 +143,14 @@ public sealed class FoundryAgentRunner(IAgentFactory agentFactory, IFoundryConve
         var outputByCallId = outputs.ToDictionary(o => o.CallId, o => o.Output);
 
         var nextInputItems = new List<ResponseItem>(response.OutputItems);
-        foreach (var toolCall in toolCalls)
+        foreach (var callId in toolCalls.Select(toolCall => toolCall.CallId))
         {
-            if (!outputByCallId.TryGetValue(toolCall.CallId, out var output))
+            if (!outputByCallId.TryGetValue(callId, out var output))
             {
-                throw new InvalidOperationException(string.Format(ErrorMessages.MissingToolCallOutput, toolCall.CallId));
+                throw new InvalidOperationException(string.Format(ErrorMessages.MissingToolCallOutput, callId));
             }
 
-            nextInputItems.Add(ResponseItem.CreateFunctionCallOutputItem(toolCall.CallId, output));
+            nextInputItems.Add(ResponseItem.CreateFunctionCallOutputItem(callId, output));
         }
 
         return nextInputItems;

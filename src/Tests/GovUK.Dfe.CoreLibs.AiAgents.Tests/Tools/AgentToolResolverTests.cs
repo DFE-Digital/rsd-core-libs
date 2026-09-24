@@ -25,9 +25,9 @@ public sealed class AgentToolResolverTests
         var toolForA = ResponseTool.CreateWebSearchTool();
         var toolForB = ResponseTool.CreateWebSearchTool();
         var providerA = Substitute.For<IAgentToolProvider>();
-        providerA.GetToolsAsync(Arg.Any<CancellationToken>()).Returns(new List<ResponseTool> { toolForA });
+        providerA.GetToolsAsync(Arg.Any<CancellationToken>()).Returns([toolForA]);
         var providerB = Substitute.For<IAgentToolProvider>();
-        providerB.GetToolsAsync(Arg.Any<CancellationToken>()).Returns(new List<ResponseTool> { toolForB });
+        providerB.GetToolsAsync(Arg.Any<CancellationToken>()).Returns([toolForB]);
 
         var toolProviders = AgentToolResolver.GroupByAgentName([
             new AgentToolBinding("agent-a", providerA),
@@ -45,9 +45,9 @@ public sealed class AgentToolResolverTests
         var toolOne = ResponseTool.CreateWebSearchTool();
         var toolTwo = ResponseTool.CreateWebSearchTool();
         var providerOne = Substitute.For<IAgentToolProvider>();
-        providerOne.GetToolsAsync(Arg.Any<CancellationToken>()).Returns(new List<ResponseTool> { toolOne });
+        providerOne.GetToolsAsync(Arg.Any<CancellationToken>()).Returns([toolOne]);
         var providerTwo = Substitute.For<IAgentToolProvider>();
-        providerTwo.GetToolsAsync(Arg.Any<CancellationToken>()).Returns(new List<ResponseTool> { toolTwo });
+        providerTwo.GetToolsAsync(Arg.Any<CancellationToken>()).Returns([toolTwo]);
 
         var toolProviders = AgentToolResolver.GroupByAgentName([
             new AgentToolBinding("web-search-agent", providerOne),

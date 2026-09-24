@@ -1,3 +1,4 @@
+using GovUK.Dfe.CoreLibs.AiAgents.Constants;
 using GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp.Interfaces;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -26,10 +27,10 @@ public sealed class McpToolStartupValidator(string serverKey, IMcpToolClient cli
             options.Validate(serverKey);
             await client.GetToolsAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "MCP tool configuration validation failed during startup for server '{ServerKey}'.", serverKey);
-            throw;
+            throw new InvalidOperationException(string.Format(ErrorMessages.McpStartupValidationFailed, serverKey), ex);
         }
     }
     /// <summary>

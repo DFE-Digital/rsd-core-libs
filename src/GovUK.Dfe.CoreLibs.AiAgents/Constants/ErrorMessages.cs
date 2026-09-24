@@ -17,4 +17,12 @@ internal static class ErrorMessages
     public const string UnableToGenerateSection = "This section could not be generated due to an error retrieving or analysing evidence.";
     public const string McpTokenResponseDeserializationFailed = "Failed to deserialize the MCP access token response.";
     public const string McpOptionsInvalid = "MCP server '{0}' configuration is invalid; missing or empty: {1}.";
+    public const string McpStartupValidationFailed = "MCP tool configuration validation failed during startup for server '{0}'.";
+    public const string McpConnectionFailed = "Failed to connect to MCP server '{0}' at {1}.";
+    public const string AgentRunFailed = "Agent '{0}' failed.";
+    public const string AgentGetOrCreateFailed = "Failed to get or create Foundry agent '{0}'.";
+    public const string AgentCreateFailed = "Failed to create Foundry agent '{0}'.";
+    public const string AgentDeleteFailed = "Failed to delete Foundry agent '{0}'.";
+    public const string AgentPruneVersionsFailed = "Failed to prune versions for Foundry agent '{0}'.";
+    public const string AzureSearchQueryFailed = "Azure Search query against '{0}' failed.";
 }

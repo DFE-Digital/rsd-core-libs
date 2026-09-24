@@ -140,8 +140,9 @@ public sealed class FoundryAgentRunnerTests
         var sut = CreateSut();
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RunAsync(spec, "prompt", cancellationToken: cancellationToken));
-        Assert.Contains("resp-1", ex.Message);
-        Assert.Contains("Failed", ex.Message);
+        var inner = Assert.IsType<InvalidOperationException>(ex.InnerException);
+        Assert.Contains("resp-1", inner.Message);
+        Assert.Contains("Failed", inner.Message);
     }
 
     [Fact]
@@ -303,8 +304,9 @@ public sealed class FoundryAgentRunnerTests
         var sut = CreateSut();
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RunAsync(agent, "prompt", cancellationToken: cancellationToken));
-        Assert.Contains("resp-1", ex.Message);
-        Assert.Contains("Failed", ex.Message);
+        var inner = Assert.IsType<InvalidOperationException>(ex.InnerException);
+        Assert.Contains("resp-1", inner.Message);
+        Assert.Contains("Failed", inner.Message);
     }
 
     [Fact]

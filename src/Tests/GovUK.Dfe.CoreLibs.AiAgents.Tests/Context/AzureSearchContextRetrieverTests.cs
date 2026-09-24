@@ -162,6 +162,7 @@ public sealed class AzureSearchContextRetrieverTests
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(
             () => sut.GetContextAsync(Scope, "query", cancellationToken: cancellationToken));
-        Assert.Same(failure, thrown);
+        Assert.Same(failure, thrown.InnerException);
+        Assert.Contains(Scope, thrown.Message, StringComparison.Ordinal);
     }
 }

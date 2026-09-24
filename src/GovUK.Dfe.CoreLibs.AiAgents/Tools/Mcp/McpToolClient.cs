@@ -170,10 +170,11 @@ public sealed class McpToolClient : IMcpToolClient
             
             return client;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Failed to connect to MCP server '{ServerLabel}' at {ServerUri}", _options.ServerLabel, _options.ServerUri);
-            throw;
+            throw new InvalidOperationException(
+                string.Format(ErrorMessages.McpConnectionFailed, _options.ServerLabel, _options.ServerUri), ex);
         }
     }
 }

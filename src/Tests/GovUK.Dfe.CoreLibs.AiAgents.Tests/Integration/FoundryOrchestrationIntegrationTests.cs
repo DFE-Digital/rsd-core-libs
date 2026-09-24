@@ -173,7 +173,7 @@ public sealed class FoundryOrchestrationIntegrationTests
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RunSequentialAsync(
             agents, "initial", context, shouldSuppress: _ => false, cancellationToken: cancellationToken));
 
-        Assert.Same(failure, thrown);
+        Assert.Same(failure, thrown.InnerException);
         await _conversationClient.DidNotReceive().CreateResponseAsync("never-reached", Arg.Any<string>(), Arg.Any<IReadOnlyList<ResponseItem>>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
@@ -271,7 +271,7 @@ public sealed class FoundryOrchestrationIntegrationTests
             [StepFor(establishment, _ => Task.FromResult("Establishment evidence."))],
             context, shouldSuppress: _ => false, cancellationToken: cancellationToken));
 
-        Assert.Same(failure, thrown);
+        Assert.Same(failure, thrown.InnerException);
     }
 
     [Fact]
@@ -289,8 +289,9 @@ public sealed class FoundryOrchestrationIntegrationTests
 
         var step = Assert.Single(result.Results);
         Assert.False(step.Succeeded);
-        Assert.IsType<InvalidOperationException>(step.Error);
-        Assert.Contains("resolveToolCalls", step.Error!.Message, StringComparison.Ordinal);
+        var error = Assert.IsType<InvalidOperationException>(step.Error);
+        var inner = Assert.IsType<InvalidOperationException>(error.InnerException);
+        Assert.Contains("resolveToolCalls", inner.Message, StringComparison.Ordinal);
     }
 
     [Fact]

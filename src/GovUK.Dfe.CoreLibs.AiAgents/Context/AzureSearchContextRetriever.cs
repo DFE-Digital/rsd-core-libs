@@ -54,7 +54,7 @@ public sealed class AzureSearchContextRetriever(IReadOnlyDictionary<string, Sear
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Azure Search query against {Scope} failed", scope);
-            throw;
+            throw new InvalidOperationException(string.Format(ErrorMessages.AzureSearchQueryFailed, scope), ex);
         }
 
         return results;

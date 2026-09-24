@@ -30,10 +30,10 @@ public sealed class FoundryAgentFactory(AgentAdministrationClient administration
         {
             return await GetOrCreateOnFoundryAsync(spec, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Failed to get or create Foundry agent for {AgentName}", spec.Name);
-            throw;
+            throw new InvalidOperationException(string.Format(ErrorMessages.AgentGetOrCreateFailed, spec.Name), ex);
         }
         finally
         {
@@ -78,7 +78,7 @@ public sealed class FoundryAgentFactory(AgentAdministrationClient administration
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Failed to delete Foundry agent {AgentName}", name);
-            throw;
+            throw new InvalidOperationException(string.Format(ErrorMessages.AgentDeleteFailed, name), ex);
         }
         finally
         {
@@ -129,7 +129,7 @@ public sealed class FoundryAgentFactory(AgentAdministrationClient administration
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Failed to prune versions for Foundry agent {AgentName}", name);
-            throw;
+            throw new InvalidOperationException(string.Format(ErrorMessages.AgentPruneVersionsFailed, name), ex);
         }
     }
 
@@ -212,7 +212,7 @@ public sealed class FoundryAgentFactory(AgentAdministrationClient administration
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Failed to create Foundry agent for {AgentName}", spec.Name);
-            throw;
+            throw new InvalidOperationException(string.Format(ErrorMessages.AgentCreateFailed, spec.Name), ex);
         }
     }
 

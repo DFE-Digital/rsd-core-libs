@@ -49,7 +49,7 @@ public sealed class McpToolStartupValidatorTests
         var sut = CreateSut();
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.StartAsync(cancellationToken));
-        Assert.Same(exception, thrown);
+        Assert.Same(exception, thrown.InnerException);
     }
 
     [Fact]
