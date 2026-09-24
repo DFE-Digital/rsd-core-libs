@@ -11,7 +11,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Agents;
 
 public sealed class FoundryAgentRunnerTests
 {
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
     private readonly IAgentFactory _agentFactory = Substitute.For<IAgentFactory>();
     private readonly IFoundryConversationClient _conversationClient = Substitute.For<IFoundryConversationClient>();
 

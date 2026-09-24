@@ -8,7 +8,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Tools.Mcp;
 
 public sealed class McpAllowedToolsProviderTests
 {
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
     private readonly IMcpToolClient _client = Substitute.For<IMcpToolClient>();
 
     [Fact]

@@ -11,7 +11,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Agents;
 
 public sealed class FoundryAgentFactoryTests
 {
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
     private readonly AgentAdministrationClient _admin = Substitute.For<AgentAdministrationClient>();
     private readonly FoundryAgentFactoryOptions _options = new("gpt-5.1");
 

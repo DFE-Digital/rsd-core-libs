@@ -18,7 +18,7 @@ public sealed class PinnedAgentVersionDriftValidatorTests
     private static readonly AgentDefinition Unpinned = new("unpinned-agent", "UnpinnedPromptType");
     private static readonly AgentDefinition Ephemeral = new("ephemeral-agent", "EphemeralPromptType", IsManagedAgent: false);
 
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
     private readonly IAgentDefinitionProvider _definitionProvider = Substitute.For<IAgentDefinitionProvider>();
     private readonly IAgentFactory _agentFactory = Substitute.For<IAgentFactory>();
     private readonly IPromptProvider _promptProvider = Substitute.For<IPromptProvider>();

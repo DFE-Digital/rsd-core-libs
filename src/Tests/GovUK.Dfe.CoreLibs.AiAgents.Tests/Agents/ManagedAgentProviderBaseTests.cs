@@ -17,7 +17,7 @@ public sealed class ManagedAgentProviderBaseTests
         protected override AgentSpec BuildSpec() => new() { Name = AgentName, Instructions = "Do the thing." };
     }
 
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
     private readonly IAgentFactory _factory = Substitute.For<IAgentFactory>();
     private readonly IAgentRuntime _runtime = Substitute.For<IAgentRuntime>();
 

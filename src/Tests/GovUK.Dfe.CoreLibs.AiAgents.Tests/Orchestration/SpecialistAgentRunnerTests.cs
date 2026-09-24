@@ -18,7 +18,7 @@ public sealed class SpecialistAgentRunnerTests
     private static readonly AgentDefinition Managed = new("managed-agent", "ManagedPromptType");
     private static readonly AgentDefinition Ephemeral = new("ephemeral-agent", "EphemeralPromptType", IsManagedAgent: false);
 
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
     private readonly IAgentFactory _agentFactory = Substitute.For<IAgentFactory>();
     private readonly IAgentRunner _agentRunner = Substitute.For<IAgentRunner>();
     private readonly IAgentRuntime _agentRuntime = Substitute.For<IAgentRuntime>();

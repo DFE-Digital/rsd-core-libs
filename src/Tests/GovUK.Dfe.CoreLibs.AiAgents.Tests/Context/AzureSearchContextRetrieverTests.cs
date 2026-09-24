@@ -11,7 +11,7 @@ public sealed class AzureSearchContextRetrieverTests
 {
     private const string Scope = "establishment";
 
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
     private readonly SearchClient _client = Substitute.For<SearchClient>();
     private readonly RelativeScoreRelevanceFilter _relevanceFilter = new();
 

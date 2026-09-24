@@ -60,7 +60,7 @@ public sealed class TokenServiceTests
         }
     }
 
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
     private readonly ILogger<TokenService> _logger = Substitute.For<ILogger<TokenService>>();
 
     private static McpServerConnectionOptions CreateOptions() => new()

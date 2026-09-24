@@ -10,7 +10,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Tools;
 
 public sealed class McpToolStartupValidatorTests
 {
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
     private readonly IMcpToolClient _client = Substitute.For<IMcpToolClient>();
     private readonly ILogger<McpToolStartupValidator> _logger = Substitute.For<ILogger<McpToolStartupValidator>>();
 

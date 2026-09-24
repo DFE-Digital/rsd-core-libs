@@ -21,7 +21,7 @@ public sealed class SearchAndMcpOrchestrationIntegrationTests
 {
     private const string ConversationId = "conversation-1";
 
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
     private readonly AgentAdministrationClient _admin = Substitute.For<AgentAdministrationClient>();
     private readonly IFoundryConversationClient _conversationClient = Substitute.For<IFoundryConversationClient>();
     private readonly IMcpToolClient _mcpToolClient = Substitute.For<IMcpToolClient>();

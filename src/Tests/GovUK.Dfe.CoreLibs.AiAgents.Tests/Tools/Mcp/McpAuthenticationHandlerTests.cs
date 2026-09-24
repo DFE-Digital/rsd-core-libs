@@ -18,7 +18,7 @@ public sealed class McpAuthenticationHandlerTests
         }
     }
 
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
     private readonly ITokenService _tokenService = Substitute.For<ITokenService>();
     private readonly CapturingInnerHandler _inner = new();
 

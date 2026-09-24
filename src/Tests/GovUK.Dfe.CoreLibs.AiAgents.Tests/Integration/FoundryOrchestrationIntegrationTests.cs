@@ -17,7 +17,7 @@ public sealed class FoundryOrchestrationIntegrationTests
 {
     private const string ConversationId = "conversation-1";
 
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
     private readonly AgentAdministrationClient _admin = Substitute.For<AgentAdministrationClient>();
     private readonly IFoundryConversationClient _conversationClient = Substitute.For<IFoundryConversationClient>();
     private readonly FoundryAgentFactoryOptions _options = new("gpt-4o");

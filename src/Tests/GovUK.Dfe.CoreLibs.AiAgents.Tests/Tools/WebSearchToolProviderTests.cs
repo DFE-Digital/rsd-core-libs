@@ -7,7 +7,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Tools;
 
 public sealed class WebSearchToolProviderTests
 {
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
 
     [Fact]
     public async Task GetToolsAsync_DefaultsToTheUnitedKingdom_WhenNoLocationIsGiven()

@@ -11,7 +11,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Orchestration;
 
 public sealed class AgentOrchestratorTests
 {
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
     private readonly IAgentRunner _agentRunner = Substitute.For<IAgentRunner>();
 
     private AgentOrchestrator CreateSut() => new(_agentRunner);

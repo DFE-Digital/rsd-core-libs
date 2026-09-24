@@ -9,7 +9,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Agents;
 
 public sealed class ExternallyManagedAgentProviderTests
 {
-    private readonly CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+    private readonly CancellationToken cancellationToken = default;
     private readonly IAgentFactory _agentFactory = Substitute.For<IAgentFactory>();
     private readonly IAgentRuntime _agentRuntime = Substitute.For<IAgentRuntime>();
 
