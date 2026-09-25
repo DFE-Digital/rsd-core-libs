@@ -43,6 +43,7 @@ public class EstablishmentDto
     public NameAndCodeDto ParliamentaryConstituency { get; set; }
     public CensusDto Census { get; set; }
     public MisEstablishmentDto MISEstablishment { get; set; }
+    public MisFurtherEducationEstablishmentDto MisFurtherEducationEstablishment { get; set; }
     public AddressDto Address { get; set; }
     public PreviousEstablishmentDto? PreviousEstablishment { get; set; }
     
@@ -63,6 +64,8 @@ public class NameAndCodeDto
 public class MisEstablishmentDto
 {
     public string DateOfLatestSection8Inspection { get; set; }
+    public string Section8InspectionOverallOutcome { get; set; }
+    public string InspectionStartDate  { get; set; }
     public string InspectionEndDate { get; set; }
 
     public string OverallEffectiveness { get; set; }
@@ -74,6 +77,43 @@ public class MisEstablishmentDto
     public string EarlyYearsProvision { get; set; }
     public string SixthFormProvision { get; set; }
     public string Weblink { get; set; }
+    
+    public string CategoryOfConcern { get; set; }
+    public string SafeguardingIsEffective { get; set; }
+    
+    public string PreviousInspectionStartDate  { get; set; }
+    public string PreviousFullInspectionOverallEffectiveness  { get; set; }
+    public string PreviousQualityOfEducation  { get; set; }
+    public string PreviousBehaviourAndAttitudes  { get; set; }
+    public string PreviousPersonalDevelopment  { get; set; }
+    public string PreviousEffectivenessOfLeadershipAndManagement { get; set; }
+    public string PreviousEarlyYearsProvision  { get; set; }
+    public string PreviousSixthFormProvision { get; set; }
+    public string PreviousCategoryOfConcern   { get; set; }
+    public string PreviousSafeguardingIsEffective { get; set; }
+}
+
+[Serializable]
+public class MisFurtherEducationEstablishmentDto
+{
+    public string DateOfLatestSection8Inspection { get; set; }
+    public string LastDayOfInspection { get; set; }
+
+    public string OverallEffectiveness { get; set; }
+    public string QualityOfEducation { get; set; }
+    public string BehaviourAndAttitudes { get; set; }
+    public string PersonalDevelopment { get; set; }
+    public string EffectivenessOfLeadershipAndManagement { get; set; }
+    
+    public string SafeguardingIsEffective { get; set; }
+    
+    public string PreviousLastDayOfInspection { get; set; }
+    public string PreviousOverallEffectiveness  { get; set; }
+    public string PreviousQualityOfEducation  { get; set; }
+    public string PreviousBehaviourAndAttitudes  { get; set; }
+    public string PreviousPersonalDevelopment  { get; set; }
+    public string PreviousEffectivenessOfLeadershipAndManagement { get; set; }
+    public string PreviousSafeguardingIsEffective { get; set; }
 }
 
 [Serializable]
