@@ -1,0 +1,33 @@
+name: CI & Pack GovUK.Dfe.CoreLibs.AiAgents
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "src/GovUK.Dfe.CoreLibs.AiAgents/**"
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "src/GovUK.Dfe.CoreLibs.AiAgents/**"
+
+jobs:
+  build-and-test:
+    uses: ./.github/workflows/build-test-template.yml
+    with:
+      project_name: GovUK.Dfe.CoreLibs.AiAgents
+      project_path: src/GovUK.Dfe.CoreLibs.AiAgents
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  pack-and-release:
+    needs: build-and-test
+    if: needs.build-and-test.result == 'success'
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/pack-template.yml
+    with:
+      project_name: GovUK.Dfe.CoreLibs.AiAgents
+      project_path: src/GovUK.Dfe.CoreLibs.AiAgents/GovUK.Dfe.CoreLibs.AiAgents.csproj
+    secrets:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

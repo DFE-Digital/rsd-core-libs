@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+	  <Nullable>enable</Nullable>
+	  <PackageReadmeFile>readme.md</PackageReadmeFile>
+	  <Title>GovUK.Dfe.CoreLibs.AiAgents</Title>
+	  <Description>This AI agents library offers a unified, efficient solution for managing and orchestrating AI agents in .NET projects. It provides a simple, reusable abstraction over different AI agent implementations, enabling developers to easily integrate and manage AI capabilities in their applications.</Description>
+	  <Authors>DFE-Digital</Authors>
+	  <!-- OpenAI's Responses API (used for the Conversations/Responses agent run loop) is marked
+         experimental (OPENAI001) by the OpenAI .NET SDK pending its own stabilization. -->
+	  <NoWarn>$(NoWarn);OPENAI001</NoWarn>
+  </PropertyGroup>
+
+	  <ItemGroup>
+		<None Include="readme.md" Pack="true" PackagePath="\" />
+	  </ItemGroup>
+
+	  <ItemGroup>
+		<PackageReference Include="Azure.AI.Projects" Version="2.0.1" />
+		<PackageReference Include="Azure.AI.Projects.Agents" Version="2.0.0" />
+		<PackageReference Include="Azure.AI.Extensions.OpenAI" Version="2.0.0" />
+		<PackageReference Include="Azure.Search.Documents" Version="12.0.0" />
+		<PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.10" />
+		<!-- Bump Hosting.Abstractions to satisfy Azure.Core dependency (Azure.Core -> Microsoft.Extensions.Hosting.Abstractions >= 10.0.3) -->
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.3" />
+	</ItemGroup>
+
+	  <ItemGroup>
+	    <None Update="readme.md">
+	      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	    </None>
+	  </ItemGroup>
+
+</Project>
