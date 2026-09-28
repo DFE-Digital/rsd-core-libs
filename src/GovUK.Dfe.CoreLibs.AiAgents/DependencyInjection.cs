@@ -75,7 +75,7 @@ public static class DependencyInjection
                 maxConcurrentRuns, sp.GetService<ILogger<BlobRunSlotStore>>()));
         }
         services.AddFilePrompts(section, execution.ResponseFormatKey, execution.ResponseFormatExemptPromptTypes);
-        SetConfiguration<AgentVersionPinningOptions>(services, configuration, AiAgentsOptions.SectionName);
+        services.AddSingleton(options.ToVersionPinning());
 
         if (options.EnableDriftDetection)
         {
@@ -127,7 +127,7 @@ public static class DependencyInjection
             }
         }
 
-        foreach (var agentName in options.ExternallyManagedAgents)
+        foreach (var agentName in options.ExternallyManagedAgents.Keys)
         {
             services.AddSingleton<IManagedAgentProvider>(sp => new ExternallyManagedAgentProvider(agentName,
                 sp.GetRequiredService<IAgentFactory>(), sp.GetRequiredService<IAgentRuntime>()));

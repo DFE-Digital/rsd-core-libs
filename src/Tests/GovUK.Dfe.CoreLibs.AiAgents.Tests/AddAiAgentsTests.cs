@@ -67,16 +67,43 @@ public sealed class AddAiAgentsTests
     }
 
     [Fact]
-    public void RegistersConfiguredExternallyManagedAgents_AsAgentsThisAppOnlyRuns()
+    public void ExternallyManagedAgents_AreOnlyRun_AtTheirListedVersion_OrTheLatest()
     {
         var settings = ValidSettings();
-        settings["AiAgents:ExternallyManagedAgents:0"] = "ofsted-agent";
+        settings["AiAgents:ExternallyManagedAgents:trust-agent"] = "4";
+        settings["AiAgents:ExternallyManagedAgents:news-agent"] = "latest";
 
         using var provider = Build(settings);
 
-        var external = Assert.Single(provider.GetServices<IManagedAgentProvider>());
-        Assert.Equal("ofsted-agent", external.AgentName);
-        Assert.False(external.CreatesAgent);
+        var external = provider.GetServices<IManagedAgentProvider>().ToList();
+        Assert.Equal(["news-agent", "trust-agent"], external.Select(agent => agent.AgentName).Order());
+        Assert.All(external, agent => Assert.False(agent.CreatesAgent));
+        var pins = provider.GetRequiredService<AgentVersionPinningOptions>();
+        Assert.Equal("4", pins.GetPinnedVersion("trust-agent"));
+        Assert.Null(pins.GetPinnedVersion("news-agent"));
+        Assert.Equal("3", pins.GetPinnedVersion("ofsted-agent"));   // VersionPins still apply to the app's own agents
+    }
+
+    [Fact]
+    public void RejectsTheOldListForm_RatherThanRunAnAgentCalledZero()
+    {
+        var settings = ValidSettings();
+        settings["AiAgents:ExternallyManagedAgents:0"] = "trust-agent";
+
+        var ex = Assert.Throws<InvalidOperationException>(() => Build(settings));
+
+        Assert.Contains("not a list", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RejectsAnAgentVersionedInBothPlaces()
+    {
+        var settings = ValidSettings();
+        settings["AiAgents:ExternallyManagedAgents:ofsted-agent"] = "4";   // also under VersionPins
+
+        var ex = Assert.Throws<InvalidOperationException>(() => Build(settings));
+
+        Assert.Contains("AiAgents:VersionPins:ofsted-agent", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -61,8 +61,17 @@ public sealed class AiAgentsOptions
     /// <summary>How long a resolved agent version is reused before asking Foundry again. 0 turns caching off.</summary>
     public TimeSpan AgentCacheDuration { get; set; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>Agents provisioned by another pipeline. This app only runs them: pin their versions under <c>VersionPins</c>.</summary>
-    public List<string> ExternallyManagedAgents { get; set; } = [];
+    /// <summary>
+    /// Agents provisioned by another pipeline, with the version this app runs, e.g. <c>{ "ofsted-agent": "4" }</c>.
+    /// This app only runs them. Use <c>"latest"</c> to follow the newest version (not recommended in production).
+    /// </summary>
+    public Dictionary<string, string> ExternallyManagedAgents { get; set; } = [];
+
+    /// <summary>The version this environment runs, for agents this app builds itself.</summary>
+    public Dictionary<string, string> VersionPins { get; set; } = [];
+
+    /// <summary>Versions pruning must keep, per agent, e.g. those other environments are pinned to.</summary>
+    public Dictionary<string, List<string>> ProtectedVersions { get; set; } = [];
 
     /// <summary>Code only: a credential to use instead of the service principal. Set with <c>UseCredential</c>.</summary>
     public TokenCredential? Credential { get; set; }
@@ -120,6 +129,16 @@ public sealed class AiAgentsOptions
             Require(Authentication.ClientSecret, "Authentication:ClientSecret");
         }
 
+        // The old list form binds as { "0": "agent-name" }; catch it rather than run an agent called "0".
+        if (ExternallyManagedAgents.Keys.Any(static key => key.All(char.IsAsciiDigit)))
+        {
+            missing.Add($"{SectionName}:ExternallyManagedAgents (use {{ \"agent-name\": \"version\" }}, not a list)");
+        }
+
+        // One place per agent's version, so there's nothing to keep in step.
+        missing.AddRange(ExternallyManagedAgents.Keys.Where(VersionPins.ContainsKey)
+            .Select(agent => $"{SectionName}:VersionPins:{agent} (already versioned under ExternallyManagedAgents; remove one)"));
+
         foreach (var (key, server) in McpServers)
         {
             Require(server.ServerUri, $"McpServers:{key}:ServerUri");
@@ -132,6 +151,18 @@ public sealed class AiAgentsOptions
 
         return missing;
     }
+
+    /// <summary>Pins from <c>VersionPins</c> plus the versions under <c>ExternallyManagedAgents</c>.</summary>
+    internal Factories.AgentVersionPinningOptions ToVersionPinning() => new()
+    {
+        VersionPins = VersionPins
+            .Concat(ExternallyManagedAgents.Where(static agent => !FollowsLatest(agent.Value)))
+            .ToDictionary(static pin => pin.Key, static pin => pin.Value),
+        ProtectedVersions = ProtectedVersions.ToDictionary(static entry => entry.Key, static entry => (IReadOnlyList<string>)entry.Value),
+    };
+
+    private static bool FollowsLatest(string? version)
+        => string.IsNullOrWhiteSpace(version) || version.Equals("latest", StringComparison.OrdinalIgnoreCase);
 
     internal AgentExecutionOptions ToExecutionOptions() => new()
     {

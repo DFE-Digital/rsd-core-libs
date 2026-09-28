@@ -219,15 +219,17 @@ To have one pipeline own the agents and let apps only use them:
 
 1. **Provisioning job.** Same setup as an app, then `await agents.ProvisionAsync(BriefingAgents.All)`.
    It creates or reuses each managed agent's version, runs nothing, and returns the versions to pin.
-2. **Each app.** Pin those versions and list the agents as externally managed. The app needs no
-   prompt files for them.
+2. **Each app.** List each agent with the version to run. The app needs no prompt files for them.
 3. **The app keeps its MCP servers and `AllowedTools`**, because it runs the tools itself. At startup
    (`ValidateAgentToolsAtStartup`, on by default) it checks it can run every tool the deployed version
    calls. If it can't, startup fails with one error listing each gap.
 
 ```json
-{ "AiAgents": { "ExternallyManagedAgents": [ "ofsted-agent" ], "VersionPins": { "ofsted-agent": "4" } } }
+"ExternallyManagedAgents": { "establishment-agent": "1", "ofsted-agent": "4", "trust-agent": "2" }
 ```
+
+Use `"latest"` to follow the newest version (fine in dev, not in production). `VersionPins` is only
+for agents the app builds itself, and an agent can't be listed in both.
 
 ## Token usage and telemetry
 
@@ -312,8 +314,8 @@ All under `AiAgents`:
 | `EnableDriftDetection` | `false` | Warns at startup about stale pins |
 | `ValidateAgentToolsAtStartup` | `true` | Startup fails if a pinned or externally managed agent calls a tool this app can't run |
 | `KeepLatestVersions` | None (never prune) | Newest versions kept when a new one is created; at least 2 |
-| `VersionPins` / `ProtectedVersions` | None | This environment's versions / other environments' versions that pruning must keep |
-| `ExternallyManagedAgents` | None | Agents another pipeline provisions; this app only runs them |
+| `VersionPins` / `ProtectedVersions` | None | Versions this environment runs for agents the app builds / other environments' versions that pruning must keep |
+| `ExternallyManagedAgents` | None | Agents another pipeline provisions, with the version to run (or `"latest"`) |
 | `ResponseFormatKey` | None | A system prompt appended to every agent's instructions |
 | `MaxRetries` | 3 | Foundry client retries. A retried request may be billed twice. |
 

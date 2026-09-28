@@ -227,8 +227,7 @@ public sealed class ProductionScenarioTests : IDisposable
 
         // 2. A consuming app with no prompt file pins that version and runs its tools with its own token.
         var settings = Settings(ofstedPrompt: null);
-        settings["AiAgents:VersionPins:ofsted-agent"] = provisioned.Version;
-        settings["AiAgents:ExternallyManagedAgents:0"] = "ofsted-agent";
+        settings["AiAgents:ExternallyManagedAgents:ofsted-agent"] = provisioned.Version;
         var consumer = StartInstance(settings, [definition], PerformanceMcpServer("KS2: 72% met the expected standard."));
         await StartToolCheckAsync(consumer);
 
@@ -251,8 +250,7 @@ public sealed class ProductionScenarioTests : IDisposable
         await Agents(job).ProvisionAsync([definition], cancellationToken);
 
         var settings = Settings(ofstedPrompt: null);
-        settings["AiAgents:VersionPins:ofsted-agent"] = "1";
-        settings["AiAgents:ExternallyManagedAgents:0"] = "ofsted-agent";
+        settings["AiAgents:ExternallyManagedAgents:ofsted-agent"] = "1";
         var consumerWithoutTheMcpServer = StartInstance(settings, [definition]);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => StartToolCheckAsync(consumerWithoutTheMcpServer));
