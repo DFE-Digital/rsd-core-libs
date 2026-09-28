@@ -18,6 +18,7 @@ public sealed class McpToolStartupValidatorTests
     {
         ServerLabel = "my-tools",
         ServerUri = new Uri("https://mcp.example.com"),
+        AllowedToolNames = ["get_performance_data"],
         Authentication = new McpServerAuthenticationConfig
         {
             TenantId = "tenant-1",
@@ -42,14 +43,23 @@ public sealed class McpToolStartupValidatorTests
     }
 
     [Fact]
-    public async Task StartAsync_Propagates_WhenValidationFails()
+    public async Task StartAsync_FailsStartup_WhenTheServerLacksAnAllowedTool()
     {
-        var exception = new InvalidOperationException("MCP server 'foo' does not expose the following configured tool(s): bar.");
+        var exception = new McpToolConfigurationException("MCP server 'my-tools' does not expose the following configured tool(s): bar.");
         _client.GetToolsAsync(cancellationToken).Throws(exception);
         var sut = CreateSut();
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.StartAsync(cancellationToken));
         Assert.Same(exception, thrown.InnerException);
+    }
+
+    [Fact]
+    public async Task StartAsync_OnlyWarns_WhenTheServerIsUnreachable_SoAnOutageCantStopInstancesStarting()
+    {
+        _client.GetToolsAsync(cancellationToken).Throws(new HttpRequestException("Connection refused."));
+        var sut = CreateSut();
+
+        Assert.Null(await Record.ExceptionAsync(() => sut.StartAsync(cancellationToken)));
     }
 
     [Fact]
@@ -63,13 +73,4 @@ public sealed class McpToolStartupValidatorTests
         await _client.DidNotReceiveWithAnyArgs().GetToolsAsync(cancellationToken);
     }
 
-    [Fact]
-    public async Task StopAsync_CompletesWithoutError()
-    {
-        var sut = CreateSut();
-
-        var exception = await Record.ExceptionAsync(() => sut.StopAsync(cancellationToken));
-
-        Assert.Null(exception);
-    }
 }

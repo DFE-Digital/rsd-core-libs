@@ -23,7 +23,14 @@ public interface IFoundryConversationClient
     /// <param name="agentVersion">A specific version to pin the call to, or null to use whatever Foundry currently considers the latest version of <paramref name="agentName"/>.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The response from the agent.</returns>
-
     Task<ResponseResult> CreateResponseAsync(string agentName, string conversationId, IReadOnlyList<ResponseItem> inputItems,
         string? agentVersion = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a conversation from Foundry. It cleans up ephemeral conversations that are no longer needed.
+    /// </summary>
+    /// <param name="conversationId">The ID of the conversation to delete.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    Task DeleteConversationAsync(string conversationId, CancellationToken cancellationToken = default);
 }

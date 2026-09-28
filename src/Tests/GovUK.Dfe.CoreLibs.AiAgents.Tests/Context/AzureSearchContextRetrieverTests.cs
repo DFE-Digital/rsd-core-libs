@@ -62,7 +62,7 @@ public sealed class AzureSearchContextRetrieverTests
         var sut = CreateSut();
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
-            () => sut.GetContextAsync(Scope, "query", size, cancellationToken));
+            () => sut.GetContextAsync(Scope, "query", size, cancellationToken: cancellationToken));
     }
 
     [Fact]
@@ -164,5 +164,59 @@ public sealed class AzureSearchContextRetrieverTests
             () => sut.GetContextAsync(Scope, "query", cancellationToken: cancellationToken));
         Assert.Same(failure, thrown.InnerException);
         Assert.Contains(Scope, thrown.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetContextAsync_UsesEachIndexsOwnContentFields_ForSelectAndForTheEvidence()
+    {
+        var establishments = Substitute.For<SearchClient>();
+        var inspections = Substitute.For<SearchClient>();
+        StubDocument(establishments, new SearchDocument { ["id"] = "est-1", ["name"] = "Oak Primary", ["summary"] = "Academy, 420 pupils." });
+        StubDocument(inspections, new SearchDocument { ["id"] = "insp-9", ["content"] = "Rated Good in March 2024.", ["url"] = "https://example" });
+
+        var sut = new AzureSearchContextRetriever(
+            new Dictionary<string, SearchClient> { ["establishment_index"] = establishments, ["ofsted_index"] = inspections },
+            _relevanceFilter,
+            contentFields: new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["establishment_index"] = ["name", "summary"],
+                ["ofsted_index"] = ["content"],
+            });
+
+        var establishment = await sut.GetContextAsync("establishment_index", "Oak", cancellationToken: cancellationToken);
+        var inspection = await sut.GetContextAsync("ofsted_index", "Oak", cancellationToken: cancellationToken);
+
+        Assert.Contains("Oak Primary Academy, 420 pupils.", establishment.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("est-1", establishment.Text, StringComparison.Ordinal);
+        Assert.Contains("Rated Good in March 2024.", inspection.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("https://example", inspection.Text, StringComparison.Ordinal);
+
+        await establishments.Received(1).SearchAsync<SearchDocument>("Oak",
+            Arg.Is<SearchOptions>(o => o.Select.SequenceEqual(new[] { "name", "summary" })), cancellationToken);
+        await inspections.Received(1).SearchAsync<SearchDocument>("Oak",
+            Arg.Is<SearchOptions>(o => o.Select.SequenceEqual(new[] { "content" })), cancellationToken);
+    }
+
+    [Fact]
+    public async Task GetContextAsync_UsesEveryStringField_AndSelectsNothing_ForAnIndexWithNoContentFields()
+    {
+        StubDocument(_client, new SearchDocument { ["title"] = "Oak Primary", ["content"] = "Rated Good." });
+        var sut = new AzureSearchContextRetriever(new Dictionary<string, SearchClient> { [Scope] = _client }, _relevanceFilter,
+            contentFields: new Dictionary<string, IReadOnlyList<string>> { ["some_other_index"] = ["name"] });
+
+        var result = await sut.GetContextAsync(Scope, "Oak", cancellationToken: cancellationToken);
+
+        Assert.Contains("Oak Primary", result.Text, StringComparison.Ordinal);
+        Assert.Contains("Rated Good.", result.Text, StringComparison.Ordinal);
+        await _client.Received(1).SearchAsync<SearchDocument>("Oak", Arg.Is<SearchOptions>(o => o.Select.Count == 0), cancellationToken);
+    }
+
+    private static void StubDocument(SearchClient client, SearchDocument document)
+    {
+        var results = SearchModelFactory.SearchResults(
+            values: [SearchModelFactory.SearchResult(document, 1.0, highlights: null)],
+            totalCount: 1, facets: null, coverage: null, rawResponse: null!);
+        client.SearchAsync<SearchDocument>(Arg.Any<string>(), Arg.Any<SearchOptions>(), Arg.Any<CancellationToken>())
+            .Returns(Response.FromValue(results, null!));
     }
 }

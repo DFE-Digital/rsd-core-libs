@@ -8,12 +8,23 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Context;
 
+/// <param name="clients">One search client per index, keyed by the scope name callers pass.</param>
+/// <param name="relevanceFilter">Drops weak matches before they reach the prompt.</param>
+/// <param name="logger">The logger.</param>
+/// <param name="contentFields">
+/// The fields to use as evidence for each index, keyed by scope, in order. An index with no entry
+/// uses every non-empty string field.
+/// </param>
 public sealed class AzureSearchContextRetriever(IReadOnlyDictionary<string, SearchClient> clients, IRelevanceFilter relevanceFilter,
-    ILogger<AzureSearchContextRetriever>? logger = null) : IContextRetriever
-{ 
+    ILogger<AzureSearchContextRetriever>? logger = null, IReadOnlyDictionary<string, IReadOnlyList<string>>? contentFields = null)
+    : IContextRetriever
+{
     private readonly ILogger<AzureSearchContextRetriever> _logger = logger ?? NullLogger<AzureSearchContextRetriever>.Instance;
-     
-    public async Task<ContextResult> GetContextAsync(string scope, string query, int size = 10, CancellationToken cancellationToken = default)
+    private readonly IReadOnlyDictionary<string, IReadOnlyList<string>> _contentFields =
+        contentFields ?? new Dictionary<string, IReadOnlyList<string>>();
+
+    public async Task<ContextResult> GetContextAsync(string scope, string query, int size = 10, string? filter = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
@@ -24,27 +35,36 @@ public sealed class AzureSearchContextRetriever(IReadOnlyDictionary<string, Sear
             throw new InvalidOperationException(string.Format(ErrorMessages.NoAzureSearchClientConfigured, scope));
         }
 
-        var results = await SearchAsync(client, scope, query, size, cancellationToken); 
-        if (relevanceFilter.Filter(results).Count == 0)
+        var relevant = relevanceFilter.Filter(await SearchAsync(client, scope, query, size, filter, cancellationToken).ConfigureAwait(false));
+        if (relevant.Count == 0)
         {
             return new ContextResult(string.Format(ErrorMessages.NoAzureSearchInformationFound, scope), HasEvidence: false);
         }
-        return new ContextResult(string.Join(Environment.NewLine + Environment.NewLine, relevanceFilter.Filter(results).Select((item, i)
+
+        return new ContextResult(string.Join(Environment.NewLine + Environment.NewLine, relevant.Select((item, i)
             => $"--- {scope} Evidence {i + 1} ---\n{item.Content}")), HasEvidence: true);
     }
 
-    private async Task<IReadOnlyList<SearchResultItem>> SearchAsync(SearchClient client, string scope, string query, int size, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<SearchResultItem>> SearchAsync(SearchClient client, string scope, string query, int size, string? filter,
+        CancellationToken cancellationToken)
     {
-        var searchOptions = new SearchOptions { Size = size };
+        var fields = FieldsFor(scope);
+        var searchOptions = new SearchOptions { Size = size, Filter = filter };
+        foreach (var field in fields)
+        {
+            searchOptions.Select.Add(field);
+        }
+
         var results = new List<SearchResultItem>();
 
         try
         {
-            SearchResults<SearchDocument> response = await client.SearchAsync<SearchDocument>(query, searchOptions, cancellationToken);
+            SearchResults<SearchDocument> response = await client.SearchAsync<SearchDocument>(query, searchOptions, cancellationToken)
+                .ConfigureAwait(false);
 
-            await foreach (var result in response.GetResultsAsync().WithCancellation(cancellationToken))
+            await foreach (var result in response.GetResultsAsync().WithCancellation(cancellationToken).ConfigureAwait(false))
             {
-                var content = ExtractContent(result.Document);
+                var content = ExtractContent(result.Document, fields);
                 if (!string.IsNullOrWhiteSpace(content))
                 {
                     results.Add(new SearchResultItem(content, result.Score));
@@ -60,8 +80,15 @@ public sealed class AzureSearchContextRetriever(IReadOnlyDictionary<string, Sear
         return results;
     }
 
-    private static string? ExtractContent(SearchDocument document)
-        => string.Join(" ", document
-            .Where(kv => kv.Value is string && !string.IsNullOrWhiteSpace(kv.Value?.ToString()))
-            .Select(kv => kv.Value.ToString()));
+    private IReadOnlyList<string> FieldsFor(string scope)
+        => _contentFields.TryGetValue(scope, out var fields) ? fields : [];
+
+    private static string ExtractContent(SearchDocument document, IReadOnlyList<string> fields)
+    {
+        var values = fields.Count > 0
+            ? fields.Select(field => document.TryGetValue(field, out var value) ? value : null)
+            : document.Select(field => field.Value);
+
+        return string.Join(" ", values.OfType<string>().Where(value => !string.IsNullOrWhiteSpace(value)));
+    }
 }

@@ -1,3 +1,6 @@
+using Azure.Core;
+using Azure.Identity;
+
 namespace GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp;
 
 /// <summary>
@@ -16,7 +19,9 @@ public sealed record McpServerConnectionOptions
     public required Uri ServerUri { get; init; }
 
     /// <summary>
-    /// The list of allowed tool names for the agent. If null, all tools are allowed.
+    /// The server's tools this app may use - required. It's the most any agent can be given or call, so a
+    /// tool added to the server later (perhaps one that changes data) stays unavailable until it's listed
+    /// here. Give agents smaller subsets with <see cref="McpAllowedToolsProvider"/>.
     /// </summary>
     public IReadOnlyList<string>? AllowedToolNames { get; init; }
 
@@ -31,18 +36,15 @@ public sealed record McpServerConnectionOptions
     public string ProtocolVersion { get; init; } = "2025-11-25";
 
     /// <summary>
-    /// Indicates whether approval is required for the agent to use the MCP server. If true, the agent must be approved before it can access the server.
-    /// </summary>
-    public bool RequireApproval { get; init; }
-
-    /// <summary>
-    /// The authentication configuration for the MCP server, including Azure AD tenant ID, client ID, client secret, and scope.
+    /// How this app authenticates to the MCP server - for tool discovery, startup validation, prompts
+    /// and every tool call during a run. The app makes all calls to the server; Foundry never does, so
+    /// these credentials never leave the app.
     /// </summary>
     public required McpServerAuthenticationConfig Authentication { get; init; }
 
     /// <summary>
     /// Throws if any required field is missing or empty - called at startup so a misconfigured
-    /// server fails fast with a clear message instead of surfacing as a confusing error on first use.
+    /// server fails fast with a clear message instead of on first use.
     /// </summary>
     /// <param name="serverKey">The key this configuration was registered under, for the error message.</param>
     public void Validate(string serverKey)
@@ -56,22 +58,13 @@ public sealed record McpServerConnectionOptions
         {
             missing.Add(nameof(ServerUri));
         }
-        if (string.IsNullOrWhiteSpace(Authentication?.TenantId))
+        if (AllowedToolNames is null || AllowedToolNames.Count == 0 || AllowedToolNames.Any(string.IsNullOrWhiteSpace))
         {
-            missing.Add($"{nameof(Authentication)}.{nameof(Authentication.TenantId)}");
+            missing.Add(nameof(AllowedToolNames));
         }
-        if (string.IsNullOrWhiteSpace(Authentication?.ClientId))
-        {
-            missing.Add($"{nameof(Authentication)}.{nameof(Authentication.ClientId)}");
-        }
-        if (string.IsNullOrWhiteSpace(Authentication?.ClientSecret))
-        {
-            missing.Add($"{nameof(Authentication)}.{nameof(Authentication.ClientSecret)}");
-        }
-        if (string.IsNullOrWhiteSpace(Authentication?.Scope))
-        {
-            missing.Add($"{nameof(Authentication)}.{nameof(Authentication.Scope)}");
-        }
+
+        missing.AddRange((Authentication?.MissingFields() ?? [nameof(Authentication)])
+            .Select(field => field == nameof(Authentication) ? field : $"{nameof(Authentication)}.{field}"));
 
         if (missing.Count > 0)
         {
@@ -85,30 +78,64 @@ public sealed record McpServerConnectionOptions
 }
 
 /// <summary>
-/// Represents the authentication configuration for an MCP server, including Azure AD tenant ID, client ID, client secret, and scope.
+/// How the app obtains an Entra ID access token for an MCP server: either a <see cref="Credential"/>
+/// (managed identity, workload identity, <c>DefaultAzureCredential</c>...) or a client secret.
 /// </summary>
 public sealed record McpServerAuthenticationConfig
 {
     /// <summary>
-    /// The Azure AD tenant ID used for authentication.
+    /// The credential used to get tokens. When set, <see cref="TenantId"/>, <see cref="ClientId"/> and
+    /// <see cref="ClientSecret"/> are ignored. Prefer this in Azure-hosted environments.
     /// </summary>
-    public required string TenantId { get; init; }
+    public TokenCredential? Credential { get; init; }
 
-    /// <summary>
-    /// The Azure AD client ID used for authentication.
-    /// </summary>
-    public required string ClientId { get; init; }
+    /// <summary>The Entra ID tenant ID, for the client-secret flow.</summary>
+    public string? TenantId { get; init; }
 
-    /// <summary>
-    /// The Azure AD client secret.
-    /// </summary>
-    public required string ClientSecret { get; init; }
+    /// <summary>The Entra ID client ID, for the client-secret flow.</summary>
+    public string? ClientId { get; init; }
+
+    /// <summary>The Entra ID client secret, for the client-secret flow.</summary>
+    public string? ClientSecret { get; init; }
 
     /// <summary>
     /// The scope for the authentication request, e.g., "api://your-api-id/.default".
     /// </summary>
     public required string Scope { get; init; }
 
+    /// <summary>
+    /// The Entra ID authority for the client-secret flow. Defaults to the Azure public cloud.
+    /// </summary>
+    public Uri AuthorityHost { get; init; } = AzureAuthorityHosts.AzurePublicCloud;
+
+    internal IReadOnlyList<string> MissingFields()
+    {
+        var missing = new List<string>();
+        if (Credential is null)
+        {
+            if (string.IsNullOrWhiteSpace(TenantId))
+            {
+                missing.Add(nameof(TenantId));
+            }
+            if (string.IsNullOrWhiteSpace(ClientId))
+            {
+                missing.Add(nameof(ClientId));
+            }
+            if (string.IsNullOrWhiteSpace(ClientSecret))
+            {
+                missing.Add(nameof(ClientSecret));
+            }
+        }
+        if (string.IsNullOrWhiteSpace(Scope))
+        {
+            missing.Add(nameof(Scope));
+        }
+
+        return missing;
+    }
+
     /// <summary>Redacts <see cref="ClientSecret"/> so this never leaks via logging or exception messages.</summary>
-    public override string ToString() => $"{{ TenantId = {TenantId}, ClientId = {ClientId}, ClientSecret = [REDACTED], Scope = {Scope} }}";
+    public override string ToString() => Credential is null
+        ? $"{{ TenantId = {TenantId}, ClientId = {ClientId}, ClientSecret = [REDACTED], Scope = {Scope} }}"
+        : $"{{ Credential = {Credential.GetType().Name}, Scope = {Scope} }}";
 }

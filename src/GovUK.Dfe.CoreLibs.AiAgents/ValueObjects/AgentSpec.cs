@@ -24,4 +24,7 @@ public sealed record AgentSpec
 
     /// <summary>The tools available to the agent.</summary>
     public IReadOnlyList<ResponseTool> Tools { get; init; } = [];
+
+    /// <summary>A JSON schema the agent's answer must follow, or <see langword="null"/> for free text.</summary>
+    public AgentOutputSchema? OutputSchema { get; init; }
 }

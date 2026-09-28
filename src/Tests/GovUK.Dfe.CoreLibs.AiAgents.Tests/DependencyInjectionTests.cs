@@ -7,7 +7,7 @@ using GovUK.Dfe.CoreLibs.AiAgents.Context.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Factories;
 using GovUK.Dfe.CoreLibs.AiAgents.Factories.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Orchestration;
-using GovUK.Dfe.CoreLibs.AiAgents.Orchestration.Inerfaces;
+using GovUK.Dfe.CoreLibs.AiAgents.Orchestration.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Prompts.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp;
 using GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp.Interfaces;
@@ -85,8 +85,8 @@ public sealed class DependencyInjectionTests
                 ["AzureSearch:TenantId"] = "tenant-1",
                 ["AzureSearch:ClientId"] = "client-1",
                 ["AzureSearch:ClientSecret"] = "secret-1",
-                ["AzureSearch:Indexes:0"] = "establishment-index",
-                ["AzureSearch:Indexes:1"] = "ofsted-index",
+                ["AzureSearch:Indexes:0:Name"] = "establishment-index",
+                ["AzureSearch:Indexes:1:Name"] = "ofsted-index",
             })
             .Build();
 
@@ -109,7 +109,7 @@ public sealed class DependencyInjectionTests
                 ["AzureSearch:TenantId"] = "tenant-1",
                 ["AzureSearch:ClientId"] = "client-1",
                 ["AzureSearch:ClientSecret"] = "secret-1",
-                ["AzureSearch:Indexes:0"] = "establishment-index",
+                ["AzureSearch:Indexes:0:Name"] = "establishment-index",
             })
             .Build();
 
@@ -118,6 +118,100 @@ public sealed class DependencyInjectionTests
         using var provider = services.BuildServiceProvider();
 
         Assert.ThrowsAny<Exception>(() => provider.GetRequiredService<IContextRetriever>());
+    }
+
+    [Fact]
+    public void AddAzureSearchContextRetriever_UsesTheGivenCredential_WithoutAnyClientSecretConfiguration()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AzureSearch:Endpoint"] = "https://example.search.windows.net",
+                ["AzureSearch:Indexes:0:Name"] = "establishment-index",
+                ["AzureSearch:Indexes:0:ContentFields:0"] = "name",
+                ["AzureSearch:Indexes:0:ContentFields:1"] = "summary",
+            })
+            .Build();
+        var credentialUsed = false;
+
+        services.AddAzureSearchContextRetriever(configuration, _ =>
+        {
+            credentialUsed = true;
+            return new FakeTokenCredential();
+        });
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<AzureSearchContextRetriever>(provider.GetRequiredService<IContextRetriever>());
+        Assert.True(credentialUsed);
+        Assert.Equal(["name", "summary"], provider.GetRequiredService<AzureSearchContextRetrieverOptions>().Indexes[0].ContentFields);
+    }
+
+    [Fact]
+    public void AddAzureSearchContextRetriever_FailsValidation_WhenTwoIndexesShareAName()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AzureSearch:Endpoint"] = "https://example.search.windows.net",
+                ["AzureSearch:Indexes:0:Name"] = "establishment_index",
+                ["AzureSearch:Indexes:1:Name"] = "establishment_index",
+            })
+            .Build();
+
+        services.AddAzureSearchContextRetriever(configuration, _ => new FakeTokenCredential());
+        using var provider = services.BuildServiceProvider();
+
+        // The same validation ValidateOnStart runs when the host starts.
+        var ex = Assert.Throws<Microsoft.Extensions.Options.OptionsValidationException>(
+            () => provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AzureSearchContextRetrieverOptions>>().Value);
+        Assert.Contains("unique Name", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AddAzureSearchContextRetriever_ExplainsTheFix_WhenThereIsNeitherACredentialNorAClientSecret()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AzureSearch:Endpoint"] = "https://example.search.windows.net",
+                ["AzureSearch:Indexes:0:Name"] = "establishment-index",
+            })
+            .Build();
+
+        services.AddAzureSearchContextRetriever(configuration);
+
+        using var provider = services.BuildServiceProvider();
+
+        var ex = Assert.Throws<InvalidOperationException>(() => provider.GetRequiredService<IContextRetriever>());
+        Assert.Contains("credential", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AddAgentExecution_RegistersRunOptions_FromAgentExecutionOptions()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().Build();
+
+        services.AddAgentExecution(configuration,
+            endpoint: _ => new Uri("https://example.services.ai.azure.com/api/projects/test"),
+            credential: _ => new FakeTokenCredential(),
+            optionsFactory: _ => new FoundryAgentFactoryOptions("gpt-4o"),
+            agentExecutionOptions: new AgentExecutionOptions
+            {
+                RunTimeout = TimeSpan.FromMinutes(2), MaxConcurrency = 4, DeleteConversationsAfterRun = false,
+            });
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Equal(new AgentRunOptions { RunTimeout = TimeSpan.FromMinutes(2), MaxConcurrency = 4, DeleteConversationsAfterRun = false },
+            provider.GetRequiredService<AgentRunOptions>());
     }
 
     [Fact]
@@ -152,6 +246,7 @@ public sealed class DependencyInjectionTests
         {
             ServerLabel = "my-tools",
             ServerUri = new Uri("https://mcp.example.com"),
+            AllowedToolNames = ["get_performance_data"],
             Authentication = new McpServerAuthenticationConfig
             {
                 TenantId = "tenant-1",
@@ -177,7 +272,7 @@ public sealed class DependencyInjectionTests
         services.AddMcpClientServices("server-a", _ => new McpServerConnectionOptions
         {
             ServerLabel = "server-a",
-            ServerUri = new Uri("https://mcp-a.example.com"),
+            ServerUri = new Uri("https://mcp-a.example.com"), AllowedToolNames = ["get_performance_data"],
             Authentication = new McpServerAuthenticationConfig
             {
                 TenantId = "tenant-a", ClientId = "client-a", ClientSecret = "secret-a", Scope = "api://mcp-a/.default",
@@ -186,7 +281,7 @@ public sealed class DependencyInjectionTests
         services.AddMcpClientServices("server-b", _ => new McpServerConnectionOptions
         {
             ServerLabel = "server-b",
-            ServerUri = new Uri("https://mcp-b.example.com"),
+            ServerUri = new Uri("https://mcp-b.example.com"), AllowedToolNames = ["get_performance_data"],
             Authentication = new McpServerAuthenticationConfig
             {
                 TenantId = "tenant-b", ClientId = "client-b", ClientSecret = "secret-b", Scope = "api://mcp-b/.default",
@@ -221,7 +316,7 @@ public sealed class DependencyInjectionTests
 
         Assert.IsType<FoundryAgentFactory>(provider.GetRequiredService<IAgentFactory>());
         Assert.IsType<AgentRuntime>(provider.GetRequiredService<IAgentRuntime>());
-        Assert.IsType<SpecialistAgentRunner>(provider.GetRequiredService<ISpecialistAgentRunner>());
+        Assert.IsType<AgentService>(provider.GetRequiredService<IAgentService>());
         Assert.NotNull(provider.GetRequiredService<IPromptProvider>());
         Assert.Equal("3", provider.GetRequiredService<AgentVersionPinningOptions>().GetPinnedVersion("my-agent"));
         Assert.DoesNotContain(provider.GetServices<IHostedService>(), s => s is PinnedAgentVersionDriftValidator);
@@ -264,19 +359,6 @@ public sealed class DependencyInjectionTests
     }
 
     [Fact]
-    public void AddAgentContextAndTools_IsANoOp_ByDefault()
-    {
-        var services = new ServiceCollection();
-        var configuration = BuildConfiguration([]);
-
-        services.AddAgentContextAndTools(configuration);
-
-        using var provider = services.BuildServiceProvider();
-
-        Assert.Null(provider.GetService<IContextRetriever>());
-    }
-
-    [Fact]
     public void AddAgentContextAndTools_RegistersAzureSearch_WhenEnabled()
     {
         var services = new ServiceCollection();
@@ -287,7 +369,7 @@ public sealed class DependencyInjectionTests
             ["AzureSearch:TenantId"] = "tenant-1",
             ["AzureSearch:ClientId"] = "client-1",
             ["AzureSearch:ClientSecret"] = "secret-1",
-            ["AzureSearch:Indexes:0"] = "establishment-index",
+            ["AzureSearch:Indexes:0:Name"] = "establishment-index",
         });
 
         services.AddAgentContextAndTools(configuration, enableAzureSearch: true);
@@ -308,7 +390,7 @@ public sealed class DependencyInjectionTests
         [
             new McpServerRegistration("server-a", _ => new McpServerConnectionOptions
             {
-                ServerLabel = "server-a", ServerUri = new Uri("https://mcp-a.example.com"),
+                ServerLabel = "server-a", ServerUri = new Uri("https://mcp-a.example.com"), AllowedToolNames = ["get_performance_data"],
                 Authentication = new McpServerAuthenticationConfig
                 {
                     TenantId = "tenant-a", ClientId = "client-a", ClientSecret = "secret-a", Scope = "api://mcp-a/.default",
@@ -316,7 +398,7 @@ public sealed class DependencyInjectionTests
             }),
             new McpServerRegistration("server-b", _ => new McpServerConnectionOptions
             {
-                ServerLabel = "server-b", ServerUri = new Uri("https://mcp-b.example.com"),
+                ServerLabel = "server-b", ServerUri = new Uri("https://mcp-b.example.com"), AllowedToolNames = ["get_performance_data"],
                 Authentication = new McpServerAuthenticationConfig
                 {
                     TenantId = "tenant-b", ClientId = "client-b", ClientSecret = "secret-b", Scope = "api://mcp-b/.default",

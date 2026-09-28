@@ -3,7 +3,9 @@ using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 namespace GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 
 /// <summary>
-/// Defines a provider for managed agents, responsible for ensuring the agent exists and resolving its reference, with support for versioning and version pinning.
+/// Advanced: supplies a managed agent whose spec the library can't build from its <see cref="AgentDefinition"/>
+/// alone (e.g. a different model), or one created outside this app. Subclass <see cref="ManagedAgentProviderBase"/>
+/// or use <see cref="ExternallyManagedAgentProvider"/>.
 /// </summary>
 public interface IManagedAgentProvider
 {
@@ -13,16 +15,25 @@ public interface IManagedAgentProvider
     string AgentName { get; }
 
     /// <summary>
+    /// Whether this app creates the agent's versions. <see langword="false"/> for agents provisioned
+    /// elsewhere, which are only ever resolved.
+    /// </summary>
+    bool CreatesAgent => true;
+
+    /// <summary>
+    /// Builds the agent's spec, or returns <see langword="null"/> when <see cref="CreatesAgent"/> is
+    /// <see langword="false"/>. The agent's <see cref="AgentDefinition.AllowedTools"/> and
+    /// <see cref="AgentDefinition.OutputSchema"/> are applied to it before use.
+    /// </summary>
+    Task<AgentSpec?> BuildSpecAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Ensures the agent exists (creating or versioning it if needed), then resolves its reference, respecting any configured version pin.
     /// </summary>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
     Task<AgentReference> GetAgentAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Ensures the agent exists (creating or versioning it if needed), then resolves its reference to the latest version, ignoring any configured version pin.
     /// </summary>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
     Task<AgentReference> GetLatestAgentAsync(CancellationToken cancellationToken = default);
 }

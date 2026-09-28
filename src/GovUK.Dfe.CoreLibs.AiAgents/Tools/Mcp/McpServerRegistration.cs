@@ -5,4 +5,4 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp;
 /// </summary>
 /// <param name="ServerKey">A key identifying this server, unique across every entry - e.g. its <c>ServerLabel</c>.</param>
 /// <param name="OptionsFactory">Creates this server's connection options.</param>
-public sealed record McpServerRegistration(string ServerKey, Func<IServiceProvider, McpServerConnectionOptions> OptionsFactory);
+internal sealed record McpServerRegistration(string ServerKey, Func<IServiceProvider, McpServerConnectionOptions> OptionsFactory);

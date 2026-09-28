@@ -7,35 +7,29 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Context;
 public sealed class AgentContextTests
 {
     [Fact]
-    public void GetVariable_ReturnsNull_ForAnUnknownKey()
+    public void BuildContextPrompt_KeepsTheNewestEntries_WithinTheCharacterBudget()
     {
-        var sut = new AgentContext();
+        var sut = new AgentContext(maxContextPromptCharacters: 60);
+        sut.AddHistory(new AgentContextEntry("first", "p", new string('a', 40)));
+        sut.AddHistory(new AgentContextEntry("second", "p", "short one"));
+        sut.AddHistory(new AgentContextEntry("third", "p", "short two"));
 
-        Assert.Null(sut.GetVariable("missing"));
+        var prompt = sut.BuildContextPrompt();
+
+        Assert.True(prompt.Length <= 60, $"Expected at most 60 characters, got {prompt.Length}.");
+        Assert.DoesNotContain("[first]", prompt, StringComparison.Ordinal);
+        Assert.True(prompt.IndexOf("[second]", StringComparison.Ordinal) < prompt.IndexOf("[third]", StringComparison.Ordinal),
+            "Kept entries should stay in chronological order.");
     }
 
     [Fact]
-    public void SetVariable_ThenGetVariable_RoundTrips()
+    public void BuildContextPrompt_KeepsTheEndOfTheNewestEntry_WhenItAloneExceedsTheBudget()
     {
-        var sut = new AgentContext();
+        var sut = new AgentContext(maxContextPromptCharacters: 10);
+        sut.AddHistory(new AgentContextEntry("writer", "p", "0123456789-conclusion"));
 
-        sut.SetVariable("key", "value-1");
-        sut.SetVariable("key", "value-2");
-
-        Assert.Equal("value-2", sut.GetVariable("key"));
-    }
-
-    [Fact]
-    public void AddHistory_KeepsAllEntries_UpToTheConfiguredMaximum()
-    {
-        var sut = new AgentContext(maxHistoryEntries: 3);
-
-        sut.AddHistory(new AgentContextEntry("agent-1", "in-1", "out-1"));
-        sut.AddHistory(new AgentContextEntry("agent-2", "in-2", "out-2"));
-        sut.AddHistory(new AgentContextEntry("agent-3", "in-3", "out-3"));
-
-        Assert.Equal(3, sut.History.Count);
-        Assert.Equal("agent-1", sut.History[0].AgentName);
+        Assert.Equal("conclusion", sut.BuildContextPrompt()[^10..]);
+        Assert.Equal(10, sut.BuildContextPrompt().Length);
     }
 
     [Fact]
@@ -50,14 +44,6 @@ public sealed class AgentContextTests
         Assert.Equal(2, sut.History.Count);
         Assert.Equal("agent-2", sut.History[0].AgentName);
         Assert.Equal("agent-3", sut.History[1].AgentName);
-    }
-
-    [Fact]
-    public void BuildContextPrompt_ReturnsEmptyString_WhenNoHistory()
-    {
-        var sut = new AgentContext();
-
-        Assert.Equal(string.Empty, sut.BuildContextPrompt());
     }
 
     [Fact]

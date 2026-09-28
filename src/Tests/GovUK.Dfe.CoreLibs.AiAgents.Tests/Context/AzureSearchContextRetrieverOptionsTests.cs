@@ -14,7 +14,7 @@ public sealed class AzureSearchContextRetrieverOptionsTests
             TenantId = "tenant-1",
             ClientId = "client-1",
             ClientSecret = "super-secret-value",
-            Indexes = ["establishment-index"],
+            Indexes = [new AzureSearchIndexOptions { Name = "establishment-index" }],
         };
 
         var text = options.ToString();

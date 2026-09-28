@@ -1,6 +1,7 @@
 using Azure.AI.Extensions.OpenAI;
 using GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 using OpenAI.Responses;
+using System.ClientModel.Primitives;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Agents;
 
@@ -28,5 +29,14 @@ public sealed class FoundryConversationClient(ProjectOpenAIClient client) : IFou
 
         var response = await responsesClient.CreateResponseAsync(options, cancellationToken).ConfigureAwait(false);
         return response.Value;
+    }
+
+    public async Task DeleteConversationAsync(string conversationId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
+
+        await client.GetConversationClient()
+            .DeleteConversationAsync(conversationId, new RequestOptions { CancellationToken = cancellationToken })
+            .ConfigureAwait(false);
     }
 }

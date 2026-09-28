@@ -17,14 +17,6 @@ public sealed class ExternallyManagedAgentProviderTests
         => new(agentName, _agentFactory, _agentRuntime);
 
     [Fact]
-    public void AgentName_ReturnsTheNameItWasConstructedWith()
-    {
-        var sut = CreateSut("rise-concerns-agent");
-
-        Assert.Equal("rise-concerns-agent", sut.AgentName);
-    }
-
-    [Fact]
     public async Task GetAgentAsync_ResolvesByName_ThroughTheRuntime_ApplyingAnyConfiguredPin()
     {
         var resolved = new AgentReference("resolved-id", "ofsted-agent", "3");

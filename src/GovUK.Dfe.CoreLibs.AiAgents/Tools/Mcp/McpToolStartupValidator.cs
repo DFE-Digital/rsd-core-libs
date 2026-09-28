@@ -6,37 +6,29 @@ using Microsoft.Extensions.Logging;
 namespace GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp;
 
 /// <summary>
-/// Validates a named MCP server's configuration and connection at application startup.
+/// Checks an MCP server's configuration at startup. Bad settings, or allowed tools the server doesn't have,
+/// fail startup. An unreachable server only logs a warning, so a brief outage can't stop instances starting.
 /// </summary>
-/// <param name="serverKey">The key this server was registered under (via <c>AddMcpClientServices</c>), used in log messages.</param>
-/// <param name="client">The MCP client for this server.</param>
-/// <param name="options">This server's connection options, checked for missing/empty required fields.</param>
-/// <param name="logger"></param>
 public sealed class McpToolStartupValidator(string serverKey, IMcpToolClient client, McpServerConnectionOptions options,
     ILogger<McpToolStartupValidator> logger) : IHostedService
 {
-    /// <summary>
-    /// Validates the MCP server's configuration, then its connection and configured tools, at application startup.
-    /// </summary>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The task representing the asynchronous operation.</returns>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        options.Validate(serverKey);
+
         try
         {
-            options.Validate(serverKey);
             await client.GetToolsAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (McpToolConfigurationException ex)
+        {
+            throw new InvalidOperationException(string.Format(ErrorMessages.McpStartupValidationFailed, serverKey), ex);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogError(ex, "MCP tool configuration validation failed during startup for server '{ServerKey}'.", serverKey);
-            throw new InvalidOperationException(string.Format(ErrorMessages.McpStartupValidationFailed, serverKey), ex);
+            logger.LogWarning(ex, "MCP server '{ServerKey}' couldn't be reached at startup; its tools will be checked on first use", serverKey);
         }
     }
-    /// <summary>
-    /// Stops the hosted service. This implementation does nothing and returns a completed task.
-    /// </summary>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The task representing the asynchronous operation.</returns>
+
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

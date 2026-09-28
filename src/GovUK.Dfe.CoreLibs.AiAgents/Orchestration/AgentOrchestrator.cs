@@ -1,5 +1,6 @@
 using GovUK.Dfe.CoreLibs.AiAgents.Context;
-using GovUK.Dfe.CoreLibs.AiAgents.Orchestration.Inerfaces;
+using GovUK.Dfe.CoreLibs.AiAgents.Diagnostics;
+using GovUK.Dfe.CoreLibs.AiAgents.Orchestration.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Resilience;
 using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 using Microsoft.Extensions.Logging;
@@ -7,48 +8,65 @@ using Microsoft.Extensions.Logging.Abstractions;
 using GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Orchestration;
- 
-public sealed class AgentOrchestrator(IAgentRunner agentRunner, ILogger<AgentOrchestrator>? logger = null) : IAgentOrchestrator
+
+public sealed class AgentOrchestrator(IAgentRunner agentRunner, ILogger<AgentOrchestrator>? logger = null,
+    AgentRunOptions? runOptions = null) : IAgentOrchestrator
 {
     private readonly ILogger<AgentOrchestrator> _logger = logger ?? NullLogger<AgentOrchestrator>.Instance;
-    
+    private readonly string _applicationName = runOptions?.ApplicationName ?? AgentTelemetry.DefaultApplicationName;
+
     public async Task<OrchestrationResult> RunSequentialAsync(IReadOnlyList<AgentReference> agents, string initialInput,
-        AgentContext context, Func<Exception, bool>? shouldSuppress = null, CancellationToken cancellationToken = default)
+        AgentContext context, Func<Exception, bool>? shouldSuppress = null, CancellationToken cancellationToken = default,
+        Func<AgentReference, Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>>?>? resolveToolCallsFor = null)
     {
         ArgumentNullException.ThrowIfNull(agents);
         ArgumentNullException.ThrowIfNull(context);
 
+        using var activity = AgentTelemetry.StartOrchestration(_applicationName, AgentTelemetry.SequentialMode, agents.Count);
+
         var results = new List<AgentStepResult>(agents.Count);
-        var currentInput = initialInput;
         string? lastOutput = null;
 
         foreach (var agent in agents)
         {
-            var input = currentInput;
-            var step = new AgentOrchestrationStep(agent.Name, _ => Task.FromResult(agent), _ => Task.FromResult(input));
-            var result = await RunStepAsync(step, context, true, shouldSuppress, cancellationToken);
+            // Every agent gets the caller's input as its prompt. What earlier agents produced goes in as
+            // fenced evidence - never spliced into the prompt - so text that influenced one agent (e.g.
+            // injected into search results) can't become an instruction to the next.
+            var step = new AgentOrchestrationStep(agent.Name, _ => Task.FromResult(agent), _ => Task.FromResult(initialInput))
+            {
+                ResolveEvidence = _ => Task.FromResult(NullIfEmpty(context.BuildContextPrompt())),
+                ResolveToolCalls = resolveToolCallsFor?.Invoke(agent),
+            };
+
+            var result = await RunStepAsync(step, context, recordHistory: true, shouldSuppress, cancellationToken).ConfigureAwait(false);
             results.Add(result);
 
             if (result.Succeeded)
             {
                 lastOutput = result.Result!.Output;
-                currentInput = lastOutput ?? currentInput;
             }
         }
 
-        return new OrchestrationResult(lastOutput, results);
+        var orchestration = new OrchestrationResult(lastOutput, results);
+        AgentTelemetry.RecordOrchestration(activity, _applicationName, AgentTelemetry.SequentialMode, orchestration.Usage,
+            results.Count(r => !r.Succeeded));
+        return orchestration;
     }
-     
+
     public Task<OrchestrationResult> RunParallelAsync(IReadOnlyList<AgentReference> agents, string input,
         AgentContext context, int? maxConcurrency = null, Func<Exception, bool>? shouldSuppress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<AgentReference, Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>>?>? resolveToolCallsFor = null)
     {
         ArgumentNullException.ThrowIfNull(agents);
 
-        var steps = agents.Select(agent => new AgentOrchestrationStep(agent.Name, _ => Task.FromResult(agent), _ => Task.FromResult(input))).ToList();
+        var steps = agents.Select(agent => new AgentOrchestrationStep(agent.Name, _ => Task.FromResult(agent), _ => Task.FromResult(input))
+        {
+            ResolveToolCalls = resolveToolCallsFor?.Invoke(agent),
+        }).ToList();
         return RunParallelAsync(steps, context, maxConcurrency, shouldSuppress, cancellationToken);
     }
-     
+
     public async Task<OrchestrationResult> RunParallelAsync(IReadOnlyList<AgentOrchestrationStep> steps,
         AgentContext context, int? maxConcurrency = null, Func<Exception, bool>? shouldSuppress = null,
         CancellationToken cancellationToken = default)
@@ -56,37 +74,35 @@ public sealed class AgentOrchestrator(IAgentRunner agentRunner, ILogger<AgentOrc
         ArgumentNullException.ThrowIfNull(steps);
         ArgumentNullException.ThrowIfNull(context);
 
+        using var activity = AgentTelemetry.StartOrchestration(_applicationName, AgentTelemetry.ParallelMode, steps.Count);
         using var semaphore = maxConcurrency is int max ? new SemaphoreSlim(max, max) : null;
 
-        var tasks = steps.Select(step => RunBoundedStepAsync(step, context, semaphore, shouldSuppress, cancellationToken));
-        var results = await Task.WhenAll(tasks);
+        // A failure that isn't suppressed cancels the other steps rather than letting them run to completion.
+        var results = await FailFastParallel.WhenAllAsync(steps.Select(step =>
+                (Func<CancellationToken, Task<AgentStepResult>>)(token => RunBoundedStepAsync(step, context, semaphore, shouldSuppress, token))),
+                cancellationToken)
+            .ConfigureAwait(false);
 
         var finalOutput = string.Join(Environment.NewLine + Environment.NewLine,
             results.Where(r => r.Succeeded).Select(r => r.Result!.Output));
 
-        return new OrchestrationResult(finalOutput, results);
+        var orchestration = new OrchestrationResult(finalOutput, results);
+        AgentTelemetry.RecordOrchestration(activity, _applicationName, AgentTelemetry.ParallelMode, orchestration.Usage,
+            results.Count(r => !r.Succeeded));
+        return orchestration;
     }
 
-    /// <summary>
-    /// Runs a single step with optional concurrency control.
-    /// </summary>
-    /// <param name="step">The step to run.</param>
-    /// <param name="context">The context for the agent step.</param>
-    /// <param name="semaphore">The semaphore for concurrency control.</param>
-    /// <param name="shouldSuppress">A function to determine whether to suppress exceptions.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The result of the agent step.</returns>
     private async Task<AgentStepResult> RunBoundedStepAsync(AgentOrchestrationStep step, AgentContext context,
         SemaphoreSlim? semaphore, Func<Exception, bool>? shouldSuppress, CancellationToken cancellationToken)
     {
         if (semaphore is not null)
         {
-            await semaphore.WaitAsync(cancellationToken);
+            await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
 
         try
         {
-            return await RunStepAsync(step, context, false, shouldSuppress, cancellationToken);
+            return await RunStepAsync(step, context, recordHistory: false, shouldSuppress, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -94,26 +110,19 @@ public sealed class AgentOrchestrator(IAgentRunner agentRunner, ILogger<AgentOrc
         }
     }
 
-    /// <summary>
-    /// Runs a single agent orchestration step, handling prompt building, context management, and error handling.
-    /// </summary>
-    /// <param name="step">The step to run.</param>
-    /// <param name="context">The context for the agent step.</param>
-    /// <param name="prependContext">A value indicating whether to prepend the context to the prompt.</param>
-    /// <param name="shouldSuppress">A function to determine whether to suppress exceptions.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The result of the agent step.</returns>
     private async Task<AgentStepResult> RunStepAsync(AgentOrchestrationStep step, AgentContext context,
-        bool prependContext, Func<Exception, bool>? shouldSuppress, CancellationToken cancellationToken)
+        bool recordHistory, Func<Exception, bool>? shouldSuppress, CancellationToken cancellationToken)
         => await ResilientAgentStep.ExecuteAsync(
             step: async () =>
             {
-                var agent = await step.ResolveAgent(cancellationToken);
-                var rawPrompt = await step.ResolvePrompt(cancellationToken);
-                var prompt = prependContext ? BuildPrompt(rawPrompt, context) : rawPrompt;
-                var result = await agentRunner.RunAsync(agent, prompt, cancellationToken: cancellationToken);
+                var agent = await step.ResolveAgent(cancellationToken).ConfigureAwait(false);
+                var prompt = await step.ResolvePrompt(cancellationToken).ConfigureAwait(false);
+                var evidence = step.ResolveEvidence is null ? null : await step.ResolveEvidence(cancellationToken).ConfigureAwait(false);
 
-                if (prependContext)
+                var result = await agentRunner.RunAsync(agent, prompt, additionalContext: evidence,
+                    resolveToolCalls: step.ResolveToolCalls, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                if (recordHistory)
                 {
                     context.AddHistory(new AgentContextEntry(agent.Name, prompt, result.Output));
                 }
@@ -125,11 +134,7 @@ public sealed class AgentOrchestrator(IAgentRunner agentRunner, ILogger<AgentOrc
                 _logger.LogError(ex, "Agent step {AgentName} failed; recording failure and continuing", step.AgentName);
                 return new AgentStepResult(step.AgentName, Result: null, ex);
             },
-            shouldSuppress: shouldSuppress);
+            shouldSuppress: shouldSuppress).ConfigureAwait(false);
 
-    private static string BuildPrompt(string input, AgentContext context)
-    {
-        var contextPrompt = context.BuildContextPrompt();
-        return string.IsNullOrEmpty(contextPrompt) ? input : $"{contextPrompt}{Environment.NewLine}{Environment.NewLine}{input}";
-    }
+    private static string? NullIfEmpty(string value) => string.IsNullOrEmpty(value) ? null : value;
 }

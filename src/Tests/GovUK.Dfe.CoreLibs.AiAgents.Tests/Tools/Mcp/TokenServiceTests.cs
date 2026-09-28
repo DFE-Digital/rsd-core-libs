@@ -67,6 +67,7 @@ public sealed class TokenServiceTests
     {
         ServerLabel = "my-tools",
         ServerUri = new Uri("https://mcp.example.com"),
+        AllowedToolNames = ["get_performance_data"],
         Authentication = new McpServerAuthenticationConfig
         {
             TenantId = "tenant-1",
@@ -147,6 +148,83 @@ public sealed class TokenServiceTests
         await Assert.ThrowsAsync<HttpRequestException>(() => sut.GetAccessTokenAsync(cancellationToken));
 
         Assert.Equal(3, handler.CallCount);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, false)]
+    [InlineData(HttpStatusCode.BadRequest, false)]
+    [InlineData(HttpStatusCode.Forbidden, false)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, true)]
+    [InlineData(HttpStatusCode.TooManyRequests, true)]
+    public void IsTransient_RetriesOnlyFailuresThatCanSucceedLater(HttpStatusCode status, bool expected)
+        => Assert.Equal(expected, TokenService.IsTransient(new HttpRequestException("x", null, status)));
+
+    [Fact]
+    public async Task GetAccessTokenAsync_DoesNotRetry_AWrongSecret()
+    {
+        var handler = new StatusHandler(HttpStatusCode.Unauthorized);
+        var sut = CreateSut(handler);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => sut.GetAccessTokenAsync(cancellationToken));
+
+        Assert.Equal(1, handler.CallCount);
+    }
+
+    private sealed class StatusHandler(HttpStatusCode status) : HttpMessageHandler
+    {
+        public int CallCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return Task.FromResult(new HttpResponseMessage(status));
+        }
+    }
+
+    [Fact]
+    public async Task GetAccessTokenAsync_ConcurrentCallers_ShareOneRefresh()
+    {
+        var handler = new FakeTokenEndpointHandler("access-token-1", expiresInSeconds: 3600);
+        var sut = CreateSut(handler, out _);
+
+        var tokens = await Task.WhenAll(Enumerable.Range(0, 20).Select(_ => sut.GetAccessTokenAsync(cancellationToken)));
+
+        Assert.All(tokens, token => Assert.Equal("access-token-1", token));
+        Assert.Equal(1, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task GetAccessTokenAsync_UsesTheConfiguredCredential_InsteadOfTheClientSecretFlow()
+    {
+        var handler = new FakeTokenEndpointHandler("unused", expiresInSeconds: 3600);
+        var credential = Substitute.For<Azure.Core.TokenCredential>();
+        credential.GetTokenAsync(Arg.Is<Azure.Core.TokenRequestContext>(c => c.Scopes.SequenceEqual(new[] { "api://mcp/.default" })), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Azure.Core.AccessToken>(new Azure.Core.AccessToken("managed-identity-token", DateTimeOffset.UtcNow.AddHours(1))));
+        var options = CreateOptions() with
+        {
+            Authentication = new McpServerAuthenticationConfig { Credential = credential, Scope = "api://mcp/.default" },
+        };
+        var sut = new TokenService(options, new HttpClient(handler));
+
+        var token = await sut.GetAccessTokenAsync(cancellationToken);
+
+        Assert.Equal("managed-identity-token", token);
+        Assert.Equal(0, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task GetAccessTokenAsync_PostsToTheConfiguredAuthorityHost()
+    {
+        var handler = new FakeTokenEndpointHandler("access-token-1", expiresInSeconds: 3600);
+        var options = CreateOptions() with
+        {
+            Authentication = CreateOptions().Authentication with { AuthorityHost = Azure.Identity.AzureAuthorityHosts.AzureGovernment },
+        };
+        var sut = new TokenService(options, new HttpClient(handler));
+
+        await sut.GetAccessTokenAsync(cancellationToken);
+
+        Assert.Equal("https://login.microsoftonline.us/tenant-1/oauth2/v2.0/token", handler.LastRequest!.RequestUri!.ToString());
     }
 
     [Fact]

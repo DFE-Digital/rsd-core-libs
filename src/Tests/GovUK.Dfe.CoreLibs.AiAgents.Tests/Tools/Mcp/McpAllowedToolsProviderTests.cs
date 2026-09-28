@@ -1,5 +1,6 @@
 using GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp;
 using GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp.Interfaces;
+using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 using NSubstitute;
 using OpenAI.Responses;
 using Xunit;
@@ -50,5 +51,27 @@ public sealed class McpAllowedToolsProviderTests
 
         Assert.Same(toolA, Assert.Single(await providerForAgentA.GetToolsAsync(cancellationToken)));
         Assert.Same(toolB, Assert.Single(await providerForAgentB.GetToolsAsync(cancellationToken)));
+    }
+
+    [Fact]
+    public async Task TryExecuteAsync_RunsAnAllowedTool_OnTheClient()
+    {
+        _client.CallToolAsync("get_performance_data", "{\"urn\":\"100000\"}", Arg.Any<CancellationToken>()).Returns("KS2: 72% expected standard.");
+        var sut = new McpAllowedToolsProvider(_client, ["get_performance_data"]);
+
+        var output = await sut.TryExecuteAsync(new ToolCallRequest("call-1", "get_performance_data", "{\"urn\":\"100000\"}"), cancellationToken);
+
+        Assert.Equal("KS2: 72% expected standard.", output);
+    }
+
+    [Fact]
+    public async Task TryExecuteAsync_ReturnsNull_AndNeverCallsTheServer_ForAToolOutsideItsSubset()
+    {
+        var sut = new McpAllowedToolsProvider(_client, ["get_performance_data"]);
+
+        var output = await sut.TryExecuteAsync(new ToolCallRequest("call-1", "delete_school", "{}"), cancellationToken);
+
+        Assert.Null(output);
+        await _client.DidNotReceiveWithAnyArgs().CallToolAsync(default!, default!, cancellationToken);
     }
 }

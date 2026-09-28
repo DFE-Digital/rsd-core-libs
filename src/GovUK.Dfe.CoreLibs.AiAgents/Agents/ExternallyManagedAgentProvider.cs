@@ -9,6 +9,10 @@ public sealed class ExternallyManagedAgentProvider(string agentName, IAgentFacto
 {
     public string AgentName => agentName;
 
+    public bool CreatesAgent => false;
+
+    public Task<AgentSpec?> BuildSpecAsync(CancellationToken cancellationToken = default) => Task.FromResult<AgentSpec?>(null);
+
     /// <summary>Resolves the agent by name, applying the configured version pin (or floating to latest if unpinned).</summary>
     public Task<AgentReference> GetAgentAsync(CancellationToken cancellationToken = default)
         => agentRuntime.ResolveAsync(agentName, cancellationToken);

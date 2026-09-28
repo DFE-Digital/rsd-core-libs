@@ -1,10 +1,22 @@
 namespace GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 
 /// <summary>
-/// Represents a step in the orchestration of an agent, including the agent's name, a function to resolve the agent, and a function to resolve the prompt.
+/// One step of an orchestration: which agent to run and what to send it.
 /// </summary>
 /// <param name="AgentName">The name of the agent.</param>
 /// <param name="ResolveAgent">A function to resolve the agent reference.</param>
 /// <param name="ResolvePrompt">A function to resolve the prompt.</param>
 public sealed record AgentOrchestrationStep(string AgentName, Func<CancellationToken, Task<AgentReference>> ResolveAgent,
-    Func<CancellationToken, Task<string>> ResolvePrompt);
+    Func<CancellationToken, Task<string>> ResolvePrompt)
+{
+    /// <summary>
+    /// Untrusted material for the agent (search results, documents), sent fenced as data. Null for none.
+    /// </summary>
+    public Func<CancellationToken, Task<string?>>? ResolveEvidence { get; init; }
+
+    /// <summary>
+    /// Runs the model's function tool calls in this app, e.g. from
+    /// <c>AgentToolExecution.CreateResolver(providers, allowedTools)</c>. Null when the agent has none.
+    /// </summary>
+    public Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>>? ResolveToolCalls { get; init; }
+}

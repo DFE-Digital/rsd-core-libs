@@ -1,15 +1,28 @@
 using GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp.Interfaces;
+using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 using OpenAI.Responses;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp;
 
 /// <summary>
-/// Provides a set of tools to an agent, filtered by a list of allowed tool names retrieved from the MCP tool client.
+/// Gives an agent a subset of an MCP server's tools, and runs only that subset when the model calls them.
 /// </summary>
-/// <param name="client">The MCP tool client to retrieve tools from.</param>
-/// <param name="allowedToolNames">The list of allowed tool names.</param>
-public sealed class McpAllowedToolsProvider(IMcpToolClient client, IReadOnlyList<string> allowedToolNames) : IAgentToolProvider
+/// <param name="client">The MCP tool client to retrieve and run tools with.</param>
+/// <param name="allowedToolNames">The tool names this agent may see and call.</param>
+public sealed class McpAllowedToolsProvider(IMcpToolClient client, IReadOnlyList<string> allowedToolNames)
+    : IAgentToolProvider, IAgentToolExecutor
 {
+    private readonly HashSet<string> _allowedFunctionNames = [.. allowedToolNames.Select(McpToolClient.ToFunctionName)];
+
     public Task<IReadOnlyList<ResponseTool>> GetToolsAsync(CancellationToken cancellationToken = default)
         => client.GetToolsAsync(allowedToolNames, cancellationToken);
+
+    public async Task<string?> TryExecuteAsync(ToolCallRequest call, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(call);
+
+        return _allowedFunctionNames.Contains(call.FunctionName)
+            ? await client.CallToolAsync(call.FunctionName, call.Arguments, cancellationToken).ConfigureAwait(false)
+            : null;
+    }
 }

@@ -9,6 +9,7 @@ public sealed class McpServerConnectionOptionsTests
     {
         ServerLabel = "my-tools",
         ServerUri = new Uri("https://mcp.example.com"),
+        AllowedToolNames = ["get_performance_data"],
         Authentication = new McpServerAuthenticationConfig
         {
             TenantId = "tenant-1",
@@ -59,6 +60,34 @@ public sealed class McpServerConnectionOptionsTests
         Assert.Contains("Authentication.ClientId", ex.Message, StringComparison.Ordinal);
         Assert.Contains("Authentication.ClientSecret", ex.Message, StringComparison.Ordinal);
         Assert.Contains("Authentication.Scope", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Validate_DoesNotRequireClientSecretFields_WhenACredentialIsGiven()
+    {
+        var options = CreateValidOptions() with
+        {
+            Authentication = new McpServerAuthenticationConfig
+            {
+                Credential = NSubstitute.Substitute.For<Azure.Core.TokenCredential>(),
+                Scope = "api://mcp/.default",
+            },
+        };
+
+        Assert.Null(Record.Exception(() => options.Validate("my-tools")));
+    }
+
+    [Fact]
+    public void Validate_StillRequiresTheScope_WhenACredentialIsGiven()
+    {
+        var options = CreateValidOptions() with
+        {
+            Authentication = new McpServerAuthenticationConfig { Credential = NSubstitute.Substitute.For<Azure.Core.TokenCredential>(), Scope = "" },
+        };
+
+        var ex = Assert.Throws<InvalidOperationException>(() => options.Validate("my-tools"));
+        Assert.Contains("Authentication.Scope", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("ClientSecret", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]

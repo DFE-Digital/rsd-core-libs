@@ -5,33 +5,18 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Factories;
 
 public sealed class AgentVersionPinningOptionsTests
 {
-    [Fact]
-    public void GetPinnedVersion_ReturnsThePinnedVersion_WhenTheAgentIsPinned()
+    private static readonly AgentVersionPinningOptions Options = new()
     {
-        var options = new AgentVersionPinningOptions
-        {
-            VersionPins = new Dictionary<string, string> { ["establishment-agent"] = "3" },
-        };
+        VersionPins = new Dictionary<string, string> { ["ofsted-agent"] = "7" },
+        ProtectedVersions = new Dictionary<string, IReadOnlyList<string>> { ["ofsted-agent"] = ["3", "5"] },
+    };
 
-        Assert.Equal("3", options.GetPinnedVersion("establishment-agent"));
-    }
-
-    [Fact]
-    public void GetPinnedVersion_ReturnsNull_WhenTheAgentIsNotPinned()
-    {
-        var options = new AgentVersionPinningOptions
-        {
-            VersionPins = new Dictionary<string, string> { ["establishment-agent"] = "3" },
-        };
-
-        Assert.Null(options.GetPinnedVersion("ofsted-agent"));
-    }
-
-    [Fact]
-    public void GetPinnedVersion_ReturnsNull_WhenNoVersionsArePinned()
-    {
-        var options = new AgentVersionPinningOptions();
-
-        Assert.Null(options.GetPinnedVersion("establishment-agent"));
-    }
+    [Theory]
+    [InlineData("ofsted-agent", "7", true)]    // this environment's pin
+    [InlineData("ofsted-agent", "3", true)]    // pinned by another environment
+    [InlineData("ofsted-agent", "5", true)]
+    [InlineData("ofsted-agent", "6", false)]
+    [InlineData("trust-agent", "3", false)]    // protection is per agent
+    public void IsProtected_CoversThisEnvironmentsPin_AndEveryVersionOtherEnvironmentsUse(string agentName, string version, bool expected)
+        => Assert.Equal(expected, Options.IsProtected(agentName, version));
 }

@@ -15,6 +15,14 @@ public sealed class FoundryAgentFactoryTests
     private readonly AgentAdministrationClient _admin = Substitute.For<AgentAdministrationClient>();
     private readonly FoundryAgentFactoryOptions _options = new("gpt-5.1");
 
+    public FoundryAgentFactoryTests()
+    {
+        // By default an agent has no other versions to search; tests that need some set them up.
+        _admin.GetAgentVersionsAsync(Arg.Any<string>(), Arg.Any<int?>(), Arg.Any<AgentListOrder?>(), Arg.Any<string>(), Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ => new FakeAgentVersionsResult([]));
+    }
+
     private FoundryAgentFactory CreateSut() => new(_admin, _options);
 
     private void SetUpNoExistingAgent(string name)
@@ -119,21 +127,6 @@ public sealed class FoundryAgentFactoryTests
         Assert.Equal(first, second);
         await _admin.Received(1).CreateAgentVersionAsync("my-agent", Arg.Any<ProjectsAgentVersionCreationOptions>(),
             Arg.Any<string>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task GetOrCreateAsync_ReusesExistingFoundryAgent_WithoutCreating()
-    {
-        SetUpExistingAgent("my-agent", "existing-id", _options.DefaultModel, "Do the thing.");
-
-        var sut = CreateSut();
-        var spec = new AgentSpec { Name = "my-agent", Instructions = "Do the thing." };
-
-        var result = await sut.GetOrCreateAsync(spec, cancellationToken);
-
-        Assert.Equal(new AgentReference("existing-id", "my-agent", "1"), result);
-        await _admin.DidNotReceiveWithAnyArgs().CreateAgentVersionAsync(
-            default!, default!, default, cancellationToken);
     }
 
     [Fact]
@@ -323,19 +316,6 @@ public sealed class FoundryAgentFactoryTests
     }
 
     [Fact]
-    public async Task DeleteAgentAsync_CallsFoundryDelete()
-    {
-        _admin.DeleteAgentAsync("my-agent", Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(ClientResult.FromResponse(FakeResponse())));
-
-        var sut = CreateSut();
-
-        await sut.DeleteAgentAsync("my-agent", cancellationToken);
-
-        await _admin.Received(1).DeleteAgentAsync("my-agent", Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
     public async Task GetOrCreateAsync_AfterDelete_RecreatesAgent_WhenNoLongerInFoundry()
     {
         SetUpNoExistingAgent("my-agent");
@@ -360,25 +340,123 @@ public sealed class FoundryAgentFactoryTests
     }
 
     [Fact]
-    public async Task PruneVersionsAsync_KeepsNewestVersions_AndDeletesTheRest()
+    public async Task GetOrCreateAsync_ReusesAnOlderMatchingVersion_InsteadOfCreating_WhenTheLatestBelongsToADifferentSpec()
     {
-        var now = DateTimeOffset.UtcNow;
-        var v1 = ProjectsAgentsModelFactory.ProjectsAgentVersion(id: "id-1", name: "my-agent", version: "1", createdAt: now.AddDays(-3));
-        var v2 = ProjectsAgentsModelFactory.ProjectsAgentVersion(id: "id-2", name: "my-agent", version: "2", createdAt: now.AddDays(-2));
-        var v3 = ProjectsAgentsModelFactory.ProjectsAgentVersion(id: "id-3", name: "my-agent", version: "3", createdAt: now.AddDays(-1));
-        _admin.GetAgentVersionsAsync("my-agent", null, null, null, null, Arg.Any<CancellationToken>())
-            .Returns(new FakeAgentVersionsResult([v1, v2, v3]));
-        _admin.DeleteAgentVersionAsync("my-agent", Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(ClientResult.FromResponse(FakeResponse())));
+        // Two apps sharing a name: the latest version is the other app's, but ours already exists.
+        SetUpExistingAgent("my-agent", "id-2", _options.DefaultModel, "The other app's instructions.");
+        var ours = AgentVersionWithDefinition("id-1", "my-agent", "1", _options.DefaultModel, "Our instructions.");
+        _admin.GetAgentVersionsAsync("my-agent", Arg.Any<int?>(), Arg.Any<AgentListOrder?>(), Arg.Any<string>(), Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ => new FakeAgentVersionsResult([AgentVersionWithDefinition("id-2", "my-agent", "2", _options.DefaultModel, "The other app's instructions."), ours]));
 
+        var result = await CreateSut().GetOrCreateAsync(new AgentSpec { Name = "my-agent", Instructions = "Our instructions." }, cancellationToken);
+
+        Assert.Equal(new AgentReference("id-1", "my-agent", "1"), result);
+        await _admin.DidNotReceiveWithAnyArgs().CreateAgentVersionAsync(default!, default!, default, cancellationToken);
+    }
+
+    [Fact]
+    public async Task DeleteAgentAsync_Succeeds_WhenTheAgentWasAlreadyDeleted_ByAnotherInstance()
+    {
+        var notFound = NotFoundException();
+        _admin.DeleteAgentAsync("my-agent", Arg.Any<CancellationToken>()).Returns(Task.FromException<ClientResult>(notFound));
+
+        Assert.Null(await Record.ExceptionAsync(() => CreateSut().DeleteAgentAsync("my-agent", cancellationToken)));
+    }
+
+    [Fact]
+    public async Task DeleteAgentAsync_WhileAGetOrCreateHoldsTheSameNamesLock_DoesNotBreakIt()
+    {
+        SetUpNoExistingAgent("my-agent");
+        var releaseCreate = new TaskCompletionSource<ClientResult<ProjectsAgentVersion>>();
+        _admin.CreateAgentVersionAsync("my-agent", Arg.Any<ProjectsAgentVersionCreationOptions>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(_ => releaseCreate.Task);
+        _admin.DeleteAgentAsync("my-agent", Arg.Any<CancellationToken>()).Returns(Task.FromResult(ClientResult.FromResponse(FakeResponse())));
         var sut = CreateSut();
 
-        await sut.PruneVersionsAsync("my-agent", keepLatestVersions: 1, cancellationToken);
+        var creating = sut.GetOrCreateAsync(new AgentSpec { Name = "my-agent", Instructions = "Do the thing." }, cancellationToken);
+        await sut.DeleteAgentAsync("my-agent", cancellationToken);
+        releaseCreate.SetResult(ClientResult.FromValue(
+            ProjectsAgentsModelFactory.ProjectsAgentVersion(id: "id-1", name: "my-agent", version: "1"), FakeResponse()));
+
+        Assert.Equal("1", (await creating).Version);
+    }
+
+    private void SetUpVersions(int count)
+    {
+        var now = DateTimeOffset.UtcNow;
+        _admin.GetAgentVersionsAsync("my-agent", null, null, null, null, Arg.Any<CancellationToken>())
+            .Returns(_ => new FakeAgentVersionsResult([.. Enumerable.Range(1, count).Select(v => ProjectsAgentsModelFactory.ProjectsAgentVersion(
+                id: $"id-{v}", name: "my-agent", version: v.ToString(System.Globalization.CultureInfo.InvariantCulture), createdAt: now.AddDays(v - count)))]));
+        _admin.DeleteAgentVersionAsync("my-agent", Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(ClientResult.FromResponse(FakeResponse())));
+    }
+
+    [Fact]
+    public async Task PruneVersionsAsync_KeepingThreeOfFive_KeepsFiveFourThree_AndDeletesOneAndTwo()
+    {
+        SetUpVersions(5);
+
+        await CreateSut().PruneVersionsAsync("my-agent", keepLatestVersions: 3, cancellationToken);
 
         await _admin.Received(1).DeleteAgentVersionAsync("my-agent", "1", Arg.Any<CancellationToken>());
         await _admin.Received(1).DeleteAgentVersionAsync("my-agent", "2", Arg.Any<CancellationToken>());
-        await _admin.DidNotReceive().DeleteAgentVersionAsync("my-agent", "3", Arg.Any<CancellationToken>());
+        foreach (var kept in new[] { "3", "4", "5" })
+        {
+            await _admin.DidNotReceive().DeleteAgentVersionAsync("my-agent", kept, Arg.Any<CancellationToken>());
+        }
     }
+
+    [Fact]
+    public async Task PruneVersionsAsync_DoesNothing_ForAnAgentThisEnvironmentIsPinnedTo()
+    {
+        SetUpVersions(5);
+        var pins = new AgentVersionPinningOptions { VersionPins = new Dictionary<string, string> { ["my-agent"] = "2" } };
+
+        await new FoundryAgentFactory(_admin, _options, versionPinning: pins).PruneVersionsAsync("my-agent", keepLatestVersions: 1, cancellationToken);
+
+        await _admin.DidNotReceiveWithAnyArgs().DeleteAgentVersionAsync(default!, default!, cancellationToken);
+        _ = _admin.DidNotReceiveWithAnyArgs().GetAgentVersionsAsync(default!, default, default, default, default, cancellationToken);
+    }
+
+    [Fact]
+    public async Task PruneVersionsAsync_KeepsProtectedVersions_PinnedByOtherEnvironments()
+    {
+        SetUpVersions(5);
+        var pins = new AgentVersionPinningOptions
+        {
+            ProtectedVersions = new Dictionary<string, IReadOnlyList<string>> { ["my-agent"] = ["1"] },
+        };
+
+        await new FoundryAgentFactory(_admin, _options, versionPinning: pins).PruneVersionsAsync("my-agent", keepLatestVersions: 3, cancellationToken);
+
+        await _admin.DidNotReceive().DeleteAgentVersionAsync("my-agent", "1", Arg.Any<CancellationToken>());
+        await _admin.Received(1).DeleteAgentVersionAsync("my-agent", "2", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PruneVersionsAsync_RefusesToKeepFewerThanOne()
+        => await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => CreateSut().PruneVersionsAsync("my-agent", 0, cancellationToken));
+
+    [Fact]
+    public async Task GetOrCreateAsync_WithKeepLatestVersions_PrunesAfterCreatingANewVersion_ButNotAfterReusingOne()
+    {
+        var foundry = new Integration.Fakes.InMemoryFoundry();
+        var sut = new FoundryAgentFactory(foundry.Admin, _options with { KeepLatestVersions = 2 });
+
+        for (var i = 1; i <= 4; i++)
+        {
+            await sut.GetOrCreateAsync(new AgentSpec { Name = "my-agent", Instructions = $"Instructions {i}." }, cancellationToken);
+        }
+
+        await sut.GetOrCreateAsync(new AgentSpec { Name = "my-agent", Instructions = "Instructions 4." }, cancellationToken);
+
+        Assert.Equal(["3", "4"], foundry.Versions("my-agent").Select(v => v.Version));
+    }
+
+    private static ProjectsAgentVersion AgentVersionWithDefinition(string id, string name, string version, string model, string instructions)
+        => ProjectsAgentsModelFactory.ProjectsAgentVersion(id: id, name: name, version: version,
+            definition: new DeclarativeAgentDefinition(model) { Instructions = instructions });
 
     [Fact]
     public async Task PruneVersionsAsync_DeletesNothing_WhenVersionCountWithinLimit()

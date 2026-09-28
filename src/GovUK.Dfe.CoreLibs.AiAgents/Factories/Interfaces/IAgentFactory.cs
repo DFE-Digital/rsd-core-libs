@@ -3,7 +3,8 @@ using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 namespace GovUK.Dfe.CoreLibs.AiAgents.Factories.Interfaces;
 
 /// <summary>
-/// Defines a factory for creating and resolving agents based on their specifications and versioning.
+/// Advanced: creates, resolves, deletes and prunes agent versions in Foundry. <c>IAgentService</c> uses it
+/// for you; call it directly for maintenance such as <see cref="PruneVersionsAsync"/>.
 /// </summary>
 public interface IAgentFactory
 {
@@ -43,12 +44,23 @@ public interface IAgentFactory
     Task DeleteAgentAsync(string name, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes all but the latest <paramref name="keepLatestVersions"/> versions of an agent.
+    /// Deletes all but the newest <paramref name="keepLatestVersions"/> versions of an agent - e.g. 3 keeps
+    /// 5, 4 and 3 and deletes 1 and 2. Does nothing for an agent this environment has pinned, and never
+    /// deletes a version in <c>ProtectedVersions</c>.
     /// </summary>
     /// <param name="name">The agent name.</param>
-    /// <param name="keepLatestVersions">The number of latest versions to keep.</param>
+    /// <param name="keepLatestVersions">How many of the newest versions to keep; at least 1.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     Task PruneVersionsAsync(string name, int keepLatestVersions, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The function tools a deployed version expects this app to run.
+    /// </summary>
+    /// <param name="name">The agent name.</param>
+    /// <param name="version">The version, or null for the latest.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <exception cref="InvalidOperationException">The agent or version doesn't exist.</exception>
+    Task<IReadOnlyList<string>> GetFunctionToolNamesAsync(string name, string? version = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Checks if the deployed version of an agent matches the provided specification.
@@ -58,4 +70,15 @@ public interface IAgentFactory
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns><see langword="true"/> if the deployed version's content matches <paramref name="spec"/>.</returns>
     Task<bool> MatchesDeployedVersionAsync(AgentSpec spec, string version, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes every agent whose name matches <paramref name="isCandidate"/> and whose latest version is
+    /// older than <paramref name="minimumAge"/>. Used to clean up agents a crashed or failed run left behind.
+    /// </summary>
+    /// <param name="isCandidate">Decides, by name, whether an agent may be deleted.</param>
+    /// <param name="minimumAge">How old an agent's latest version must be, so agents still in use are left alone.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The names of the agents deleted.</returns>
+    Task<IReadOnlyList<string>> DeleteStaleAgentsAsync(Func<string, bool> isCandidate, TimeSpan minimumAge,
+        CancellationToken cancellationToken = default);
 }

@@ -24,8 +24,7 @@ public sealed class PinnedAgentVersionDriftValidator(IAgentDefinitionProvider de
     IAgentFactory agentFactory, IPromptProvider promptProvider, IEnumerable<IManagedAgentProvider>? managedAgentProviders = null,
     IEnumerable<AgentToolBinding>? toolBindings = null, ILogger<PinnedAgentVersionDriftValidator>? logger = null) : IHostedService
 {
-    private readonly HashSet<string> _customManagedAgentNames = [.. (managedAgentProviders ?? []).Select(static p => p.AgentName)];
-    private readonly IReadOnlyDictionary<string, List<IAgentToolProvider>> _toolProviders = AgentToolResolver.GroupByAgentName(toolBindings);
+    private readonly AgentSpecBuilder _specs = new(promptProvider, toolBindings, managedAgentProviders);
     private readonly ILogger<PinnedAgentVersionDriftValidator> _logger = logger ?? NullLogger<PinnedAgentVersionDriftValidator>.Instance;
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -51,19 +50,14 @@ public sealed class PinnedAgentVersionDriftValidator(IAgentDefinitionProvider de
             return;
         }
 
-        if (_customManagedAgentNames.Contains(definition.Name))
+        // Built exactly as a run would build it - including custom providers' specs - so a pin is compared
+        // against what the code would deploy today. Externally managed agents have no spec here to compare.
+        var spec = await _specs.BuildAsync(definition, cancellationToken).ConfigureAwait(false);
+        if (spec is null)
         {
-            _logger.LogInformation( "Skipping pinned version drift check for '{AgentName}'; it has a custom IManagedAgentProvider whose spec can't be reconstructed generically.",
-                definition.Name);
+            _logger.LogInformation("Skipping pinned version drift check for '{AgentName}'; it's managed outside this app.", definition.Name);
             return;
         }
-
-        var spec = new AgentSpec
-        {
-            Name = definition.Name,
-            Instructions = promptProvider.GetSystemPrompt(definition.SystemPromptType),
-            Tools = await AgentToolResolver.ResolveAsync(_toolProviders, definition.Name, cancellationToken).ConfigureAwait(false),
-        };
 
         try
         {

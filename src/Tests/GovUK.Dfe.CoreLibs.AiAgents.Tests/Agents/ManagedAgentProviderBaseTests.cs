@@ -1,6 +1,8 @@
 using GovUK.Dfe.CoreLibs.AiAgents.Agents;
 using GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
+using GovUK.Dfe.CoreLibs.AiAgents.Factories;
 using GovUK.Dfe.CoreLibs.AiAgents.Factories.Interfaces;
+using GovUK.Dfe.CoreLibs.AiAgents.Orchestration;
 using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 using NSubstitute;
 using Xunit;
@@ -24,21 +26,37 @@ public sealed class ManagedAgentProviderBaseTests
     private TestManagedAgentProvider CreateSut() => new(_factory, _runtime);
 
     [Fact]
-    public async Task GetAgentAsync_EnsuresCreated_ThenAsksTheRuntimeToResolveThatExactCreatedReference()
+    public async Task GetAgentAsync_GoesThroughTheRuntimesPinAwareGetOrCreate_WithThisProvidersSpec()
     {
-        var created = new AgentReference("created-id", "my-agent", "1");
-        _factory.GetOrCreateAsync(Arg.Is<AgentSpec>(spec => spec.Name == "my-agent"), Arg.Any<CancellationToken>())
-            .Returns(created);
-        _runtime.ResolveAsync(created, Arg.Any<CancellationToken>())
-            .Returns(new AgentReference("pinned-id", "my-agent", "2"));
+        AgentSpec? builtSpec = null;
+        _runtime.GetOrCreateAsync("my-agent", Arg.Any<Func<CancellationToken, Task<AgentSpec>>>(), Arg.Any<CancellationToken>())
+            .Returns(async callInfo =>
+            {
+                builtSpec = await callInfo.Arg<Func<CancellationToken, Task<AgentSpec>>>()(cancellationToken);
+                return new AgentReference("resolved-id", "my-agent", "2");
+            });
 
         var sut = CreateSut();
 
         var result = await sut.GetAgentAsync(cancellationToken);
 
-        Assert.Equal(new AgentReference("pinned-id", "my-agent", "2"), result);
-        await _factory.Received(1).GetOrCreateAsync(Arg.Is<AgentSpec>(spec => spec.Name == "my-agent"), Arg.Any<CancellationToken>());
-        await _runtime.Received(1).ResolveAsync(created, Arg.Any<CancellationToken>());
+        Assert.Equal(new AgentReference("resolved-id", "my-agent", "2"), result);
+        Assert.Equal("Do the thing.", builtSpec?.Instructions);
+        await _factory.DidNotReceiveWithAnyArgs().GetOrCreateAsync(default!, cancellationToken);
+    }
+
+    [Fact]
+    public async Task GetAgentAsync_WhenPinned_ResolvesThePinWithoutCreatingAnything()
+    {
+        var pinning = new AgentVersionPinningOptions { VersionPins = new Dictionary<string, string> { ["my-agent"] = "3" } };
+        _factory.ResolveAsync("my-agent", "3", Arg.Any<CancellationToken>()).Returns(new AgentReference("v3-id", "my-agent", "3"));
+        var runner = Substitute.For<IAgentRunner>();
+        var runtime = new AgentRuntime(_factory, runner, new AgentOrchestrator(runner), pinning);
+
+        var result = await new TestManagedAgentProvider(_factory, runtime).GetAgentAsync(cancellationToken);
+
+        Assert.Equal("3", result.Version);
+        await _factory.DidNotReceiveWithAnyArgs().GetOrCreateAsync(default!, cancellationToken);
     }
 
     [Fact]

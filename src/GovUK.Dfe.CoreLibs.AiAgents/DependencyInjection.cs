@@ -2,157 +2,229 @@ using Azure.AI.Projects;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Search.Documents;
+using Azure.Storage.Blobs;
+using GovUK.Dfe.CoreLibs.AiAgents.Agents;
+using GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
+using GovUK.Dfe.CoreLibs.AiAgents.Concurrency;
 using GovUK.Dfe.CoreLibs.AiAgents.Context;
 using GovUK.Dfe.CoreLibs.AiAgents.Context.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Factories;
 using GovUK.Dfe.CoreLibs.AiAgents.Factories.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Orchestration;
-using GovUK.Dfe.CoreLibs.AiAgents.Orchestration.Inerfaces;
+using GovUK.Dfe.CoreLibs.AiAgents.Orchestration.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Prompts;
 using GovUK.Dfe.CoreLibs.AiAgents.Prompts.Interfaces;
+using GovUK.Dfe.CoreLibs.AiAgents.Tools;
 using GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp;
 using GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp.Interfaces;
+using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.ClientModel.Primitives;
-using GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
-using GovUK.Dfe.CoreLibs.AiAgents.Agents;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents;
 
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers the Foundry Agent Service using an existing <see cref="AIProjectClient"/>.
+    /// Registers everything from the <c>"AiAgents"</c> configuration section: the Foundry project, prompt files,
+    /// version pins, Azure AI Search (when <c>AiAgents:Search</c> is set), MCP servers, and each agent's MCP tools.
+    /// One Microsoft Entra ID service principal (<c>AiAgents:Authentication</c>) signs in to all of them.
     /// </summary>
     /// <param name="services">The service collection.</param>
-    /// <param name="optionsFactory">Creates the agent factory options.</param>
-    /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddFoundryAgents(this IServiceCollection services,
-        Func<IServiceProvider, FoundryAgentFactoryOptions> optionsFactory)
+    /// <param name="configuration">The app's configuration root.</param>
+    /// <param name="configure">Adds the app's agents and any non-MCP tools, e.g. <c>agents => agents.AddAgents(...)</c>.</param>
+    /// <exception cref="InvalidOperationException">A setting is missing or invalid; the message lists them all.</exception>
+    public static IServiceCollection AddAiAgents(this IServiceCollection services, IConfiguration configuration,
+        Action<AiAgentsBuilder>? configure = null)
     {
-        services.AddSingleton(optionsFactory);
-        services.AddSingleton(sp => sp.GetRequiredService<AIProjectClient>().AgentAdministrationClient);
-        services.AddSingleton(sp => sp.GetRequiredService<AIProjectClient>().ProjectOpenAIClient);
-        services.AddSingleton<IAgentFactory, FoundryAgentFactory>();
-        services.AddSingleton<IFoundryConversationClient, FoundryConversationClient>();
-        services.AddSingleton<IAgentRunner, FoundryAgentRunner>();
-        services.AddSingleton<IAgentOrchestrator, AgentOrchestrator>();
-        services.AddSingleton<IAgentRuntime, AgentRuntime>();
-        services.AddSingleton<ISpecialistAgentRunner, SpecialistAgentRunner>();
+        ArgumentNullException.ThrowIfNull(configuration);
 
+        var builder = new AiAgentsBuilder(services);
+        configure?.Invoke(builder);
+
+        var section = configuration.GetSection(AiAgentsOptions.SectionName);
+        var options = section.Get<AiAgentsOptions>() ?? new AiAgentsOptions();
+        builder.ApplyTo(options);
+
+        var missing = options.MissingSettings();
+        if (missing.Count > 0)
+        {
+            throw new InvalidOperationException(string.Format(Constants.ErrorMessages.AiAgentsSettingsMissing, string.Join(", ", missing)));
+        }
+
+        var credential = options.CreateCredential();
+        var execution = options.ToExecutionOptions();
+
+        services.AddSingleton(execution.ToRunOptions());
+        services.AddFoundryAgents(_ => new Uri(options.Foundry.Endpoint!), _ => credential,
+            _ => new FoundryAgentFactoryOptions(options.Foundry.DefaultModel!)
+            {
+                KeepLatestVersions = options.KeepLatestVersions,
+                AgentCacheDuration = options.AgentCacheDuration,
+            }, options.MaxRetries);
+
+        if (options.GlobalConcurrency.MaxConcurrentRuns is int maxConcurrentRuns)
+        {
+            var slotContainer = new Uri(options.GlobalConcurrency.BlobContainerUri!);
+            services.AddSingleton<IRunSlotStore>(sp => new BlobRunSlotStore(new BlobContainerClient(slotContainer, credential),
+                maxConcurrentRuns, sp.GetService<ILogger<BlobRunSlotStore>>()));
+        }
+        services.AddFilePrompts(section, execution.ResponseFormatKey, execution.ResponseFormatExemptPromptTypes);
+        SetConfiguration<AgentVersionPinningOptions>(services, configuration, AiAgentsOptions.SectionName);
+
+        if (options.EnableDriftDetection)
+        {
+            services.AddPinnedAgentVersionDriftDetection();
+        }
+
+        if (section.GetSection("Search").Exists())
+        {
+            services.AddAzureSearchContextRetriever(section, _ => credential, sectionName: "Search");
+        }
+
+        foreach (var (key, server) in options.McpServers)
+        {
+            services.AddMcpClientServices(key, _ => new McpServerConnectionOptions
+            {
+                ServerLabel = key,
+                ServerUri = new Uri(server.ServerUri!),
+                AllowedToolNames = server.AllowedToolNames,
+                ToolListCacheDuration = server.ToolListCacheDuration,
+                Authentication = new McpServerAuthenticationConfig { Credential = credential, Scope = server.Scope! },
+            });
+        }
+
+        RegisterAgents(services, builder.Definitions, options);
         return services;
     }
 
     /// <summary>
-    /// Registers the Foundry Agent Service and configures its AI project client.
+    /// Registers the builder's definitions, binds each agent's allowed MCP tools to the server that allows
+    /// them, and marks the configured agents as externally managed.
     /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="endpoint">Creates the Foundry Agent Service endpoint.</param>
-    /// <param name="credential">Creates the authentication credential.</param>
-    /// <param name="optionsFactory">Creates the agent factory options.</param>
-    /// <param name="maxRetries">The maximum number of client retries.</param>
-    /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddFoundryAgents(this IServiceCollection services,
+    private static void RegisterAgents(IServiceCollection services, IReadOnlyList<AgentDefinition> definitions, AiAgentsOptions options)
+    {
+        if (definitions.Count > 0)
+        {
+            services.AddSingleton<IAgentDefinitionProvider>(new StaticAgentDefinitionProvider(definitions));
+        }
+
+        foreach (var definition in definitions)
+        {
+            foreach (var (key, server) in options.McpServers)
+            {
+                var tools = server.AllowedToolNames.Where(name => definition.AllowedTools.Contains(McpToolClient.ToFunctionName(name))).ToList();
+                if (tools.Count > 0)
+                {
+                    services.AddSingleton(sp => new AgentToolBinding(definition.Name,
+                        new McpAllowedToolsProvider(sp.GetRequiredKeyedService<IMcpToolClient>(key), tools)));
+                }
+            }
+        }
+
+        foreach (var agentName in options.ExternallyManagedAgents)
+        {
+            services.AddSingleton<IManagedAgentProvider>(sp => new ExternallyManagedAgentProvider(agentName,
+                sp.GetRequiredService<IAgentFactory>(), sp.GetRequiredService<IAgentRuntime>()));
+        }
+    }
+
+    private sealed class StaticAgentDefinitionProvider(IReadOnlyCollection<AgentDefinition> definitions) : IAgentDefinitionProvider
+    {
+        public IReadOnlyCollection<AgentDefinition> GetAgentsDefinitions() => definitions;
+    }
+
+    // ===== Building blocks for AddAiAgents; internal so apps have one way to register. =====
+
+    internal static IServiceCollection AddFoundryAgents(this IServiceCollection services,
+        Func<IServiceProvider, FoundryAgentFactoryOptions> optionsFactory)
+    {
+        services.AddSingleton(optionsFactory);
+        services.TryAddSingleton(new AgentRunOptions());
+
+        // Mandatory however the library is registered; turned off only through RequireTokenUsageTelemetry.
+        services.AddHostedService<Diagnostics.TokenUsageTelemetryValidator>();
+        services.AddHostedService<AgentToolCompatibilityValidator>();
+        services.AddSingleton(sp => sp.GetRequiredService<AIProjectClient>().AgentAdministrationClient);
+        services.AddSingleton(sp => sp.GetRequiredService<AIProjectClient>().ProjectOpenAIClient);
+        services.AddSingleton<IAgentFactory, FoundryAgentFactory>();
+        services.AddSingleton<IFoundryConversationClient, FoundryConversationClient>();
+        services.AddSingleton<IAgentRunLimiter>(sp => new AgentRunLimiter(sp.GetRequiredService<AgentRunOptions>(), sp.GetService<IRunSlotStore>()));
+        services.AddSingleton<IAgentRunner, FoundryAgentRunner>();
+        services.AddSingleton<IAgentOrchestrator, AgentOrchestrator>();
+        services.AddSingleton<IAgentRuntime, AgentRuntime>();
+        services.AddSingleton(sp => new AgentSpecBuilder(sp.GetRequiredService<IPromptProvider>(),
+            sp.GetServices<AgentToolBinding>(), sp.GetServices<IManagedAgentProvider>()));
+        services.AddSingleton<IAgentService, AgentService>();
+
+        return services;
+    }
+
+    internal static IServiceCollection AddFoundryAgents(this IServiceCollection services,
         Func<IServiceProvider, Uri> endpoint,
         Func<IServiceProvider, TokenCredential> credential,
         Func<IServiceProvider, FoundryAgentFactoryOptions> optionsFactory,
         int maxRetries = 3)
     {
-        services.AddSingleton(sp =>
-        {
-            var options = new AIProjectClientOptions
-            {
-                RetryPolicy = new ClientRetryPolicy(maxRetries),
-            };
-
-            return new AIProjectClient(endpoint(sp), credential(sp), options);
-        });
+        services.AddSingleton(sp => new AIProjectClient(endpoint(sp), credential(sp),
+            new AIProjectClientOptions { RetryPolicy = new ClientRetryPolicy(maxRetries) }));
 
         return services.AddFoundryAgents(optionsFactory);
     }
 
-    /// <summary>
-    /// Registers <see cref="AzureSearchContextRetriever"/> and its dependencies with the DI container.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="configuration">The configuration.</param>
-    /// <param name="options">The Azure Search configuration.</param>
-    /// <returns>The service collection.</returns>
-    public static IServiceCollection AddAzureSearchContextRetriever(this IServiceCollection services,IConfiguration configuration)
+    /// <param name="credential">Azure Search's credential. Without one, the section's client-secret fields are used.</param>
+    internal static IServiceCollection AddAzureSearchContextRetriever(this IServiceCollection services, IConfiguration configuration,
+        Func<IServiceProvider, TokenCredential>? credential = null, string sectionName = "AzureSearch")
     {
-        SetConfiguration<AzureSearchContextRetrieverOptions>(services, configuration, "AzureSearch");
+        SetConfiguration<AzureSearchContextRetrieverOptions>(services, configuration, sectionName);
+        services.AddOptions<AzureSearchContextRetrieverOptions>()
+            .Validate(options => options.IndexesAreValid, Constants.ErrorMessages.AzureSearchIndexesInvalid);
         services.AddSingleton<IRelevanceFilter>(sp =>
-        {
-            var options = sp.GetRequiredService<AzureSearchContextRetrieverOptions>(); 
-            return new RelativeScoreRelevanceFilter(options.MinimumRelevanceFilter);
-        });
+            new RelativeScoreRelevanceFilter(sp.GetRequiredService<AzureSearchContextRetrieverOptions>().MinimumRelevanceFilter));
 
         services.AddSingleton<IContextRetriever>(sp =>
         {
             var config = sp.GetRequiredService<AzureSearchContextRetrieverOptions>();
-            var credential = new ClientSecretCredential(config.TenantId, config.ClientId, config.ClientSecret);
+            var searchCredential = credential?.Invoke(sp)
+                ?? (config.HasClientSecretCredential
+                    ? new ClientSecretCredential(config.TenantId, config.ClientId, config.ClientSecret)
+                    : throw new InvalidOperationException(Constants.ErrorMessages.AzureSearchCredentialMissing));
 
-            var clientOptions = new SearchClientOptions
-            {
-                Retry =
-                {
-                    MaxRetries = config.MaxRetryAttemps,
-                    Mode = RetryMode.Exponential
-                }
-            };
-            var clients = config.Indexes.ToDictionary(indexName => indexName, indexName => new SearchClient(
-                new Uri(config.Endpoint), indexName, credential, clientOptions));
+            var clientOptions = new SearchClientOptions { Retry = { MaxRetries = config.MaxRetryAttempts, Mode = RetryMode.Exponential } };
+            var clients = config.Indexes.ToDictionary(index => index.Name, index => new SearchClient(
+                new Uri(config.Endpoint), index.Name, searchCredential, clientOptions));
 
             return new AzureSearchContextRetriever(clients, sp.GetRequiredService<IRelevanceFilter>(),
-                sp.GetRequiredService<ILogger<AzureSearchContextRetriever>>());
+                sp.GetRequiredService<ILogger<AzureSearchContextRetriever>>(),
+                config.Indexes.ToDictionary(index => index.Name, index => index.ContentFields));
         });
 
         return services;
     }
 
-    /// <summary>
-    /// Binds <see cref="AgentVersionPinningOptions"/> from configuration - the per-environment
-    /// version pins described in the target architecture's promotion flow (local/dev floats to
-    /// latest; staging/production pin a specific version).
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="configuration">The configuration.</param>
-    /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddAgentVersionPinning(this IServiceCollection services, IConfiguration configuration)
+    /// <summary>Binds per-environment version pins from the <c>"Agents"</c> section.</summary>
+    internal static IServiceCollection AddAgentVersionPinning(this IServiceCollection services, IConfiguration configuration)
     {
         SetConfiguration<AgentVersionPinningOptions>(services, configuration, "Agents");
         return services;
     }
 
-    /// <summary>
-    /// Registers a hosted service that checks for drift between the pinned agent version and the latest available version, 
-    /// logging a warning if a drift is detected. This is useful for environments where you want to ensure that agents are running the expected version and to be alerted if they are not.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddPinnedAgentVersionDriftDetection(this IServiceCollection services)
+    internal static IServiceCollection AddPinnedAgentVersionDriftDetection(this IServiceCollection services)
     {
         services.AddHostedService<PinnedAgentVersionDriftValidator>();
         return services;
     }
 
     /// <summary>
-    /// Registers services for discovering and using tools and prompts from a remote MCP server, keyed by
-    /// <paramref name="serverKey"/> so this can be called more than once to wire up several MCP servers -
-    /// each gets its own connection, token flow, and cached tool-name list, resolved via
-    /// <c>GetRequiredKeyedService&lt;IMcpToolClient&gt;(serverKey)</c> (or bind it straight to an agent's
-    /// tools with <see cref="AgentToolBinding"/>). A misconfigured server (missing/empty required field)
-    /// fails fast at startup via the registered <see cref="McpToolStartupValidator"/>, not on first use.
+    /// Registers one MCP server, keyed by <paramref name="serverKey"/>: its connection, token flow and
+    /// startup check. Call once per server.
     /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="serverKey">A key identifying this server, unique across every <c>AddMcpClientServices</c> call - e.g. its <c>ServerLabel</c>.</param>
-    /// <param name="optionsFactory">Creates this server's connection options.</param>
-    /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddMcpClientServices(this IServiceCollection services, string serverKey,
+    internal static IServiceCollection AddMcpClientServices(this IServiceCollection services, string serverKey,
         Func<IServiceProvider, McpServerConnectionOptions> optionsFactory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(serverKey);
@@ -173,40 +245,23 @@ public static class DependencyInjection
 
         services.AddKeyedSingleton<IMcpToolClient>(serverKey, (sp, _) => new McpToolClient(
             sp.GetRequiredKeyedService<McpServerConnectionOptions>(serverKey),
-            sp.GetRequiredKeyedService<ITokenService>(serverKey),
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<McpToolClient>>(),
             mcpHttpClientName));
 
-        // Plain AddSingleton<IHostedService>, not AddHostedService<McpToolStartupValidator>(...) - the
-        // latter uses TryAddEnumerable, which dedups by implementation type and would silently drop
-        // every server after the first when this method is called more than once.
+        // Not AddHostedService: it dedups by type and would drop every server after the first.
         services.AddSingleton<IHostedService>(sp => new McpToolStartupValidator(serverKey,
             sp.GetRequiredKeyedService<IMcpToolClient>(serverKey), sp.GetRequiredKeyedService<McpServerConnectionOptions>(serverKey),
             sp.GetRequiredService<ILogger<McpToolStartupValidator>>()));
 
         return services;
     }
+
     /// <summary>
-    /// Registers file-backed prompt retrieval: binds <see cref="PromptFileOptions"/> from
-    /// configuration, and registers <see cref="IPromptProvider"/> (as <see cref="FilePromptProvider"/>)
-    /// and <see cref="IPromptTemplateBuilder"/> so a consumer only needs to supply agent definitions
-    /// and prompt file paths in configuration - everything else (loading, caching-per-call, appending
-    /// a shared response format) is handled by the library. A prompt type with no configured file path
-    /// throws immediately, naming the missing type; a configured path that can't be read propagates
-    /// as whatever the underlying I/O failure is - neither case is silently substituted with different
-    /// prompt content, since that would change agent behaviour without any visible error.
+    /// Registers file-backed prompts from <paramref name="configurationName"/>. A missing or unreadable prompt
+    /// file throws rather than being replaced with other text.
     /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="configuration">The configuration.</param>
-    /// <param name="responseFormatKey">
-    /// The system-prompt key holding a shared response format to append to every system prompt, or
-    /// <see langword="null"/> to never append one.
-    /// </param>
-    /// <param name="responseFormatExemptPromptTypes">System prompt types that should not have the response format appended.</param>
-    /// <param name="configurationName">The configuration section to bind <see cref="PromptFileOptions"/> from.</param>
-    /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddFilePrompts(this IServiceCollection services, IConfiguration configuration,
+    internal static IServiceCollection AddFilePrompts(this IServiceCollection services, IConfiguration configuration,
         string? responseFormatKey = null, IReadOnlySet<string>? responseFormatExemptPromptTypes = null,
         string configurationName = "PromptFiles")
     {
@@ -220,8 +275,7 @@ public static class DependencyInjection
         services.AddSingleton<IPromptProvider>(sp =>
         {
             var options = sp.GetRequiredService<PromptFileOptions>();
-            var fileReader = sp.GetRequiredService<IPromptFileReader>();
-            var systemPrompts = new FilePromptTemplateStore(options.SystemPrompts, fileReader.Read);
+            var systemPrompts = new FilePromptTemplateStore(options.SystemPrompts, sp.GetRequiredService<IPromptFileReader>().Read);
 
             return new FilePromptProvider(systemPrompts, sp.GetRequiredService<IPromptTemplateStore>(),
                 responseFormatKey, responseFormatExemptPromptTypes);
@@ -230,17 +284,8 @@ public static class DependencyInjection
         return services;
     }
 
-    /// <summary>
-    /// Registers Foundry Agent Service, file-backed prompt retrieval, and optional version pinning and drift detection in one call. See <see cref="AddFoundryAgents(IServiceCollection, Func{IServiceProvider, Uri}, Func{IServiceProvider, TokenCredential}, Func{IServiceProvider, FoundryAgentFactoryOptions}, int)"/>, <see cref="AddFilePrompts(IServiceCollection, IConfiguration, string?, IReadOnlySet{string}?, string)"/>, <see cref="AddAgentVersionPinning(IServiceCollection, IConfiguration)"/> and <see cref="AddPinnedAgentVersionDriftDetection(IServiceCollection)"/> for details.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="configuration">The configuration.</param>
-    /// <param name="endpoint">A function that provides the endpoint URI.</param>
-    /// <param name="credential">A function that provides the token credential.</param>
-    /// <param name="optionsFactory">A function that provides the foundry agent factory options.</param>
-    /// <param name="agentExecutionOptions">The optional/secondary settings - response format, version pinning, drift detection, retries. Defaults apply when omitted.</param>
-    /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddAgentExecution(this IServiceCollection services, IConfiguration configuration,
+    /// <summary>Foundry, prompt files, version pins and drift detection, with credentials supplied in code.</summary>
+    internal static IServiceCollection AddAgentExecution(this IServiceCollection services, IConfiguration configuration,
         Func<IServiceProvider, Uri> endpoint,
         Func<IServiceProvider, TokenCredential> credential,
         Func<IServiceProvider, FoundryAgentFactoryOptions> optionsFactory,
@@ -248,6 +293,7 @@ public static class DependencyInjection
     {
         agentExecutionOptions ??= new AgentExecutionOptions();
 
+        services.AddSingleton(agentExecutionOptions.ToRunOptions());
         services.AddFoundryAgents(endpoint, credential, optionsFactory, agentExecutionOptions.MaxRetries);
         services.AddFilePrompts(configuration, agentExecutionOptions.ResponseFormatKey, agentExecutionOptions.ResponseFormatExemptPromptTypes);
 
@@ -264,22 +310,14 @@ public static class DependencyInjection
         return services;
     }
 
-    /// <summary>
-    /// One-call setup for optional context/tool sources: Azure AI Search RAG context
-    /// (<see cref="AddAzureSearchContextRetriever"/>) and any number of MCP servers
-    /// (<see cref="AddMcpClientServices"/>). Both are opt-in - pass neither argument and this is a no-op.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="configuration">The configuration, for whichever of Azure Search / MCP is enabled.</param>
-    /// <param name="enableAzureSearch">Whether to register <see cref="AddAzureSearchContextRetriever"/>, binding its <c>"AzureSearch"</c> config section.</param>
-    /// <param name="mcpServers">Zero or more MCP servers to register, one <see cref="AddMcpClientServices"/> call each.</param>
-    /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddAgentContextAndTools(this IServiceCollection services, IConfiguration configuration,
-        bool enableAzureSearch = false, IReadOnlyList<McpServerRegistration>? mcpServers = null)
+    /// <summary>Azure AI Search and any number of MCP servers. Pass neither and this does nothing.</summary>
+    internal static IServiceCollection AddAgentContextAndTools(this IServiceCollection services, IConfiguration configuration,
+        bool enableAzureSearch = false, IReadOnlyList<McpServerRegistration>? mcpServers = null,
+        Func<IServiceProvider, TokenCredential>? searchCredential = null)
     {
         if (enableAzureSearch)
         {
-            services.AddAzureSearchContextRetriever(configuration);
+            services.AddAzureSearchContextRetriever(configuration, searchCredential);
         }
 
         foreach (var server in mcpServers ?? [])

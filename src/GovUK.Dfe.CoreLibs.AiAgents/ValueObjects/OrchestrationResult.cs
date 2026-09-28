@@ -8,6 +8,13 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 public sealed record OrchestrationResult(string? FinalOutput, IReadOnlyList<AgentStepResult> Results)
 {
     public long TotalTokens => Results.Sum(r => r.Result?.TotalTokens ?? 0);
+
+    /// <summary>
+    /// Tokens used by every step, in total and split into input and output - including what failed
+    /// steps used before failing, since Foundry billed it.
+    /// </summary>
+    public TokenUsage Usage => Results.Aggregate(TokenUsage.None,
+        (total, step) => total + (step.Result?.Usage ?? Diagnostics.AgentTelemetry.TokenUsageOf(step.Error)));
 }
 
 /// <summary>

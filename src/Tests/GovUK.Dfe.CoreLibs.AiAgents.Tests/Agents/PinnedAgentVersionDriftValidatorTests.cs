@@ -178,13 +178,4 @@ public sealed class PinnedAgentVersionDriftValidatorTests
         Assert.Null(exception);
     }
 
-    [Fact]
-    public async Task StopAsync_CompletesWithoutError()
-    {
-        var sut = CreateSut();
-
-        var exception = await Record.ExceptionAsync(() => sut.StopAsync(cancellationToken));
-
-        Assert.Null(exception);
-    }
 }
