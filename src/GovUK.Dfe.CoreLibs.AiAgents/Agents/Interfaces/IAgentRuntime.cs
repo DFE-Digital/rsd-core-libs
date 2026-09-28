@@ -4,8 +4,7 @@ using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 namespace GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 
 /// <summary>
-/// Advanced: pin-aware agent resolution, ephemeral runs and the orphan sweep. Most apps only need
-/// <see cref="IAgentService"/>, plus <see cref="DeleteOrphanedEphemeralAgentsAsync"/> from a scheduled job.
+/// The runtime environment for agents, providing methods to resolve, create, and run agents, as well as manage ephemeral agents.
 /// </summary>
 public interface IAgentRuntime
 {
@@ -28,14 +27,13 @@ public interface IAgentRuntime
     Task<AgentReference> ResolveAsync(AgentReference created, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Gets the agent to run for a managed agent. A pinned agent resolves its pinned version and never
-    /// builds a spec or creates anything, so pinned environments need only read access to Foundry. An
-    /// unpinned agent is got or created from the spec that <paramref name="buildSpec"/> returns.
+    /// Gets an existing agent by name, or creates a new one using the provided build specification if it doesn't exist.
     /// </summary>
-    /// <param name="agentName">The agent name.</param>
-    /// <param name="buildSpec">Builds the agent's current spec. Only called when the agent isn't pinned.</param>
+    /// <param name="agentName">The name of the agent to get or create.</param>
+    /// <param name="buildSpec">A function that builds the agent's current specification.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The agent reference to run.</returns>
+    /// <returns>The agent reference.</returns>
+
     Task<AgentReference> GetOrCreateAsync(string agentName, Func<CancellationToken, Task<AgentSpec>> buildSpec,
         CancellationToken cancellationToken = default);
 
@@ -63,15 +61,9 @@ public interface IAgentRuntime
         string? evidence = null, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes ephemeral agents that a crashed process or a failed delete left in Foundry. Only agents
-    /// named like an ephemeral agent (<c>&lt;name&gt;-&lt;32 hex digits&gt;</c>) and older than
-    /// <paramref name="minimumAge"/> are deleted. Call it from a scheduled job.
+    /// Deletes ephemeral agents that have been orphaned for longer than <paramref name="minimumAge"/>, returning their names.
     /// </summary>
-    /// <param name="minimumAge">
-    /// How old an ephemeral agent must be before it's treated as orphaned. Must exceed the longest a run
-    /// can take (<see cref="AgentRunOptions.RunTimeout"/>, or one hour when unset) plus clean-up time.
-    /// Only this application's ephemeral agents are ever deleted, and it's safe to run on every instance.
-    /// </param>
+    /// <param name="minimumAge">The minimum age of agents to delete.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The names of the agents deleted.</returns>
     Task<IReadOnlyList<string>> DeleteOrphanedEphemeralAgentsAsync(TimeSpan minimumAge, CancellationToken cancellationToken = default);

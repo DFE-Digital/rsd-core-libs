@@ -3,8 +3,7 @@ using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 namespace GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 
 /// <summary>
-/// Advanced: runs one agent from a spec or an already-resolved reference. Most apps use
-/// <see cref="IAgentService"/>, which also resolves agents from definitions and wires up their tools.
+/// Run agents, either by resolving them from a specification or by running an already-resolved agent.
 /// </summary>
 public interface IAgentRunner
 {

@@ -7,9 +7,7 @@ using System.ClientModel.Primitives;
 namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Integration.Fakes;
 
 /// <summary>
-/// A stateful stand-in for Foundry's agent administration API: versions created through it are
-/// stored, returned by later lookups, and removed by deletes - so the library's real get-or-create,
-/// pinning, drift and ephemeral-cleanup logic runs against something that behaves like Foundry.
+/// An in-memory implementation of Foundry for testing, with a fake <see cref="AgentAdministrationClient"/> that can be used to simulate Foundry behavior without making real network calls.
 /// </summary>
 internal sealed class InMemoryFoundry
 {
