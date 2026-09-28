@@ -1,5 +1,6 @@
 using Azure.Core;
 using Azure.Identity;
+using GovUK.Dfe.CoreLibs.AiAgents.Agents;
 using GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Concurrency;
 using GovUK.Dfe.CoreLibs.AiAgents.Context;
@@ -146,6 +147,22 @@ public sealed class AddAiAgentsTests
 
         Assert.Equal(50_000, provider.GetRequiredService<AgentRunOptions>().MaxEvidenceCharacters);
         Assert.Equal(TimeSpan.Zero, provider.GetRequiredService<FoundryAgentFactoryOptions>().AgentCacheDuration);
+    }
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("00:00:00", false)]
+    public void RunsTheOrphanSweep_UnlessTurnedOff(string? interval, bool expected)
+    {
+        var settings = ValidSettings();
+        if (interval is not null)
+        {
+            settings["AiAgents:EphemeralAgentSweepInterval"] = interval;
+        }
+
+        using var provider = Build(settings);
+
+        Assert.Equal(expected, provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().OfType<EphemeralAgentSweepService>().Any());
     }
 
     [Fact]

@@ -20,7 +20,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Agents;
 /// <param name="managedAgentProviders">The providers for managed agents.</param>
 /// <param name="toolBindings">The tool bindings.</param>
 /// <param name="logger">The logger.</param>
-public sealed class PinnedAgentVersionDriftValidator(IAgentDefinitionProvider definitionProvider, AgentVersionPinningOptions versionPinning,
+internal sealed class PinnedAgentVersionDriftValidator(IAgentDefinitionProvider definitionProvider, AgentVersionPinningOptions versionPinning,
     IAgentFactory agentFactory, IPromptProvider promptProvider, IEnumerable<IManagedAgentProvider>? managedAgentProviders = null,
     IEnumerable<AgentToolBinding>? toolBindings = null, ILogger<PinnedAgentVersionDriftValidator>? logger = null) : IHostedService
 {

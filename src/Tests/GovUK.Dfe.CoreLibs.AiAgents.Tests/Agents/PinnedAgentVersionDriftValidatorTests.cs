@@ -1,3 +1,4 @@
+using GovUK.Dfe.CoreLibs.AiAgents.Tests.Integration.Fakes;
 using GovUK.Dfe.CoreLibs.AiAgents.Agents;
 using GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Factories;
@@ -19,7 +20,7 @@ public sealed class PinnedAgentVersionDriftValidatorTests
     private static readonly AgentDefinition Ephemeral = new("ephemeral-agent", "EphemeralPromptType", IsManagedAgent: false);
 
     private readonly CancellationToken cancellationToken = default;
-    private readonly IAgentDefinitionProvider _definitionProvider = Substitute.For<IAgentDefinitionProvider>();
+    private readonly FakeAgentDefinitions _definitionProvider = new();
     private readonly IAgentFactory _agentFactory = Substitute.For<IAgentFactory>();
     private readonly IPromptProvider _promptProvider = Substitute.For<IPromptProvider>();
 
@@ -43,7 +44,7 @@ public sealed class PinnedAgentVersionDriftValidatorTests
     [Fact]
     public async Task StartAsync_ChecksEachPinnedManagedDefinition_AgainstItsPinnedVersion_UsingItsCurrentSpec()
     {
-        _definitionProvider.GetAgentsDefinitions().Returns([Pinned]);
+        _definitionProvider.Definitions = [Pinned];
         _promptProvider.GetSystemPrompt(Pinned.SystemPromptType).Returns("current instructions");
         SetUpNoDrift(Pinned.Name, "3");
 
@@ -58,7 +59,7 @@ public sealed class PinnedAgentVersionDriftValidatorTests
     [Fact]
     public async Task StartAsync_SkipsEphemeralDefinitions_EvenIfTheyHaveAVersionPinEntry()
     {
-        _definitionProvider.GetAgentsDefinitions().Returns([Ephemeral]);
+        _definitionProvider.Definitions = [Ephemeral];
 
         var sut = CreateSut();
         await sut.StartAsync(cancellationToken);
@@ -70,7 +71,7 @@ public sealed class PinnedAgentVersionDriftValidatorTests
     [Fact]
     public async Task StartAsync_SkipsUnpinnedDefinitions()
     {
-        _definitionProvider.GetAgentsDefinitions().Returns([Unpinned]);
+        _definitionProvider.Definitions = [Unpinned];
 
         var sut = CreateSut();
         await sut.StartAsync(cancellationToken);
@@ -82,7 +83,7 @@ public sealed class PinnedAgentVersionDriftValidatorTests
     [Fact]
     public async Task StartAsync_SkipsDefinitionsWithACustomManagedAgentProvider()
     {
-        _definitionProvider.GetAgentsDefinitions().Returns([Pinned]);
+        _definitionProvider.Definitions = [Pinned];
         var customProvider = Substitute.For<IManagedAgentProvider>();
         customProvider.AgentName.Returns(Pinned.Name);
 
@@ -96,7 +97,7 @@ public sealed class PinnedAgentVersionDriftValidatorTests
     [Fact]
     public async Task StartAsync_DoesNotThrow_WhenTheDeployedVersionHasDrifted()
     {
-        _definitionProvider.GetAgentsDefinitions().Returns([Pinned]);
+        _definitionProvider.Definitions = [Pinned];
         _agentFactory.MatchesDeployedVersionAsync(Arg.Any<AgentSpec>(), "3", Arg.Any<CancellationToken>()).Returns(false);
         _agentFactory.ResolveLatestAsync(Pinned.Name, Arg.Any<CancellationToken>())
             .Returns(new AgentReference($"{Pinned.Name}-id", Pinned.Name, "3"));
@@ -110,7 +111,7 @@ public sealed class PinnedAgentVersionDriftValidatorTests
     [Fact]
     public async Task StartAsync_DoesNotThrow_WhenTheDriftCheckItselfFails()
     {
-        _definitionProvider.GetAgentsDefinitions().Returns([Pinned]);
+        _definitionProvider.Definitions = [Pinned];
         _agentFactory.MatchesDeployedVersionAsync(Arg.Any<AgentSpec>(), "3", Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("Foundry unavailable"));
         _agentFactory.ResolveLatestAsync(Pinned.Name, Arg.Any<CancellationToken>())
@@ -125,7 +126,7 @@ public sealed class PinnedAgentVersionDriftValidatorTests
     [Fact]
     public async Task StartAsync_IncludesToolsFromRegisteredBindings_InTheComparedSpec()
     {
-        _definitionProvider.GetAgentsDefinitions().Returns([Pinned]);
+        _definitionProvider.Definitions = [Pinned];
         var tool = ResponseTool.CreateWebSearchTool();
         var toolProvider = Substitute.For<IAgentToolProvider>();
         toolProvider.GetToolsAsync(Arg.Any<CancellationToken>()).Returns([tool]);
@@ -141,7 +142,7 @@ public sealed class PinnedAgentVersionDriftValidatorTests
     [Fact]
     public async Task StartAsync_ChecksTheLatestVersion_ForEachPinnedManagedDefinition()
     {
-        _definitionProvider.GetAgentsDefinitions().Returns([Pinned]);
+        _definitionProvider.Definitions = [Pinned];
         SetUpNoDrift(Pinned.Name, "3");
 
         var sut = CreateSut();
@@ -153,7 +154,7 @@ public sealed class PinnedAgentVersionDriftValidatorTests
     [Fact]
     public async Task StartAsync_DoesNotThrow_WhenThePinIsBehindTheLatestVersion_EvenIfItsOwnContentStillMatches()
     {
-        _definitionProvider.GetAgentsDefinitions().Returns([Pinned]);
+        _definitionProvider.Definitions = [Pinned];
         _agentFactory.MatchesDeployedVersionAsync(Arg.Any<AgentSpec>(), "3", Arg.Any<CancellationToken>()).Returns(true);
         _agentFactory.ResolveLatestAsync(Pinned.Name, Arg.Any<CancellationToken>())
             .Returns(new AgentReference($"{Pinned.Name}-id", Pinned.Name, "5"));
@@ -167,7 +168,7 @@ public sealed class PinnedAgentVersionDriftValidatorTests
     [Fact]
     public async Task StartAsync_DoesNotThrow_WhenResolvingTheLatestVersionFails()
     {
-        _definitionProvider.GetAgentsDefinitions().Returns([Pinned]);
+        _definitionProvider.Definitions = [Pinned];
         _agentFactory.MatchesDeployedVersionAsync(Arg.Any<AgentSpec>(), "3", Arg.Any<CancellationToken>()).Returns(true);
         _agentFactory.ResolveLatestAsync(Pinned.Name, Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("Foundry unavailable"));

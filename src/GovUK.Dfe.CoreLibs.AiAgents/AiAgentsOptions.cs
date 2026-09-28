@@ -61,6 +61,9 @@ public sealed class AiAgentsOptions
     /// <summary>How long a resolved agent version is reused before asking Foundry again. 0 turns caching off.</summary>
     public TimeSpan AgentCacheDuration { get; set; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>How often each instance deletes this app's orphaned ephemeral agents. 0 turns the sweep off.</summary>
+    public TimeSpan EphemeralAgentSweepInterval { get; set; } = TimeSpan.FromMinutes(30);
+
     /// <summary>
     /// Agents provisioned by another pipeline, with the version this app runs, e.g. <c>{ "ofsted-agent": "4" }</c>.
     /// This app only runs them. Use <c>"latest"</c> to follow the newest version (not recommended in production).
@@ -108,6 +111,11 @@ public sealed class AiAgentsOptions
         if (AgentCacheDuration < TimeSpan.Zero)
         {
             missing.Add($"{SectionName}:AgentCacheDuration (0 or more)");
+        }
+
+        if (EphemeralAgentSweepInterval < TimeSpan.Zero)
+        {
+            missing.Add($"{SectionName}:EphemeralAgentSweepInterval (0 or more)");
         }
 
         if (MaxWaitForRunSlot <= TimeSpan.Zero)

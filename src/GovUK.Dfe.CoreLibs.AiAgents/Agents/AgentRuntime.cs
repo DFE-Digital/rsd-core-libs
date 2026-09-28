@@ -35,7 +35,17 @@ public sealed class AgentRuntime(IAgentFactory factory, IAgentRunner runner, IAg
     /// The smallest <c>minimumAge</c> the orphan sweep accepts: longer than any run can take plus its
     /// clean-up, so an agent that's still in use (on any instance) is never treated as orphaned.
     /// </summary>
-    internal TimeSpan MinimumOrphanAge => (_runOptions.RunTimeout ?? AssumedMaximumRunTime) + EphemeralCleanupTimeout + TimeSpan.FromMinutes(5);
+    internal TimeSpan MinimumOrphanAge => MinimumOrphanAgeFor(_runOptions);
+
+    /// <summary>
+    /// The smallest <c>minimumAge</c> the orphan sweep accepts: longer than any run can take plus its
+    /// clean-up, so an agent that's still in use (on any instance) is never treated as orphaned.
+    /// </summary>
+    /// <param name="runOptions">The run options.</param>
+    /// <returns>The minimum orphan age.</returns>
+    internal static TimeSpan MinimumOrphanAgeFor(AgentRunOptions runOptions)
+        => (runOptions.RunTimeout ?? AssumedMaximumRunTime) + EphemeralCleanupTimeout + TimeSpan.FromMinutes(5);
+
 
     public IAgentOrchestrator Orchestrator => orchestrator;
 

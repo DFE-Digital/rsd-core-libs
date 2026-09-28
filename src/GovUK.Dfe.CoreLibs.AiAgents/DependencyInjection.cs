@@ -100,7 +100,16 @@ public static class DependencyInjection
         }
 
         RegisterAgents(services, builder.Definitions, options);
+
+        if (options.EphemeralAgentSweepInterval > TimeSpan.Zero)
+        {
+            services.AddHostedService(sp => new EphemeralAgentSweepService(sp.GetRequiredService<IAgentRuntime>(),
+                sp.GetRequiredService<AgentRunOptions>(), options.EphemeralAgentSweepInterval,
+                sp.GetRequiredService<ILogger<EphemeralAgentSweepService>>()));
+        }
+
         return services;
+
     }
 
     /// <summary>

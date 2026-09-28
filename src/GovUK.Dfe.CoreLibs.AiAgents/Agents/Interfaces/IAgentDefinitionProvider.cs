@@ -5,7 +5,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 /// <summary>
 /// Provides agent definitions for the orchestrator, including the agents and synthesis agent.
 /// </summary>
-public interface IAgentDefinitionProvider
+internal interface IAgentDefinitionProvider
 {
     /// <summary>
     /// Gets the agent definitions available to the orchestrator.

@@ -22,7 +22,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Agents;
 /// Agents this app builds itself are skipped: their tools come from the same bindings, so they always match.
 /// If Foundry or a tool server can't be reached at startup, a warning is logged and startup continues.
 /// </remarks>
-public sealed class AgentToolCompatibilityValidator(IServiceProvider services, AgentRunOptions runOptions,
+internal sealed class AgentToolCompatibilityValidator(IServiceProvider services, AgentRunOptions runOptions,
     IAgentDefinitionProvider? definitionProvider = null, AgentVersionPinningOptions? versionPinning = null,
     IEnumerable<IManagedAgentProvider>? managedAgentProviders = null, IEnumerable<AgentToolBinding>? toolBindings = null,
     ILogger<AgentToolCompatibilityValidator>? logger = null) : IHostedService

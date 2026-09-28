@@ -351,7 +351,7 @@ public sealed class DependencyInjectionTests
             credential: _ => new FakeTokenCredential(),
             optionsFactory: _ => new FoundryAgentFactoryOptions("gpt-4o"),
             agentExecutionOptions: new AgentExecutionOptions { EnableDriftDetection = true });
-        services.AddSingleton(Substitute.For<IAgentDefinitionProvider>()); // consumer's own responsibility, not this method's
+        services.AddSingleton<IAgentDefinitionProvider>(new Integration.Fakes.FakeAgentDefinitions());   // AddAiAgents registers this from AddAgents
 
         using var provider = services.BuildServiceProvider();
 
