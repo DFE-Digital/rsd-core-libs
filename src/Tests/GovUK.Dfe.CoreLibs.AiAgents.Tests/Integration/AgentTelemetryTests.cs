@@ -90,17 +90,18 @@ public sealed class AgentTelemetryTests : IDisposable
     {
         var path = Path.Combine(_promptDirectory, $"{promptType}.md");
         File.WriteAllText(path, content);
-        _configuration[$"PromptFiles:SystemPrompts:{promptType}"] = path;
+        _configuration[$"AiAgents:PromptFiles:SystemPrompts:{promptType}"] = path;
     }
 
     private ServiceProvider Build()
     {
+        _configuration["AiAgents:ApplicationName"] = _application;
+        _configuration["AiAgents:Foundry:Endpoint"] = "https://example.services.ai.azure.com/api/projects/test";
+        _configuration["AiAgents:Foundry:DefaultModel"] = "gpt-4o";
+
         var services = new ServiceCollection().AddLogging();
-        services.AddAgentExecution(new ConfigurationBuilder().AddInMemoryCollection(_configuration).Build(),
-            endpoint: _ => new Uri("https://example.services.ai.azure.com/api/projects/test"),
-            credential: _ => Substitute.For<TokenCredential>(),
-            optionsFactory: _ => new FoundryAgentFactoryOptions("gpt-4o"),
-            agentExecutionOptions: new AgentExecutionOptions { ApplicationName = _application });
+        services.AddAiAgents(new ConfigurationBuilder().AddInMemoryCollection(_configuration).Build(),
+            agents => agents.UseCredential(Substitute.For<TokenCredential>()));
         services.AddSingleton<AgentAdministrationClient>(_foundry.Admin);
         services.AddSingleton<IFoundryConversationClient>(_conversations);
         return services.BuildServiceProvider();

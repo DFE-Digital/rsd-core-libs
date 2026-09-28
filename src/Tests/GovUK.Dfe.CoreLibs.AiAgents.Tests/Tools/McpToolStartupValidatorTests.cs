@@ -19,13 +19,8 @@ public sealed class McpToolStartupValidatorTests
         ServerLabel = "my-tools",
         ServerUri = new Uri("https://mcp.example.com"),
         AllowedToolNames = ["get_performance_data"],
-        Authentication = new McpServerAuthenticationConfig
-        {
-            TenantId = "tenant-1",
-            ClientId = "client-1",
-            ClientSecret = "secret-1",
-            Scope = "api://mcp/.default",
-        },
+        Credential = Substitute.For<Azure.Core.TokenCredential>(),
+        Scope = "api://mcp/.default",
     };
 
     private McpToolStartupValidator CreateSut(McpServerConnectionOptions? options = null)

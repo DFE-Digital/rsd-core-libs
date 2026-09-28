@@ -21,7 +21,7 @@ public interface IAgentOrchestrator
     /// <param name="resolveToolCallsFor">Runs each agent's function tool calls in this app; null when none have any.</param>
     Task<OrchestrationResult> RunSequentialAsync(IReadOnlyList<AgentReference> agents, string initialInput,
         AgentContext context, Func<Exception, bool>? shouldSuppress = null, CancellationToken cancellationToken = default,
-        Func<AgentReference, Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>>?>? resolveToolCallsFor = null);
+        Func<AgentReference, ToolCallResolver?>? resolveToolCallsFor = null);
 
     /// <summary>
     /// Runs agents side by side with the same prompt.
@@ -36,7 +36,7 @@ public interface IAgentOrchestrator
     Task<OrchestrationResult> RunParallelAsync(IReadOnlyList<AgentReference> agents, string input,
         AgentContext context, int? maxConcurrency = null, Func<Exception, bool>? shouldSuppress = null,
         CancellationToken cancellationToken = default,
-        Func<AgentReference, Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>>?>? resolveToolCallsFor = null);
+        Func<AgentReference, ToolCallResolver?>? resolveToolCallsFor = null);
 
     /// <summary>
     /// Runs steps side by side, each resolving its own agent, prompt, evidence and tool calls.

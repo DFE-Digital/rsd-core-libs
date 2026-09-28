@@ -1,6 +1,7 @@
 using GovUK.Dfe.CoreLibs.AiAgents.Context;
 using GovUK.Dfe.CoreLibs.AiAgents.Diagnostics;
 using GovUK.Dfe.CoreLibs.AiAgents.Extensions;
+using GovUK.Dfe.CoreLibs.AiAgents.Quality;
 using GovUK.Dfe.CoreLibs.AiAgents.Tools;
 using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 using GovUK.Dfe.CoreLibs.AiAgents.Resilience;
@@ -11,7 +12,8 @@ using GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 namespace GovUK.Dfe.CoreLibs.AiAgents.Agents;
 
 internal sealed class AgentService(IAgentRunner agentRunner, IAgentRuntime agentRuntime, AgentSpecBuilder specs,
-    AgentRunOptions? runOptions = null, Factories.Interfaces.IAgentFactory? agentFactory = null, ILogger<AgentService>? logger = null)
+    AgentRunOptions? runOptions = null, Factories.Interfaces.IAgentFactory? agentFactory = null, ILogger<AgentService>? logger = null,
+    AgentQualityMonitor? qualityMonitor = null)
     : IAgentService
 {
     private readonly AgentSpecBuilder _specs = specs;
@@ -163,20 +165,32 @@ internal sealed class AgentService(IAgentRunner agentRunner, IAgentRuntime agent
         // Tools bound to this agent that run in this app (e.g. MCP) execute the model's calls here,
         // limited to the definition's AllowedTools.
         var resolveToolCalls = AgentToolResolver.CreateToolCallResolver(_specs.ToolProviders, definition);
+        var (runPrompt, validate) = Citations.ForRun(definition, prompt, evidence);
 
+        AgentResult result;
         if (!definition.IsManagedAgent)
         {
             var spec = await _specs.BuildAsync(definition, cancellationToken).ConfigureAwait(false)
                 ?? throw new InvalidOperationException(string.Format(Constants.ErrorMessages.EphemeralAgentNeedsSpec, definition.Name));
-            return await agentRuntime.RunEphemeralAsync(spec, prompt, resolveToolCalls, evidence, cancellationToken).ConfigureAwait(false);
+            result = await agentRuntime.RunEphemeralAsync(spec, runPrompt, resolveToolCalls, evidence, cancellationToken, validate)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            var agent = _specs.IsExternallyManaged(definition)
+                ? await _specs.CustomProviderFor(definition)!.GetAgentAsync(cancellationToken).ConfigureAwait(false)
+                : await agentRuntime.GetOrCreateAsync(definition.Name,
+                    async ct => (await _specs.BuildAsync(definition, ct).ConfigureAwait(false))!, cancellationToken).ConfigureAwait(false);
+
+            result = await agentRunner.RunAsync(agent, runPrompt, additionalContext: evidence, resolveToolCalls: resolveToolCalls,
+                cancellationToken: cancellationToken, validateOutput: validate).ConfigureAwait(false);
         }
 
-        var agent = _specs.IsExternallyManaged(definition)
-            ? await _specs.CustomProviderFor(definition)!.GetAgentAsync(cancellationToken).ConfigureAwait(false)
-            : await agentRuntime.GetOrCreateAsync(definition.Name,
-                async ct => (await _specs.BuildAsync(definition, ct).ConfigureAwait(false))!, cancellationToken).ConfigureAwait(false);
+        if (qualityMonitor?.ShouldSample() == true)
+        {
+            qualityMonitor.Enqueue(new AgentRunSample(definition.Name, result.AgentVersion, result.Model, prompt, evidence, result.Output ?? string.Empty));
+        }
 
-        return await agentRunner.RunAsync(agent, prompt, additionalContext: evidence, resolveToolCalls: resolveToolCalls,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+        return result;
     }
 }

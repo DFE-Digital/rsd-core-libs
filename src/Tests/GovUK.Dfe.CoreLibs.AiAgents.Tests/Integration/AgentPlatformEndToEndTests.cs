@@ -27,7 +27,7 @@ using Xunit;
 namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Integration;
 
 /// <summary>
-/// End-to-end scenarios through the library's real DI registrations (<c>AddAgentExecution</c>),
+/// End-to-end scenarios through the library's real registration (<c>AddAiAgents</c>),
 /// real prompt files on disk and real configuration binding. Only the two network edges are
 /// replaced: Foundry's admin API (by a stateful <see cref="InMemoryFoundry"/>) and the Responses API
 /// (by a <see cref="ScriptedConversationClient"/>).
@@ -53,22 +53,25 @@ public sealed class AgentPlatformEndToEndTests : IDisposable
     {
         var path = Path.Combine(_promptDirectory, $"{promptType}.md");
         File.WriteAllText(path, content);
-        _configuration[$"PromptFiles:SystemPrompts:{promptType}"] = path;
+        _configuration[$"AiAgents:PromptFiles:SystemPrompts:{promptType}"] = path;
     }
 
-    private void Pin(string agentName, string version) => _configuration[$"Agents:VersionPins:{agentName}"] = version;
+    private void Pin(string agentName, string version) => _configuration[$"AiAgents:VersionPins:{agentName}"] = version;
 
-    private ServiceProvider Build(Action<IServiceCollection>? configure = null, AgentExecutionOptions? options = null)
+    /// <summary>Builds the app through <c>AddAiAgents</c>; <paramref name="settings"/> are extra <c>AiAgents</c> keys.</summary>
+    private ServiceProvider Build(Action<IServiceCollection>? configure = null, Dictionary<string, string>? settings = null)
     {
+        _configuration["AiAgents:Foundry:Endpoint"] = "https://example.services.ai.azure.com/api/projects/test";
+        _configuration["AiAgents:Foundry:DefaultModel"] = DefaultModel;
+        foreach (var (key, value) in settings ?? [])
+        {
+            _configuration[$"AiAgents:{key}"] = value;
+        }
+
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(_configuration).Build();
         var services = new ServiceCollection();
         services.AddLogging(logging => logging.AddProvider(_logs).SetMinimumLevel(LogLevel.Trace));
-
-        services.AddAgentExecution(configuration,
-            endpoint: _ => new Uri("https://example.services.ai.azure.com/api/projects/test"),
-            credential: _ => Substitute.For<TokenCredential>(),
-            optionsFactory: _ => new FoundryAgentFactoryOptions(DefaultModel),
-            agentExecutionOptions: options);
+        services.AddAiAgents(configuration, agents => agents.UseCredential(Substitute.For<TokenCredential>()));
 
         // Replace only the network edges; everything else is the library's own registration.
         services.AddSingleton<AgentAdministrationClient>(_foundry.Admin);
@@ -214,10 +217,10 @@ public sealed class AgentPlatformEndToEndTests : IDisposable
         WriteSystemPrompt("ResponseFormat", "Answer in Markdown with a heading per finding.");
         _conversations.Reply("ofsted-agent", FoundryResponses.Completed("r1", "Good."));
         _conversations.Reply("web-agent", FoundryResponses.Completed("r2", "News."));
-        using var provider = Build(options: new AgentExecutionOptions
+        using var provider = Build(settings: new()
         {
-            ResponseFormatKey = "ResponseFormat",
-            ResponseFormatExemptPromptTypes = new HashSet<string> { "WebSearch" },
+            ["ResponseFormatKey"] = "ResponseFormat",
+            ["ResponseFormatExemptPromptTypes:0"] = "WebSearch",
         });
 
         await RunParallel(provider, new AgentDefinition("ofsted-agent", "Ofsted"), new AgentDefinition("web-agent", "WebSearch"));
@@ -230,7 +233,7 @@ public sealed class AgentPlatformEndToEndTests : IDisposable
     [Fact]
     public async Task ManagedAgent_MissingPromptFile_FailsOnlyThatAgent_WithoutCreatingAnything()
     {
-        _configuration["PromptFiles:SystemPrompts:Ofsted"] = Path.Combine(_promptDirectory, "does-not-exist.md");
+        _configuration["AiAgents:PromptFiles:SystemPrompts:Ofsted"] = Path.Combine(_promptDirectory, "does-not-exist.md");
         WriteSystemPrompt("Trust", "You analyse academy trusts.");
         _conversations.Reply("trust-agent", FoundryResponses.Completed("r1", "Trust findings."));
         using var provider = Build();
@@ -322,7 +325,7 @@ public sealed class AgentPlatformEndToEndTests : IDisposable
         }
 
         Pin("ofsted-agent", "1");
-        using var production = Build(options: new AgentExecutionOptions { EnableDriftDetection = true });
+        using var production = Build(settings: new() { ["EnableDriftDetection"] = "true" });
 
         foreach (var hostedService in production.GetServices<IHostedService>())
         {
@@ -348,7 +351,7 @@ public sealed class AgentPlatformEndToEndTests : IDisposable
         }
 
         Pin("ofsted-agent", "1");
-        using var production = Build(options: new AgentExecutionOptions { EnableDriftDetection = true });
+        using var production = Build(settings: new() { ["EnableDriftDetection"] = "true" });
         foreach (var hostedService in production.GetServices<IHostedService>())
         {
             await hostedService.StartAsync(cancellationToken);
@@ -964,7 +967,7 @@ public sealed class AgentPlatformEndToEndTests : IDisposable
     {
         WriteSystemPrompt("Ofsted", "You analyse Ofsted inspection reports.");
         _conversations.Reply("ofsted-agent", FoundryResponses.Completed("r1", "Good."));
-        using var provider = Build(options: new AgentExecutionOptions { DeleteConversationsAfterRun = false });
+        using var provider = Build(settings: new() { ["DeleteConversationsAfterRun"] = "false" });
 
         await RunParallel(provider, new AgentDefinition("ofsted-agent", "Ofsted"));
 
@@ -992,7 +995,7 @@ public sealed class AgentPlatformEndToEndTests : IDisposable
         WriteSystemPrompt("Trust", "You analyse academy trusts.");
         _conversations.Hang("ofsted-agent");
         _conversations.Reply("trust-agent", FoundryResponses.Completed("r1", "Trust findings."));
-        using var provider = Build(options: new AgentExecutionOptions { RunTimeout = TimeSpan.FromMilliseconds(200) });
+        using var provider = Build(settings: new() { ["RunTimeout"] = "00:00:00.200" });
 
         var results = await RunParallel(provider, new AgentDefinition("ofsted-agent", "Ofsted"), new AgentDefinition("trust-agent", "Trust"));
 
@@ -1013,7 +1016,7 @@ public sealed class AgentPlatformEndToEndTests : IDisposable
             definitions.Add(new AgentDefinition($"agent-{i}", $"Type{i}", IsManagedAgent: i % 2 == 0));
         }
 
-        using var provider = Build(options: new AgentExecutionOptions { MaxConcurrency = 2 });
+        using var provider = Build(settings: new() { ["MaxConcurrency"] = "2" });
 
         var results = await RunParallel(provider, [.. definitions]);
 
@@ -1036,7 +1039,7 @@ public sealed class AgentPlatformEndToEndTests : IDisposable
 
         _foundry.FailDeletes = false;
         var deleted = await provider.GetRequiredService<IAgentRuntime>()
-            .DeleteOrphanedEphemeralAgentsAsync(TimeSpan.FromHours(2), cancellationToken);
+            .DeleteOrphanedEphemeralAgentsAsync(cancellationToken);   // the safe minimum age by default
 
         Assert.Equal([orphan], deleted);
         Assert.Equal(["ofsted-agent"], _foundry.AgentNames);

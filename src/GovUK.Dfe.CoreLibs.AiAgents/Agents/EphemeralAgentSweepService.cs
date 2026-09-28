@@ -1,4 +1,4 @@
-﻿using GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
+using GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
@@ -6,11 +6,11 @@ using System.Security.Cryptography;
 namespace GovUK.Dfe.CoreLibs.AiAgents.Agents;
 
 /// <summary>
-/// Deletes this app's orphaned ephemeral agents every <c>EphemeralAgentSweepInterval</c>. Runs on every instance,
-/// which is safe: a delete another instance already made succeeds. A failed sweep is logged and retried next time.
+/// Opt-in (<c>agents.AddEphemeralAgentSweep()</c>): deletes this app's orphaned ephemeral agents on a timer. Safe on
+/// every instance at once. A failed sweep is logged and retried next time.
 /// </summary>
-internal sealed class EphemeralAgentSweepService(IAgentRuntime runtime, AgentRunOptions runOptions, TimeSpan interval,
-    ILogger<EphemeralAgentSweepService> logger) : BackgroundService
+internal sealed class EphemeralAgentSweepService(IAgentRuntime runtime, TimeSpan interval, ILogger<EphemeralAgentSweepService> logger)
+    : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -37,8 +37,7 @@ internal sealed class EphemeralAgentSweepService(IAgentRuntime runtime, AgentRun
     {
         try
         {
-            var deleted = await runtime.DeleteOrphanedEphemeralAgentsAsync(AgentRuntime.MinimumOrphanAgeFor(runOptions), cancellationToken)
-                .ConfigureAwait(false);
+            var deleted = await runtime.DeleteOrphanedEphemeralAgentsAsync(cancellationToken).ConfigureAwait(false);
             if (deleted.Count > 0)
             {
                 logger.LogInformation("Deleted {Count} orphaned ephemeral agent(s)", deleted.Count);

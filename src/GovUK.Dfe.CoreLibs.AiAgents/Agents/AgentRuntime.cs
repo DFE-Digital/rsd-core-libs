@@ -35,17 +35,7 @@ public sealed class AgentRuntime(IAgentFactory factory, IAgentRunner runner, IAg
     /// The smallest <c>minimumAge</c> the orphan sweep accepts: longer than any run can take plus its
     /// clean-up, so an agent that's still in use (on any instance) is never treated as orphaned.
     /// </summary>
-    internal TimeSpan MinimumOrphanAge => MinimumOrphanAgeFor(_runOptions);
-
-    /// <summary>
-    /// The smallest <c>minimumAge</c> the orphan sweep accepts: longer than any run can take plus its
-    /// clean-up, so an agent that's still in use (on any instance) is never treated as orphaned.
-    /// </summary>
-    /// <param name="runOptions">The run options.</param>
-    /// <returns>The minimum orphan age.</returns>
-    internal static TimeSpan MinimumOrphanAgeFor(AgentRunOptions runOptions)
-        => (runOptions.RunTimeout ?? AssumedMaximumRunTime) + EphemeralCleanupTimeout + TimeSpan.FromMinutes(5);
-
+    internal TimeSpan MinimumOrphanAge => (_runOptions.RunTimeout ?? AssumedMaximumRunTime) + EphemeralCleanupTimeout + TimeSpan.FromMinutes(5);
 
     public IAgentOrchestrator Orchestrator => orchestrator;
 
@@ -81,8 +71,8 @@ public sealed class AgentRuntime(IAgentFactory factory, IAgentRunner runner, IAg
         => RunEphemeralAsync(spec, prompt, resolveToolCalls: null, evidence: null, cancellationToken);
 
     public async Task<AgentResult> RunEphemeralAsync(AgentSpec spec, string prompt,
-        Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>>? resolveToolCalls,
-        string? evidence = null, CancellationToken cancellationToken = default)
+        ToolCallResolver? resolveToolCalls,
+        string? evidence = null, CancellationToken cancellationToken = default, Func<AgentResult, string?>? validateOutput = null)
     {
         ArgumentNullException.ThrowIfNull(spec);
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
@@ -95,9 +85,10 @@ public sealed class AgentRuntime(IAgentFactory factory, IAgentRunner runner, IAg
 
         try
         {
-            var result = await runner.RunAsync(ephemeralSpec, prompt, resolveToolCalls: resolveToolCalls, cancellationToken: cancellationToken, additionalContext: evidence)
+            var result = await runner.RunAsync(ephemeralSpec, prompt, resolveToolCalls: resolveToolCalls, cancellationToken: cancellationToken,
+                    additionalContext: evidence, validateOutput: validateOutput)
                 .ConfigureAwait(false);
-            return result with { AgentName = reportedName };
+            return result with { AgentName = reportedName, AgentVersion = null };
         }
         finally
         {
@@ -113,6 +104,9 @@ public sealed class AgentRuntime(IAgentFactory factory, IAgentRunner runner, IAg
             }
         }
     }
+
+    public Task<IReadOnlyList<string>> DeleteOrphanedEphemeralAgentsAsync(CancellationToken cancellationToken = default)
+        => DeleteOrphanedEphemeralAgentsAsync(MinimumOrphanAge, cancellationToken);
 
     public Task<IReadOnlyList<string>> DeleteOrphanedEphemeralAgentsAsync(TimeSpan minimumAge, CancellationToken cancellationToken = default)
     {

@@ -41,8 +41,8 @@ dotnet add package Azure.Monitor.OpenTelemetry.AspNetCore   # token usage must b
 }
 ```
 
-- One Microsoft Entra ID service principal signs in to everything. Supply `Authentication:ClientSecret`
-  from Key Vault, never appsettings.json.
+- One Microsoft Entra ID service principal signs in to everything by default (see [Credentials](#credentials)
+  to use different ones). Supply `Authentication:ClientSecret` from Key Vault, never appsettings.json.
 - Roles: **Azure AI User** (Foundry project), **Search Index Data Reader** (search), access to each MCP
   server's API, and **Storage Blob Data Contributor** on the run-slot container if you use `GlobalConcurrency`.
 - `Search` and `McpServers` are optional. Set prompt files to *Copy to output directory*.
@@ -144,11 +144,13 @@ MCP tools need no code: list them in the server's `AllowedToolNames` and the age
 Other tools: `agents.AddTools("news-agent", new WebSearchToolProvider())`.
 
 - **MCP tools run in your app.** Foundry sees only each tool's name, description and schema, never the
-  server or a credential.
+  server or a credential. The library gets each server's token from your credential for its `Scope`, caches
+  it and refreshes it before expiry.
 - Deny by default: a tool must be in both allow-lists. Checked on every call, pinned versions included.
 - Malformed arguments and tool errors go back to the model. Tool calls are never retried.
 - A missing allowed tool fails startup; an unreachable server only warns.
-- Output is limited to `MaxToolOutputCharacters` (20,000); a run allows 10 tool rounds.
+- Output is limited to `MaxToolOutputCharacters` (20,000), and fenced like evidence so injected text in it isn't
+  obeyed (`FenceToolOutput`, on by default). A run allows 10 tool rounds.
 
 ## Search and prompts
 
@@ -198,6 +200,48 @@ e.g. `"ProtectedVersions": { "ofsted-agent": [ "1" ] }` for production. Unset: n
 `"latest"` follows the newest version (dev only). `VersionPins` is for agents the app builds; an agent
 can't be in both.
 
+## Answer quality
+
+**Check every answer.** `Validate` returns why an answer is wrong, or null. `RequireCitations` makes the agent cite
+numbered evidence (search results) as `[Evidence n]`, and only evidence that exists. A failed check is sent back once
+in the same conversation; if it fails again, the run fails.
+
+```csharp
+public static readonly AgentDefinition Ofsted = new("ofsted-agent", "Ofsted")
+{
+    OutputSchema = AgentOutputSchema.For<OfstedFindings>("ofsted_findings"),
+    RequireCitations = true,
+    Validate = result => result.ReadOutputAs<OfstedFindings>().Rating is "Outstanding" or "Good" or "Requires improvement" or "Inadequate"
+        ? null : "Rating must be an Ofsted grade.",
+};
+```
+
+**Score live answers.** A sample of runs is scored in the background, never slowing a run, and recorded as
+`aiagents.quality.score` by agent, version and metric. Any `IChatClient` can be the judge, e.g. an Azure OpenAI deployment:
+
+```csharp
+agents.AddQualityEvaluation(_ => new ExtensionsAiEvaluator(
+    new CompositeEvaluator(new GroundednessEvaluator(), new RelevanceEvaluator()),
+    new ChatConfiguration(judgeChatClient)), sampleRate: 0.05);
+```
+
+**Gate releases.** Keep test cases per agent as JSON (`{ "prompt", "evidence", "mustMention", "mustNotMention" }`)
+and run them in the provisioning job before publishing the new version:
+
+```csharp
+var cases = await AgentTestCase.LoadAsync("tests/ofsted-agent");
+var report = await tests.RunAsync(BriefingAgents.Ofsted, cases);              // IAgentTestRunner
+var baseline = JsonSerializer.Deserialize<AgentEvaluationReport>(await File.ReadAllTextAsync("baseline.json"))!;
+
+if (!report.Passed || report.BelowMinimum(3.5).Any() || report.RegressionsFrom(baseline, tolerance: 0.2).Any())
+{
+    throw new InvalidOperationException("ofsted-agent got worse; not publishing it.");
+}
+```
+
+**Pin the model.** An agent version fixes the prompt and tools, not the model behind the deployment. Use deployments
+with a fixed model version in production. Each result's `Model`, and the `gen_ai.response.model` tag, show which answered.
+
 ## Telemetry
 
 Startup fails unless the metrics are subscribed (step 3). Tests and local dev only:
@@ -209,6 +253,7 @@ Startup fails unless the metrics are subscribed (step 3). Tests and local dev on
 | `aiagents.run.duration` | Seconds per run, by outcome |
 | `aiagents.orchestration.tokens` | Total tokens per parallel or sequential run, e.g. one briefing |
 | `aiagents.run.slot_wait` | Seconds waited for a slot. Rising means the limits are too low. |
+| `aiagents.quality.score` | Scores of sampled answers, by agent, version and metric |
 | `orchestrate_agents`, `invoke_agent` | Spans for the briefing and each run |
 
 All tagged with `ApplicationName` and agent name. Tokens per app and agent per day:
@@ -231,9 +276,10 @@ customMetrics
 
   Apps sharing a container share the limit. For Redis, implement `IRunSlotStore` and register it.
 - **Caching.** A resolved version is reused for `AgentCacheDuration` (30 seconds; `0` turns it off).
-- **Orphans.** Each instance deletes this app's leftover ephemeral agents every `EphemeralAgentSweepInterval`
-  (30 minutes), only once they're older than any run can be. Set `RunTimeout` and keep `ApplicationName`
-  unique per app.
+- **Orphans.** Ephemeral agents left by a crash stay in Foundry until deleted. Your app decides when:
+  schedule `IAgentRuntime.DeleteOrphanedEphemeralAgentsAsync(ct)` yourself, or add `agents.AddEphemeralAgentSweep()`
+  to run it every 30 minutes. It deletes only this app's agents older than any run can be, and is safe on
+  every instance. Set `RunTimeout` and keep `ApplicationName` unique per app.
 - Instances share no state; racing deletes and duplicate versions are handled.
 
 ## Production checklist
@@ -245,7 +291,7 @@ customMetrics
 - [ ] `KeepLatestVersions` wherever versions are created.
 - [ ] Both tool allow-lists set; `ContentFields` and a school `filter` on every search.
 - [ ] `RunTimeout`, `MaxConcurrency` and `GlobalConcurrency` sized to your Foundry quota.
-- [ ] `IsManagedAgent: false` only where the definition changes per run.
+- [ ] `IsManagedAgent: false` only where the definition changes per run, with orphan clean-up scheduled.
 
 ## Options
 
@@ -259,9 +305,9 @@ All under `AiAgents`:
 | `GlobalConcurrency` | Off | `MaxConcurrentRuns` across instances, `BlobContainerUri` for slots |
 | `MaxWaitForRunSlot` | 2 min | Longest a run waits for a slot |
 | `AgentCacheDuration` | 30 s | Reuse of a resolved version; `0` = off |
-| `EphemeralAgentSweepInterval` | 30 min | Orphan sweep; `0` = off |
 | `MaxEvidenceCharacters` | 100000 | Longer evidence is cut |
 | `MaxToolOutputCharacters` | 20000 | Longer tool output is cut |
+| `FenceToolOutput` | `true` | Fences tool output as data, like evidence |
 | `DeleteConversationsAfterRun` | `true` | Keeps prompts and evidence out of Foundry |
 | `RequireTokenUsageTelemetry` | `true` | Startup fails without token metrics |
 | `EnableDriftDetection` | `false` | Warns about stale pins |
@@ -269,11 +315,38 @@ All under `AiAgents`:
 | `KeepLatestVersions` | None | Versions kept on each new one (min 2); unset = never prune |
 | `VersionPins` / `ProtectedVersions` | None | Versions this environment runs / other environments need kept |
 | `ExternallyManagedAgents` | None | Agents from a provisioning job, with the version (or `"latest"`) |
-| `ResponseFormatKey` | None | System prompt appended to every agent |
+| `ResponseFormatKey` / `ResponseFormatExemptPromptTypes` | None | System prompt appended to every agent / prompt types it's not appended to |
 | `MaxRetries` | 3 | Foundry client retries (a retried call may be billed twice) |
 
-Managed identity: `agents.UseCredential(new ManagedIdentityCredential())` and drop `Authentication`. It's
-used for every service, so give it the same roles. Other settings in code: `agents.Configure(o => ...)`.
+Other settings in code: `agents.Configure(o => ...)`.
+
+## Credentials
+
+`Authentication` is the default. Foundry, Search, each MCP server and the run-slot container can have their
+own `Authentication` block (`TenantId`, `ClientId`, `ClientSecret`), e.g. an MCP server in another tenant:
+
+```json
+"McpServers": {
+  "school-performance": {
+    "ServerUri": "...", "Scope": "api://school-performance/.default", "AllowedToolNames": [ "..." ],
+    "Authentication": { "TenantId": "<partner tenant>", "ClientId": "<mcp client id>" }
+  }
+}
+```
+
+The other blocks go under `Foundry`, `Search` and `GlobalConcurrency`. Each secret comes from Key Vault,
+e.g. `AiAgents__McpServers__school-performance__Authentication__ClientSecret`.
+
+In code, for managed identities:
+
+```csharp
+agents.UseCredential(new ManagedIdentityCredential())                     // default
+      .UseCredentialFor(AiAgentsService.Search, searchCredential)         // one service
+      .UseMcpCredential("school-performance", partnerCredential);         // one MCP server
+```
+
+Each service uses, in order: its code credential, its own block, then the default. The default is only
+required if some service falls back to it. Give each identity the role for its own service only.
 
 ## Advanced
 

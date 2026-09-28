@@ -3,31 +3,13 @@ using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 namespace GovUK.Dfe.CoreLibs.AiAgents.Context;
 
 /// <summary>
-/// Maintains agent variables and interaction history, with a limit on the number of history entries and the total character count of the context prompt.
+/// The outputs of an orchestration's agents so far, newest last. Keeps at most <paramref name="maxHistoryEntries"/>
+/// entries, and at most <paramref name="maxContextPromptCharacters"/> in <see cref="BuildContextPrompt"/>.
 /// </summary>
-/// <param name="maxHistoryEntries">The maximum number of history entries to retain (Default: 200).</param>
-/// <param name="maxContextPromptCharacters">The maximum number of characters the context prompt may contain (Default: 32,000).</param>
 public sealed class AgentContext(int maxHistoryEntries = 200, int maxContextPromptCharacters = 32_000)
 {
-    private readonly Dictionary<string, string> _variables = [];
     private readonly List<AgentContextEntry> _history = [];
     private readonly object _lock = new();
-
-    public void SetVariable(string name, string value)
-    {
-        lock (_lock)
-        {
-            _variables[name] = value;
-        }
-    }
-
-    public string? GetVariable(string name)
-    {
-        lock (_lock)
-        {
-            return _variables.GetValueOrDefault(name);
-        }
-    }
 
     public void AddHistory(AgentContextEntry entry)
     {

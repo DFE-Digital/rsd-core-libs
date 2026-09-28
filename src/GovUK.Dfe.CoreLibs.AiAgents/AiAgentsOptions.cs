@@ -16,11 +16,14 @@ public sealed class AiAgentsOptions
     public FoundrySettings Foundry { get; set; } = new();
 
     /// <summary>
-    /// The Microsoft Entra ID service principal used for the Foundry project, Azure AI Search and MCP servers.
+    /// The default Microsoft Entra ID service principal, for every service without its own <c>Authentication</c> block.
     /// </summary>
     public ServicePrincipalSettings Authentication { get; set; } = new();
 
-    /// <summary>MCP servers, keyed by a name you choose. Each is called with the service principal.</summary>
+    /// <summary>Azure AI Search. Only its <c>Authentication</c> is read here; null when there's no <c>Search</c> section.</summary>
+    public SearchSettings? Search { get; set; }
+
+    /// <summary>MCP servers, keyed by a name you choose.</summary>
     public Dictionary<string, McpServerSettings> McpServers { get; set; } = [];
 
     public TimeSpan? RunTimeout { get; set; }
@@ -32,6 +35,9 @@ public sealed class AiAgentsOptions
     public GlobalConcurrencySettings GlobalConcurrency { get; set; } = new();
 
     public int MaxToolOutputCharacters { get; set; } = 20_000;
+
+    /// <summary>Fences tool output as data the model mustn't take instructions from.</summary>
+    public bool FenceToolOutput { get; set; } = true;
 
     /// <summary>How long a run waits for a free slot (per-instance or global) before failing with a <see cref="TimeoutException"/>.</summary>
     public TimeSpan MaxWaitForRunSlot { get; set; } = TimeSpan.FromMinutes(2);
@@ -45,7 +51,11 @@ public sealed class AiAgentsOptions
 
     public bool EnableDriftDetection { get; set; }
 
+    /// <summary>A system prompt (by key) appended to every agent's instructions, e.g. a shared answer format.</summary>
     public string? ResponseFormatKey { get; set; }
+
+    /// <summary>Prompt types that don't get <see cref="ResponseFormatKey"/> appended.</summary>
+    public HashSet<string> ResponseFormatExemptPromptTypes { get; set; } = [];
 
     public int MaxRetries { get; set; } = 3;
 
@@ -60,10 +70,6 @@ public sealed class AiAgentsOptions
 
     /// <summary>How long a resolved agent version is reused before asking Foundry again. 0 turns caching off.</summary>
     public TimeSpan AgentCacheDuration { get; set; } = TimeSpan.FromSeconds(30);
-
-    /// <summary>How often each instance deletes this app's orphaned ephemeral agents. 0 turns the sweep off.</summary>
-    public TimeSpan EphemeralAgentSweepInterval { get; set; } = TimeSpan.FromMinutes(30);
-
     /// <summary>
     /// Agents provisioned by another pipeline, with the version this app runs, e.g. <c>{ "ofsted-agent": "4" }</c>.
     /// This app only runs them. Use <c>"latest"</c> to follow the newest version (not recommended in production).
@@ -76,12 +82,24 @@ public sealed class AiAgentsOptions
     /// <summary>Versions pruning must keep, per agent, e.g. those other environments are pinned to.</summary>
     public Dictionary<string, List<string>> ProtectedVersions { get; set; } = [];
 
-    /// <summary>Code only: a credential to use instead of the service principal. Set with <c>UseCredential</c>.</summary>
+    /// <summary>Code only: the default credential, instead of <see cref="Authentication"/>. Set with <c>UseCredential</c>.</summary>
     public TokenCredential? Credential { get; set; }
 
-    internal TokenCredential CreateCredential()
-        => Credential ?? new ClientSecretCredential(Authentication.TenantId, Authentication.ClientId, Authentication.ClientSecret,
-            new ClientSecretCredentialOptions { AuthorityHost = Authentication.AuthorityHost ?? AzureAuthorityHosts.AzurePublicCloud });
+    /// <summary>Code only: per-service credentials, set with <c>UseCredentialFor</c> and <c>UseMcpCredential</c>.</summary>
+    internal Dictionary<string, TokenCredential> CredentialOverrides { get; } = new(StringComparer.Ordinal);
+
+    internal static string McpCredentialKey(string serverName) => $"Mcp:{serverName}";
+
+    private TokenCredential? _defaultCredential;
+
+    /// <summary>A service's credential: its code override, else its own <c>Authentication</c> block, else the default.</summary>
+    internal TokenCredential CredentialFor(string serviceKey, ServicePrincipalSettings? own)
+        => CredentialOverrides.GetValueOrDefault(serviceKey)
+           ?? (own is null ? _defaultCredential ??= Credential ?? Create(Authentication) : Create(own));
+
+    private static ClientSecretCredential Create(ServicePrincipalSettings principal)
+        => new(principal.TenantId, principal.ClientId, principal.ClientSecret,
+            new ClientSecretCredentialOptions { AuthorityHost = principal.AuthorityHost ?? AzureAuthorityHosts.AzurePublicCloud });
 
     /// <summary>Lists every missing setting, so startup fails once with the whole picture.</summary>
     internal IReadOnlyList<string> MissingSettings()
@@ -113,11 +131,6 @@ public sealed class AiAgentsOptions
             missing.Add($"{SectionName}:AgentCacheDuration (0 or more)");
         }
 
-        if (EphemeralAgentSweepInterval < TimeSpan.Zero)
-        {
-            missing.Add($"{SectionName}:EphemeralAgentSweepInterval (0 or more)");
-        }
-
         if (MaxWaitForRunSlot <= TimeSpan.Zero)
         {
             missing.Add($"{SectionName}:MaxWaitForRunSlot (must be positive)");
@@ -130,12 +143,56 @@ public sealed class AiAgentsOptions
 
         missing.AddRange(GlobalConcurrency.Problems().Select(problem => $"{SectionName}:GlobalConcurrency:{problem}"));
 
-        if (Credential is null)
+        // Each service needs a code override, its own complete block, or the default; the default only if someone uses it.
+        var usesDefault = false;
+        void RequirePrincipal(ServicePrincipalSettings principal, string path)
         {
-            Require(Authentication.TenantId, "Authentication:TenantId");
-            Require(Authentication.ClientId, "Authentication:ClientId");
-            Require(Authentication.ClientSecret, "Authentication:ClientSecret");
+            Require(principal.TenantId, $"{path}:TenantId");
+            Require(principal.ClientId, $"{path}:ClientId");
+            Require(principal.ClientSecret, $"{path}:ClientSecret");
         }
+
+        void CheckCredential(string serviceKey, ServicePrincipalSettings? own, string path)
+        {
+            if (CredentialOverrides.ContainsKey(serviceKey))
+            {
+                return;
+            }
+
+            if (own is null)
+            {
+                usesDefault = true;
+            }
+            else
+            {
+                RequirePrincipal(own, path);
+            }
+        }
+
+        CheckCredential(nameof(AiAgentsService.Foundry), Foundry.Authentication, "Foundry:Authentication");
+        if (Search is not null)
+        {
+            CheckCredential(nameof(AiAgentsService.Search), Search.Authentication, "Search:Authentication");
+        }
+
+        if (GlobalConcurrency.IsEnabled)
+        {
+            CheckCredential(nameof(AiAgentsService.RunSlots), GlobalConcurrency.Authentication, "GlobalConcurrency:Authentication");
+        }
+
+        foreach (var (key, server) in McpServers)
+        {
+            CheckCredential(McpCredentialKey(key), server.Authentication, $"McpServers:{key}:Authentication");
+        }
+
+        if (usesDefault && Credential is null)
+        {
+            RequirePrincipal(Authentication, "Authentication");
+        }
+
+        missing.AddRange(CredentialOverrides.Keys
+            .Where(key => key.StartsWith("Mcp:", StringComparison.Ordinal) && !McpServers.ContainsKey(key[4..]))
+            .Select(key => $"{SectionName}:McpServers:{key[4..]} (UseMcpCredential names a server that isn't configured)"));
 
         // The old list form binds as { "0": "agent-name" }; catch it rather than run an agent called "0".
         if (ExternallyManagedAgents.Keys.Any(static key => key.All(char.IsAsciiDigit)))
@@ -172,20 +229,18 @@ public sealed class AiAgentsOptions
     private static bool FollowsLatest(string? version)
         => string.IsNullOrWhiteSpace(version) || version.Equals("latest", StringComparison.OrdinalIgnoreCase);
 
-    internal AgentExecutionOptions ToExecutionOptions() => new()
+    internal AgentRunOptions ToRunOptions() => new()
     {
-        ApplicationName = ApplicationName,
+        ApplicationName = string.IsNullOrWhiteSpace(ApplicationName) ? Diagnostics.AgentTelemetry.DefaultApplicationName : ApplicationName,
         RunTimeout = RunTimeout,
         MaxConcurrency = MaxConcurrency,
         MaxToolOutputCharacters = MaxToolOutputCharacters,
+        FenceToolOutput = FenceToolOutput,
         MaxEvidenceCharacters = MaxEvidenceCharacters,
         MaxWaitForRunSlot = MaxWaitForRunSlot,
         DeleteConversationsAfterRun = DeleteConversationsAfterRun,
         RequireTokenUsageTelemetry = RequireTokenUsageTelemetry,
         ValidateAgentToolsAtStartup = ValidateAgentToolsAtStartup,
-        EnableDriftDetection = EnableDriftDetection,
-        ResponseFormatKey = ResponseFormatKey,
-        MaxRetries = MaxRetries,
     };
 
     public sealed class FoundrySettings
@@ -195,6 +250,15 @@ public sealed class AiAgentsOptions
 
         /// <summary>The model agents use unless their spec says otherwise, e.g. "my-connection/gpt-4o".</summary>
         public string? DefaultModel { get; set; }
+
+        /// <summary>Optional: a service principal for Foundry only. Unset: the default.</summary>
+        public ServicePrincipalSettings? Authentication { get; set; }
+    }
+
+    public sealed class SearchSettings
+    {
+        /// <summary>Optional: a service principal for Azure AI Search only. Unset: the default.</summary>
+        public ServicePrincipalSettings? Authentication { get; set; }
     }
 
     public sealed class ServicePrincipalSettings
@@ -222,8 +286,11 @@ public sealed class AiAgentsOptions
         /// <summary>The most agent runs at once across all instances. Unset (default): no global limit.</summary>
         public int? MaxConcurrentRuns { get; set; }
 
-        /// <summary>An existing blob container used only for run slots. The service principal needs Storage Blob Data Contributor on it.</summary>
+        /// <summary>An existing blob container used only for run slots. Its identity needs Storage Blob Data Contributor on it.</summary>
         public string? BlobContainerUri { get; set; }
+
+        /// <summary>Optional: a service principal for the run-slot container only. Unset: the default.</summary>
+        public ServicePrincipalSettings? Authentication { get; set; }
 
         internal bool IsEnabled => MaxConcurrentRuns is not null;
 
@@ -253,8 +320,11 @@ public sealed class AiAgentsOptions
     {
         public string? ServerUri { get; set; }
 
-        /// <summary>The scope requested for the service principal's token, e.g. "api://school-performance/.default".</summary>
+        /// <summary>The token scope, e.g. "api://school-performance/.default".</summary>
         public string? Scope { get; set; }
+
+        /// <summary>Optional: a service principal for this server only, possibly in another tenant. Unset: the default.</summary>
+        public ServicePrincipalSettings? Authentication { get; set; }
 
         /// <summary>Required: every tool this app may use from the server.</summary>
         public List<string> AllowedToolNames { get; set; } = [];

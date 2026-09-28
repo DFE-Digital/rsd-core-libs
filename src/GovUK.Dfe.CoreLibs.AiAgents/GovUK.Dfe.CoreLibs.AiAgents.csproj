@@ -24,6 +24,7 @@
 		<PackageReference Include="Azure.AI.Extensions.OpenAI" Version="2.0.0" />
 		<PackageReference Include="Azure.Search.Documents" Version="12.0.0" />
 		<PackageReference Include="Azure.Storage.Blobs" Version="12.29.1" />
+		<PackageReference Include="Microsoft.Extensions.AI.Evaluation.Quality" Version="10.6.0" />
 		<PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />

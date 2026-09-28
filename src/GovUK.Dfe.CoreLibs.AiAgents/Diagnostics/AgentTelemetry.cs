@@ -11,8 +11,8 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Diagnostics;
 /// </summary>
 /// <remarks>
 /// The source name is the same in every application, so each one subscribes the same way. Every span
-/// and measurement is tagged with <see cref="ApplicationTag"/> (set with
-/// <c>AgentExecutionOptions.ApplicationName</c>) so usage can be split by the application that ran it.
+/// and measurement is tagged with <see cref="ApplicationTag"/> (<c>AiAgents:ApplicationName</c>) so usage can be
+/// split by the application that ran it.
 /// </remarks>
 public static class AgentTelemetry
 {
@@ -24,6 +24,8 @@ public static class AgentTelemetry
 
     internal const string AgentNameTag = "gen_ai.agent.name";
     internal const string AgentVersionTag = "gen_ai.agent.version";
+    internal const string ResponseModelTag = "gen_ai.response.model";
+    internal const string QualityMetricTag = "aiagents.quality.metric";
     internal const string TokenTypeTag = "gen_ai.token.type";
     internal const string OutcomeTag = "outcome";
     internal const string ModeTag = "aiagents.orchestration.mode";
@@ -41,6 +43,9 @@ public static class AgentTelemetry
         "aiagents.run.duration", "s", "Duration of agent runs.");
 
     /// <summary>Total tokens used by one orchestration (e.g. a whole briefing), tagged with the application and mode.</summary>
+    internal static readonly Histogram<double> QualityScore = Meter.CreateHistogram<double>(
+        "aiagents.quality.score", "{score}", "Scores of sampled agent answers, by metric.");
+
     internal static readonly Histogram<double> RunSlotWait = Meter.CreateHistogram<double>(
         "aiagents.run.slot_wait", "s", "Time agent runs waited for a free run slot.");
 

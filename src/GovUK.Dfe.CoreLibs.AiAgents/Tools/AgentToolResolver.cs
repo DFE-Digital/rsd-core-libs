@@ -73,7 +73,7 @@ public static class AgentToolResolver
     /// See <see cref="AgentToolExecution.CreateResolver"/>.
     /// </summary>
     /// <returns>The callback, or <see langword="null"/> when none of the agent's providers runs tools in this app.</returns>
-    public static Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>>? CreateToolCallResolver(
+    public static ToolCallResolver? CreateToolCallResolver(
         IReadOnlyDictionary<string, List<IAgentToolProvider>> toolProvidersByAgentName, string agentName)
         => toolProvidersByAgentName.TryGetValue(agentName, out var providers) ? AgentToolExecution.CreateResolver(providers) : null;
 
@@ -82,7 +82,7 @@ public static class AgentToolResolver
     /// call to a tool not in its <see cref="AgentDefinition.AllowedTools"/>.
     /// </summary>
     /// <returns>The callback, or <see langword="null"/> when the agent may call no in-app tools.</returns>
-    public static Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>>? CreateToolCallResolver(
+    public static ToolCallResolver? CreateToolCallResolver(
         IReadOnlyDictionary<string, List<IAgentToolProvider>> toolProvidersByAgentName, AgentDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);

@@ -380,6 +380,22 @@ public sealed class ProductionScenarioTests : IDisposable
         Assert.Equal(["Leadership", "Reading"], findings.Strengths);
     }
 
+    [Fact]
+    public async Task Citations_AnAnswerCitingEvidenceThatDoesntExist_IsCorrected()
+    {
+        var definition = Ofsted with { RequireCitations = true };
+        _conversations.Reply("ofsted-agent",
+            FoundryResponses.Completed("r1", "Rated Outstanding [Evidence 5]."),
+            FoundryResponses.Completed("r2", "Rated Good [Evidence 1]."));
+        const string SearchEvidence = "--- ofsted_index Evidence 1 ---\nRated Good.\n\n--- ofsted_index Evidence 2 ---\nInspected 2024.";
+
+        var result = await Agents(StartInstance(Settings(), [definition])).RunAsync(definition, "Summarise.", SearchEvidence, cancellationToken);
+
+        Assert.Equal("Rated Good [Evidence 1].", result.Output);
+        Assert.Contains("Cite the evidence each point relies on", _conversations.Calls[0].SerializedInput, StringComparison.Ordinal);
+        Assert.Contains("[Evidence 5] doesn't exist", _conversations.Calls[1].SerializedInput, StringComparison.Ordinal);
+    }
+
     // ===================== Several apps in one Foundry project =====================
 
     [Fact]

@@ -54,7 +54,8 @@ public sealed class McpToolClientTests
         ServerUri = new Uri("https://mcp.example.gov.uk/mcp"),
         AllowedToolNames = allowed,
         ToolListCacheDuration = TimeSpan.Zero,
-        Authentication = new McpServerAuthenticationConfig { TenantId = "t", ClientId = "c", ClientSecret = "s", Scope = "api://mcp/.default" },
+        Credential = NSubstitute.Substitute.For<Azure.Core.TokenCredential>(),
+        Scope = "api://mcp/.default",
     };
 
     [Fact]

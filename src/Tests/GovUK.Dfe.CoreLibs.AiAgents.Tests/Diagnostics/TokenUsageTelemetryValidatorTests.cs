@@ -76,15 +76,17 @@ public sealed class TokenUsageTelemetryValidatorTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void AddAgentExecution_AlwaysRegistersTheCheck_CarryingTheFlagFromItsOptions(bool required)
+    public void AddAiAgents_AlwaysRegistersTheCheck_CarryingTheSetting(bool required)
     {
         var services = new ServiceCollection();
 
-        services.AddAgentExecution(new ConfigurationBuilder().Build(),
-            endpoint: _ => new Uri("https://example.services.ai.azure.com/api/projects/test"),
-            credential: _ => Substitute.For<TokenCredential>(),
-            optionsFactory: _ => new FoundryAgentFactoryOptions("gpt-4o"),
-            agentExecutionOptions: new AgentExecutionOptions { RequireTokenUsageTelemetry = required });
+        services.AddAiAgents(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AiAgents:Foundry:Endpoint"] = "https://example.services.ai.azure.com/api/projects/test",
+                ["AiAgents:Foundry:DefaultModel"] = "gpt-4o",
+                ["AiAgents:RequireTokenUsageTelemetry"] = required.ToString(),
+            }).Build(),
+            agents => agents.UseCredential(Substitute.For<TokenCredential>()));
 
         using var provider = services.BuildServiceProvider();
         Assert.Single(provider.GetServices<IHostedService>().OfType<TokenUsageTelemetryValidator>());
@@ -105,5 +107,5 @@ public sealed class TokenUsageTelemetryValidatorTests
 
     [Fact]
     public void RequireTokenUsageTelemetry_IsOnByDefault()
-        => Assert.True(new AgentExecutionOptions().RequireTokenUsageTelemetry);
+        => Assert.True(new AiAgentsOptions().RequireTokenUsageTelemetry);
 }

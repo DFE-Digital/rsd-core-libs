@@ -58,11 +58,64 @@ public sealed class AiAgentsBuilder
         return this;
     }
 
-    /// <summary>Uses this credential instead of the configured service principal, e.g. a managed identity.</summary>
+    /// <summary>
+    /// Deletes this app's orphaned ephemeral agents every <paramref name="interval"/> (default 30 minutes) in the
+    /// background. Optional: without it, schedule <c>IAgentRuntime.DeleteOrphanedEphemeralAgentsAsync</c> yourself.
+    /// </summary>
+    public AiAgentsBuilder AddEphemeralAgentSweep(TimeSpan? interval = null)
+    {
+        var every = interval ?? TimeSpan.FromMinutes(30);
+        if (every <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(interval), interval, "The interval must be positive.");
+        }
+
+        Services.AddHostedService(sp => new Agents.EphemeralAgentSweepService(sp.GetRequiredService<Agents.Interfaces.IAgentRuntime>(),
+            every, sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Agents.EphemeralAgentSweepService>>()));
+        return this;
+    }
+
+    /// <summary>
+    /// Scores answers with <paramref name="evaluator"/>: a <paramref name="sampleRate"/> share of live runs in the
+    /// background (<c>aiagents.quality.score</c>), and every <c>IAgentTestRunner</c> case. A rate of 0 scores only tests.
+    /// </summary>
+    public AiAgentsBuilder AddQualityEvaluation(Func<IServiceProvider, Quality.IAgentRunEvaluator> evaluator, double sampleRate = 0.05)
+    {
+        ArgumentNullException.ThrowIfNull(evaluator);
+        ArgumentOutOfRangeException.ThrowIfNegative(sampleRate);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(sampleRate, 1);
+
+        Services.AddSingleton(evaluator);
+        if (sampleRate > 0)
+        {
+            Services.AddSingleton(sp => new Quality.AgentQualityMonitor(sp.GetRequiredService<Quality.IAgentRunEvaluator>(), sampleRate,
+                sp.GetRequiredService<AgentRunOptions>(), sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Quality.AgentQualityMonitor>>()));
+            Services.AddHostedService(sp => sp.GetRequiredService<Quality.AgentQualityMonitor>());
+        }
+
+        return this;
+    }
+
+    /// <summary>The default credential, instead of <c>AiAgents:Authentication</c>, e.g. a managed identity.</summary>
     public AiAgentsBuilder UseCredential(TokenCredential credential)
     {
         ArgumentNullException.ThrowIfNull(credential);
         return Configure(options => options.Credential = credential);
+    }
+
+    /// <summary>A credential for one service only. Overrides its <c>Authentication</c> block and the default.</summary>
+    public AiAgentsBuilder UseCredentialFor(AiAgentsService service, TokenCredential credential)
+    {
+        ArgumentNullException.ThrowIfNull(credential);
+        return Configure(options => options.CredentialOverrides[service.ToString()] = credential);
+    }
+
+    /// <summary>A credential for one MCP server (its key under <c>McpServers</c>). Overrides its block and the default.</summary>
+    public AiAgentsBuilder UseMcpCredential(string serverName, TokenCredential credential)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serverName);
+        ArgumentNullException.ThrowIfNull(credential);
+        return Configure(options => options.CredentialOverrides[AiAgentsOptions.McpCredentialKey(serverName)] = credential);
     }
 
     /// <summary>Changes settings in code, after they're read from configuration.</summary>

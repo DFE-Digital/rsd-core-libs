@@ -23,10 +23,10 @@ public sealed class AgentOrchestratorTests
         var writer = new AgentReference("writer-id", "writer");
 
         _agentRunner.RunAsync(researcher, Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(),
-                Arg.Any<Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>>?>(), Arg.Any<CancellationToken>())
+                Arg.Any<ToolCallResolver?>(), Arg.Any<CancellationToken>())
             .Returns(new AgentResult("researcher", "research notes", 10));
         _agentRunner.RunAsync(writer, "Explain MCP.", Arg.Any<string?>(), Arg.Is<string?>(evidence => evidence != null && evidence.Contains("research notes")),
-                Arg.Any<Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>>?>(), Arg.Any<CancellationToken>())
+                Arg.Any<ToolCallResolver?>(), Arg.Any<CancellationToken>())
             .Returns(new AgentResult("writer", "final draft", 20));
 
         var sut = CreateSut();
@@ -219,7 +219,7 @@ public sealed class AgentOrchestratorTests
     public async Task RunParallelAsync_Steps_PassEachStepsToolCallbackAndEvidence_ToTheRunner()
     {
         var agent = new AgentReference("tool-agent-id", "tool-agent");
-        Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>> resolver =
+        ToolCallResolver resolver =
             (_, _) => Task.FromResult<IEnumerable<ToolCallOutput>>([]);
         _agentRunner.RunAsync(agent, "prompt", Arg.Any<string?>(), Arg.Is<string?>("evidence"), resolver, Arg.Any<CancellationToken>())
             .Returns(new AgentResult("tool-agent", "done", 1));
@@ -239,7 +239,7 @@ public sealed class AgentOrchestratorTests
     public async Task RunSequentialAsync_PassesEachAgentsToolCallback_FromResolveToolCallsFor()
     {
         var agent = new AgentReference("tool-agent-id", "tool-agent");
-        Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>> resolver =
+        ToolCallResolver resolver =
             (_, _) => Task.FromResult<IEnumerable<ToolCallOutput>>([]);
         _agentRunner.RunAsync(agent, "task", Arg.Any<string?>(), Arg.Any<string?>(), resolver, Arg.Any<CancellationToken>())
             .Returns(new AgentResult("tool-agent", "done", 1));

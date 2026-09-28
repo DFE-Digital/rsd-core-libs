@@ -5,8 +5,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Diagnostics;
 
 /// <summary>
 /// Fails application startup when nothing is subscribed to the library's token usage metrics, so no app
-/// can run agents without its token usage being measured. Registered by every <c>AddFoundryAgents</c>
-/// overload (and so by <c>AddAgentExecution</c>); skipped when
+/// can run agents without its token usage being measured. Always registered; skipped when
 /// <see cref="AgentRunOptions.RequireTokenUsageTelemetry"/> is <see langword="false"/>.
 /// </summary>
 /// <remarks>

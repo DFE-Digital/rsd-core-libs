@@ -27,8 +27,8 @@ public sealed class AgentServiceTests
     private readonly IManagedAgentProvider _managedAgentProvider = Substitute.For<IManagedAgentProvider>();
 
     /// <summary>Matches any tool-call callback argument (in place, like any other Arg.Any).</summary>
-    private static Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>>? AnyResolver()
-        => Arg.Any<Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>>?>();
+    private static ToolCallResolver? AnyResolver()
+        => Arg.Any<ToolCallResolver?>();
 
     /// <summary>A provider for an agent created elsewhere: the service only resolves it.</summary>
     private AgentService CreateSut(params IManagedAgentProvider[] extraProviders)

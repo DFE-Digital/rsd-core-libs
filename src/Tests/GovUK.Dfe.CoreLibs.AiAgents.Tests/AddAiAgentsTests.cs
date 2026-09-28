@@ -6,6 +6,7 @@ using GovUK.Dfe.CoreLibs.AiAgents.Concurrency;
 using GovUK.Dfe.CoreLibs.AiAgents.Context;
 using GovUK.Dfe.CoreLibs.AiAgents.Context.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Factories;
+using GovUK.Dfe.CoreLibs.AiAgents.Quality;
 using GovUK.Dfe.CoreLibs.AiAgents.Tools;
 using GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp;
 using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
@@ -46,6 +47,93 @@ public sealed class AddAiAgentsTests
         settings["AiAgents:McpServers:school-performance:AllowedToolNames:0"] = "get_performance_data";
         settings["AiAgents:McpServers:school-performance:AllowedToolNames:1"] = "get_absence_data";
         return settings;
+    }
+
+    // ===================== Credentials per service =====================
+
+    private static Dictionary<string, string?> WithoutDefaultPrincipal(Dictionary<string, string?> settings)
+    {
+        foreach (var key in settings.Keys.Where(key => key.StartsWith("AiAgents:Authentication:", StringComparison.Ordinal)).ToList())
+        {
+            settings.Remove(key);
+        }
+
+        return settings;
+    }
+
+    private static void OwnPrincipal(Dictionary<string, string?> settings, string path, string tenant = "tenant-1")
+    {
+        settings[$"AiAgents:{path}:Authentication:TenantId"] = tenant;
+        settings[$"AiAgents:{path}:Authentication:ClientId"] = $"{path}-client";
+        settings[$"AiAgents:{path}:Authentication:ClientSecret"] = $"{path}-secret";
+    }
+
+    [Fact]
+    public void EachService_CanUseItsOwnServicePrincipal_WithNoDefaultNeeded()
+    {
+        var settings = WithoutDefaultPrincipal(WithMcpServer(ValidSettings()));
+        settings["AiAgents:Search:Endpoint"] = "https://example.search.windows.net";
+        settings["AiAgents:Search:Indexes:0:Name"] = "ofsted_index";
+        OwnPrincipal(settings, "Foundry");
+        OwnPrincipal(settings, "Search");
+        OwnPrincipal(settings, "McpServers:school-performance", tenant: "partner-tenant");
+
+        using var provider = Build(settings);
+
+        Assert.IsType<ClientSecretCredential>(provider.GetRequiredKeyedService<McpServerConnectionOptions>("school-performance").Credential);
+        Assert.IsType<AzureSearchContextRetriever>(provider.GetRequiredService<IContextRetriever>());
+    }
+
+    [Fact]
+    public void AServiceWithoutItsOwnBlock_FallsBackToTheDefault_SoTheDefaultIsRequired()
+    {
+        var settings = WithoutDefaultPrincipal(WithMcpServer(ValidSettings()));
+        OwnPrincipal(settings, "Foundry");   // the MCP server has no block of its own
+
+        var ex = Assert.Throws<InvalidOperationException>(() => Build(settings));
+
+        Assert.Contains("AiAgents:Authentication:ClientId", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnIncompleteServiceBlock_IsNamedInTheError()
+    {
+        var settings = ValidSettings();
+        settings["AiAgents:Search:Endpoint"] = "https://example.search.windows.net";
+        settings["AiAgents:Search:Indexes:0:Name"] = "ofsted_index";
+        settings["AiAgents:Search:Authentication:TenantId"] = "tenant-1";
+        settings["AiAgents:Search:Authentication:ClientId"] = "search-client";   // no secret
+
+        var ex = Assert.Throws<InvalidOperationException>(() => Build(settings));
+
+        Assert.Contains("AiAgents:Search:Authentication:ClientSecret", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CodeCredentials_OverrideConfiguration_PerServiceThenDefault()
+    {
+        var settings = WithMcpServer(ValidSettings());
+        settings["AiAgents:McpServers:news:ServerUri"] = "https://news.example/mcp";
+        settings["AiAgents:McpServers:news:Scope"] = "api://news/.default";
+        settings["AiAgents:McpServers:news:AllowedToolNames:0"] = "search_news";
+        var defaultCredential = Substitute.For<TokenCredential>();
+        var partnerCredential = Substitute.For<TokenCredential>();
+
+        using var provider = Build(settings, agents => agents
+            .UseCredential(defaultCredential)
+            .UseMcpCredential("school-performance", partnerCredential));
+
+        Assert.Same(partnerCredential, provider.GetRequiredKeyedService<McpServerConnectionOptions>("school-performance").Credential);
+        Assert.Same(defaultCredential, provider.GetRequiredKeyedService<McpServerConnectionOptions>("news").Credential);
+    }
+
+    [Fact]
+    public void UseMcpCredential_ForAServerThatIsntConfigured_FailsStartup()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => Build(ValidSettings(),
+            agents => agents.UseMcpCredential("school-performnce", Substitute.For<TokenCredential>())));
+
+        Assert.Contains("school-performnce", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -150,19 +238,34 @@ public sealed class AddAiAgentsTests
     }
 
     [Theory]
-    [InlineData(null, true)]
-    [InlineData("00:00:00", false)]
-    public void RunsTheOrphanSweep_UnlessTurnedOff(string? interval, bool expected)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheOrphanSweep_RunsOnlyWhenTheAppAddsIt(bool added)
     {
-        var settings = ValidSettings();
-        if (interval is not null)
+        using var provider = Build(ValidSettings(), agents =>
         {
-            settings["AiAgents:EphemeralAgentSweepInterval"] = interval;
-        }
+            if (added)
+            {
+                agents.AddEphemeralAgentSweep();
+            }
+        });
 
-        using var provider = Build(settings);
+        Assert.Equal(added, provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().OfType<EphemeralAgentSweepService>().Any());
+    }
 
-        Assert.Equal(expected, provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().OfType<EphemeralAgentSweepService>().Any());
+    [Theory]
+    [InlineData(0.0, false)]
+    [InlineData(0.1, true)]
+    public void AddQualityEvaluation_ScoresTests_AndLiveRunsOnlyWhenSampled(double sampleRate, bool scoresLiveRuns)
+    {
+        var evaluator = Substitute.For<IAgentRunEvaluator>();
+
+        using var provider = Build(ValidSettings(), agents => agents.AddQualityEvaluation(_ => evaluator, sampleRate));
+
+        Assert.NotNull(provider.GetRequiredService<IAgentTestRunner>());
+        Assert.Same(evaluator, provider.GetRequiredService<IAgentRunEvaluator>());
+        Assert.Equal(scoresLiveRuns,
+            provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().OfType<AgentQualityMonitor>().Any());
     }
 
     [Fact]
@@ -266,7 +369,7 @@ public sealed class AddAiAgentsTests
         Assert.NotNull(provider.GetRequiredKeyedService<IMcpToolClient>("school-performance"));
         var options = provider.GetRequiredKeyedService<McpServerConnectionOptions>("school-performance");
         Assert.Equal(["get_performance_data"], options.AllowedToolNames);
-        Assert.Equal("api://school-performance/.default", options.Authentication.Scope);
-        Assert.IsType<ClientSecretCredential>(options.Authentication.Credential);
+        Assert.Equal("api://school-performance/.default", options.Scope);
+        Assert.IsType<ClientSecretCredential>(options.Credential);
     }
 }

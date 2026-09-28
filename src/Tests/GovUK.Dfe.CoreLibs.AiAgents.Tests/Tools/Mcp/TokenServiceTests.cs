@@ -1,243 +1,122 @@
+using Azure;
+using Azure.Core;
+using Azure.Identity;
 using GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp;
-using Microsoft.Extensions.Logging;
-using NSubstitute;
-using System.Net;
 using Xunit;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Tools.Mcp;
 
 public sealed class TokenServiceTests
 {
-    private sealed class FakeTokenEndpointHandler(string accessToken, int expiresInSeconds) : HttpMessageHandler
+    private const string Scope = "api://school-performance/.default";
+    private readonly CancellationToken cancellationToken = default;
+
+    /// <summary>Hands out numbered tokens; fails the first <c>failures</c> calls with <c>failWith</c>.</summary>
+    private sealed class FakeCredential(TimeSpan lifetime, int failures = 0, Exception? failWith = null, TimeSpan? delay = null) : TokenCredential
     {
-        public int CallCount { get; private set; }
-        public HttpRequestMessage? LastRequest { get; private set; }
-        public string? LastRequestBody { get; private set; }
+        private int _calls;
 
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        public int Calls => _calls;
+
+        public List<string> Scopes { get; } = [];
+
+        public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken)
+            => GetTokenAsync(requestContext, cancellationToken).AsTask().GetAwaiter().GetResult();
+
+        public override async ValueTask<AccessToken> GetTokenAsync(TokenRequestContext requestContext, CancellationToken cancellationToken)
         {
-            CallCount++;
-            LastRequest = request;
-            LastRequestBody = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
-
-            var json = $"{{\"access_token\":\"{accessToken}\",\"expires_in\":{expiresInSeconds}}}";
-            return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            var call = Interlocked.Increment(ref _calls);
+            lock (Scopes)
             {
-                Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json"),
-            };
-        }
-    }
-
-    /// <summary>Fails the first <paramref name="failuresBeforeSuccess"/> calls with a 503, then succeeds.</summary>
-    private sealed class FlakyTokenEndpointHandler(int failuresBeforeSuccess, string accessToken, int expiresInSeconds) : HttpMessageHandler
-    {
-        public int CallCount { get; private set; }
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            CallCount++;
-            if (CallCount <= failuresBeforeSuccess)
-            {
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+                Scopes.AddRange(requestContext.Scopes);
             }
 
-            var json = $"{{\"access_token\":\"{accessToken}\",\"expires_in\":{expiresInSeconds}}}";
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            if (delay is { } wait)
             {
-                Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json"),
-            });
+                await Task.Delay(wait, cancellationToken);
+            }
+
+            if (call <= failures)
+            {
+                throw failWith!;
+            }
+
+            return new AccessToken($"token-{call}", DateTimeOffset.UtcNow + lifetime);
         }
     }
 
-    private sealed class AlwaysFailingHandler : HttpMessageHandler
-    {
-        public int CallCount { get; private set; }
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            CallCount++;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
-        }
-    }
-
-    private readonly CancellationToken cancellationToken = default;
-    private readonly ILogger<TokenService> _logger = Substitute.For<ILogger<TokenService>>();
-
-    private static McpServerConnectionOptions CreateOptions() => new()
-    {
-        ServerLabel = "my-tools",
-        ServerUri = new Uri("https://mcp.example.com"),
-        AllowedToolNames = ["get_performance_data"],
-        Authentication = new McpServerAuthenticationConfig
-        {
-            TenantId = "tenant-1",
-            ClientId = "client-1",
-            ClientSecret = "secret-1",
-            Scope = "api://mcp/.default",
-        },
-    };
-
-    private static TokenService CreateSut(FakeTokenEndpointHandler handler, out string tokenEndpoint)
-    {
-        var options = CreateOptions();
-        tokenEndpoint = $"https://login.microsoftonline.com/{options.Authentication.TenantId}/oauth2/v2.0/token";
-        return new TokenService(options, new HttpClient(handler));
-    }
-
-    private TokenService CreateSut(HttpMessageHandler handler) => new(CreateOptions(), new HttpClient(handler), _logger);
-
     [Fact]
-    public async Task GetAccessTokenAsync_PostsClientCredentials_ToTheTenantsTokenEndpoint()
+    public async Task AsksTheAppsCredential_ForTheServersScope()
     {
-        var handler = new FakeTokenEndpointHandler("access-token-1", expiresInSeconds: 3600);
-        var sut = CreateSut(handler, out var expectedEndpoint);
+        var credential = new FakeCredential(TimeSpan.FromHours(1));
 
-        var token = await sut.GetAccessTokenAsync(cancellationToken);
+        var token = await new TokenService(credential, Scope).GetAccessTokenAsync(cancellationToken);
 
-        Assert.Equal("access-token-1", token);
-        Assert.Equal(expectedEndpoint, handler.LastRequest!.RequestUri!.ToString());
-        Assert.Contains("grant_type=client_credentials", handler.LastRequestBody);
-        Assert.Contains("client_id=client-1", handler.LastRequestBody);
-        Assert.Contains("client_secret=secret-1", handler.LastRequestBody);
-        Assert.Contains("scope=", handler.LastRequestBody);
+        Assert.Equal("token-1", token);
+        Assert.Equal([Scope], credential.Scopes);
     }
 
     [Fact]
-    public async Task GetAccessTokenAsync_ReusesCachedToken_WhileWellWithinItsLifetime()
+    public async Task ReusesTheToken_WhileItHasMoreThanAMinuteLeft()
     {
-        var handler = new FakeTokenEndpointHandler("access-token-1", expiresInSeconds: 3600);
-        var sut = CreateSut(handler, out _);
+        var credential = new FakeCredential(TimeSpan.FromHours(1));
+        var sut = new TokenService(credential, Scope);
 
-        var first = await sut.GetAccessTokenAsync(cancellationToken);
+        await sut.GetAccessTokenAsync(cancellationToken);
+        await sut.GetAccessTokenAsync(cancellationToken);
+
+        Assert.Equal(1, credential.Calls);
+    }
+
+    [Fact]
+    public async Task GetsANewToken_OnceItsWithinAMinuteOfExpiry()
+    {
+        var credential = new FakeCredential(TimeSpan.FromSeconds(30));
+        var sut = new TokenService(credential, Scope);
+
+        await sut.GetAccessTokenAsync(cancellationToken);
         var second = await sut.GetAccessTokenAsync(cancellationToken);
 
-        Assert.Equal(first, second);
-        Assert.Equal(1, handler.CallCount);
+        Assert.Equal("token-2", second);
     }
 
     [Fact]
-    public async Task GetAccessTokenAsync_RefetchesToken_OnceItIsWithinAMinuteOfExpiry()
+    public async Task RetriesATransientFailure()
     {
-        var handler = new FakeTokenEndpointHandler("access-token-1", expiresInSeconds: 30);
-        var sut = CreateSut(handler, out _);
+        var credential = new FakeCredential(TimeSpan.FromHours(1), failures: 2, failWith: new RequestFailedException(503, "Unavailable"));
 
-        await sut.GetAccessTokenAsync(cancellationToken);
-        await sut.GetAccessTokenAsync(cancellationToken);
+        var token = await new TokenService(credential, Scope).GetAccessTokenAsync(cancellationToken);
 
-        Assert.Equal(2, handler.CallCount);
+        Assert.Equal("token-3", token);
     }
 
     [Fact]
-    public async Task GetAccessTokenAsync_RetriesOnTransientFailure_AndSucceeds()
+    public async Task GivesUp_AfterThreeTransientFailures()
     {
-        var handler = new FlakyTokenEndpointHandler(failuresBeforeSuccess: 1, "access-token-1", expiresInSeconds: 3600);
-        var sut = CreateSut(handler);
+        var credential = new FakeCredential(TimeSpan.FromHours(1), failures: 10, failWith: new RequestFailedException(503, "Unavailable"));
 
-        var token = await sut.GetAccessTokenAsync(cancellationToken);
-
-        Assert.Equal("access-token-1", token);
-        Assert.Equal(2, handler.CallCount);
+        await Assert.ThrowsAsync<RequestFailedException>(() => new TokenService(credential, Scope).GetAccessTokenAsync(cancellationToken));
+        Assert.Equal(3, credential.Calls);
     }
 
     [Fact]
-    public async Task GetAccessTokenAsync_RetriesUpToThreeAttempts_ThenThrows_WhenTheServerNeverRecovers()
+    public async Task DoesNotRetry_ARefusedCredential()
     {
-        var handler = new AlwaysFailingHandler();
-        var sut = CreateSut(handler);
+        var credential = new FakeCredential(TimeSpan.FromHours(1), failures: 1, failWith: new AuthenticationFailedException("Wrong secret."));
 
-        await Assert.ThrowsAsync<HttpRequestException>(() => sut.GetAccessTokenAsync(cancellationToken));
-
-        Assert.Equal(3, handler.CallCount);
-    }
-
-    [Theory]
-    [InlineData(HttpStatusCode.Unauthorized, false)]
-    [InlineData(HttpStatusCode.BadRequest, false)]
-    [InlineData(HttpStatusCode.Forbidden, false)]
-    [InlineData(HttpStatusCode.ServiceUnavailable, true)]
-    [InlineData(HttpStatusCode.TooManyRequests, true)]
-    public void IsTransient_RetriesOnlyFailuresThatCanSucceedLater(HttpStatusCode status, bool expected)
-        => Assert.Equal(expected, TokenService.IsTransient(new HttpRequestException("x", null, status)));
-
-    [Fact]
-    public async Task GetAccessTokenAsync_DoesNotRetry_AWrongSecret()
-    {
-        var handler = new StatusHandler(HttpStatusCode.Unauthorized);
-        var sut = CreateSut(handler);
-
-        await Assert.ThrowsAsync<HttpRequestException>(() => sut.GetAccessTokenAsync(cancellationToken));
-
-        Assert.Equal(1, handler.CallCount);
-    }
-
-    private sealed class StatusHandler(HttpStatusCode status) : HttpMessageHandler
-    {
-        public int CallCount { get; private set; }
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            CallCount++;
-            return Task.FromResult(new HttpResponseMessage(status));
-        }
+        await Assert.ThrowsAsync<AuthenticationFailedException>(() => new TokenService(credential, Scope).GetAccessTokenAsync(cancellationToken));
+        Assert.Equal(1, credential.Calls);
     }
 
     [Fact]
-    public async Task GetAccessTokenAsync_ConcurrentCallers_ShareOneRefresh()
+    public async Task ConcurrentCallers_ShareOneRefresh()
     {
-        var handler = new FakeTokenEndpointHandler("access-token-1", expiresInSeconds: 3600);
-        var sut = CreateSut(handler, out _);
+        var credential = new FakeCredential(TimeSpan.FromHours(1), delay: TimeSpan.FromMilliseconds(100));
+        var sut = new TokenService(credential, Scope);
 
-        var tokens = await Task.WhenAll(Enumerable.Range(0, 20).Select(_ => sut.GetAccessTokenAsync(cancellationToken)));
+        var tokens = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ => sut.GetAccessTokenAsync(cancellationToken)));
 
-        Assert.All(tokens, token => Assert.Equal("access-token-1", token));
-        Assert.Equal(1, handler.CallCount);
-    }
-
-    [Fact]
-    public async Task GetAccessTokenAsync_UsesTheConfiguredCredential_InsteadOfTheClientSecretFlow()
-    {
-        var handler = new FakeTokenEndpointHandler("unused", expiresInSeconds: 3600);
-        var credential = Substitute.For<Azure.Core.TokenCredential>();
-        credential.GetTokenAsync(Arg.Is<Azure.Core.TokenRequestContext>(c => c.Scopes.SequenceEqual(new[] { "api://mcp/.default" })), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Azure.Core.AccessToken>(new Azure.Core.AccessToken("managed-identity-token", DateTimeOffset.UtcNow.AddHours(1))));
-        var options = CreateOptions() with
-        {
-            Authentication = new McpServerAuthenticationConfig { Credential = credential, Scope = "api://mcp/.default" },
-        };
-        var sut = new TokenService(options, new HttpClient(handler));
-
-        var token = await sut.GetAccessTokenAsync(cancellationToken);
-
-        Assert.Equal("managed-identity-token", token);
-        Assert.Equal(0, handler.CallCount);
-    }
-
-    [Fact]
-    public async Task GetAccessTokenAsync_PostsToTheConfiguredAuthorityHost()
-    {
-        var handler = new FakeTokenEndpointHandler("access-token-1", expiresInSeconds: 3600);
-        var options = CreateOptions() with
-        {
-            Authentication = CreateOptions().Authentication with { AuthorityHost = Azure.Identity.AzureAuthorityHosts.AzureGovernment },
-        };
-        var sut = new TokenService(options, new HttpClient(handler));
-
-        await sut.GetAccessTokenAsync(cancellationToken);
-
-        Assert.Equal("https://login.microsoftonline.us/tenant-1/oauth2/v2.0/token", handler.LastRequest!.RequestUri!.ToString());
-    }
-
-    [Fact]
-    public async Task GetAccessTokenAsync_PropagatesCancellation_WithoutRetrying()
-    {
-        var handler = new AlwaysFailingHandler();
-        var sut = CreateSut(handler);
-        using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sut.GetAccessTokenAsync(cts.Token));
-
-        // Cancellation must never be treated as a transient failure and retried into the full 3-attempt loop.
-        Assert.True(handler.CallCount <= 1);
+        Assert.All(tokens, token => Assert.Equal("token-1", token));
+        Assert.Equal(1, credential.Calls);
     }
 }

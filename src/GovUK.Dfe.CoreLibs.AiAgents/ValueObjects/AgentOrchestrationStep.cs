@@ -18,5 +18,5 @@ public sealed record AgentOrchestrationStep(string AgentName, Func<CancellationT
     /// Runs the model's function tool calls in this app, e.g. from
     /// <c>AgentToolExecution.CreateResolver(providers, allowedTools)</c>. Null when the agent has none.
     /// </summary>
-    public Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>>? ResolveToolCalls { get; init; }
+    public ToolCallResolver? ResolveToolCalls { get; init; }
 }

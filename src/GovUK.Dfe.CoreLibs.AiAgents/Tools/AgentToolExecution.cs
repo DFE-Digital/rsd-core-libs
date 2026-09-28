@@ -19,7 +19,7 @@ public static class AgentToolExecution
     /// run it. <see langword="null"/> allows every tool the providers run.
     /// </param>
     /// <returns>The callback, or <see langword="null"/> when none of the providers runs tools in this app.</returns>
-    public static Func<IReadOnlyList<ToolCallRequest>, CancellationToken, Task<IEnumerable<ToolCallOutput>>>? CreateResolver(
+    public static ToolCallResolver? CreateResolver(
         IEnumerable<IAgentToolProvider> providers, IReadOnlyCollection<string>? allowedTools = null)
     {
         ArgumentNullException.ThrowIfNull(providers);

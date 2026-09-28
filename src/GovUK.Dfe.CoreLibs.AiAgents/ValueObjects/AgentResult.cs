@@ -16,4 +16,10 @@ public sealed record AgentResult(string AgentName, string? Output, long TotalTok
 
     /// <summary>This run's token usage.</summary>
     public TokenUsage Usage => new(InputTokens, OutputTokens, TotalTokens);
+
+    /// <summary>The agent version that ran; null for an ephemeral agent.</summary>
+    public string? AgentVersion { get; init; }
+
+    /// <summary>The model that answered, as Foundry reported it (e.g. "gpt-4o-2024-08-06").</summary>
+    public string? Model { get; init; }
 }

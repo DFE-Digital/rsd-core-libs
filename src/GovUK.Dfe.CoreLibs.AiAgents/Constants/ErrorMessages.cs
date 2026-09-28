@@ -15,7 +15,6 @@ internal static class ErrorMessages
     public const string PromptFileEmpty = "Prompt file is empty: {0}";
     public const string NoPromptFileConfigured = "No prompt file configured for '{0}'.";
     public const string UnableToGenerateSection = "This section could not be generated due to an error retrieving or analysing evidence.";
-    public const string McpTokenResponseDeserializationFailed = "Failed to deserialize the MCP access token response.";
     public const string McpOptionsInvalid = "MCP server '{0}' configuration is invalid; missing or empty: {1}.";
     public const string TokenUsageTelemetryNotConfigured =
         "Token usage for AI agents isn't being recorded. Subscribe to the library's metrics at startup, e.g. " +
@@ -35,7 +34,6 @@ internal static class ErrorMessages
     public const string AgentToolsNotRunnable = "Agent '{0}' version {1} calls tools this app can't run: {2}. Configure the MCP server that allows them and list them in the agent's AllowedTools, or re-provision the agent.";
     public const string AiAgentsSettingsMissing = "AI agents can't start: these settings are missing or empty: {0}.";
     public const string AzureSearchIndexesInvalid = "Azure Search needs at least one entry under Indexes, each with a unique Name.";
-    public const string AzureSearchCredentialMissing = "Azure Search needs either a credential passed to AddAzureSearchContextRetriever, or TenantId, ClientId and ClientSecret in the 'AzureSearch' configuration section.";
     public const string McpStartupValidationFailed = "MCP tool configuration validation failed during startup for server '{0}'.";
     public const string McpConnectionFailed = "Failed to connect to MCP server '{0}' at {1}.";
     public const string AgentRunFailed = "Agent '{0}' failed.";
@@ -45,6 +43,8 @@ internal static class ErrorMessages
     public const string AgentPruneVersionsFailed = "Failed to prune versions for Foundry agent '{0}'.";
     public const string AzureSearchQueryFailed = "Azure Search query against '{0}' failed.";
     public const string DuplicateAgentDefinition = "Agent '{0}' is defined more than once.";
+    public const string AgentAnswerInvalid = "Agent '{0}' gave an invalid answer twice: {1}";
+    public const string TestCaseWithoutPrompt = "Test case {0} has no \"prompt\".";
     public const string NoRunSlot = "No agent run slot came free within {0}. Raise MaxConcurrency or GlobalConcurrency:MaxConcurrentRuns, or MaxWaitForRunSlot.";
     public const string RunSlotContainerNotFound = "The run slot container {0} doesn't exist. Create it, or check GlobalConcurrency:BlobContainerUri.";
     public const string McpToolArgumentsInvalid = "The arguments for {0} weren't a valid JSON object. Call it again with arguments matching its input schema.";
