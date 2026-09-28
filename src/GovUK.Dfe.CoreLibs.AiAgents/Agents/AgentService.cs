@@ -31,8 +31,8 @@ internal sealed class AgentService(IAgentRunner agentRunner, IAgentRuntime agent
 
     public async Task<IReadOnlyList<AgentResult>> RunParallelAsync(IReadOnlyCollection<AgentDefinition> definitions,
         Func<AgentDefinition, CancellationToken, Task<string>> resolvePrompt, AgentContext context,
-        Func<Exception, bool>? shouldSuppress = null, CancellationToken cancellationToken = default,
-        Func<AgentDefinition, CancellationToken, Task<string?>>? resolveEvidence = null)
+        Func<Exception, bool>? shouldSuppress = null,
+        Func<AgentDefinition, CancellationToken, Task<string?>>? resolveEvidence = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(definitions);
         ArgumentNullException.ThrowIfNull(resolvePrompt);
@@ -172,7 +172,7 @@ internal sealed class AgentService(IAgentRunner agentRunner, IAgentRuntime agent
         {
             var spec = await _specs.BuildAsync(definition, cancellationToken).ConfigureAwait(false)
                 ?? throw new InvalidOperationException(string.Format(Constants.ErrorMessages.EphemeralAgentNeedsSpec, definition.Name));
-            result = await agentRuntime.RunEphemeralAsync(spec, runPrompt, resolveToolCalls, evidence, cancellationToken, validate)
+            result = await agentRuntime.RunEphemeralAsync(spec, runPrompt, resolveToolCalls, evidence, validate, cancellationToken)
                 .ConfigureAwait(false);
         }
         else

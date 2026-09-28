@@ -23,7 +23,7 @@ public interface IAgentRuntime
 
     /// <summary>As above, running its tool calls, sending <paramref name="evidence"/> fenced, and retrying one invalid answer.</summary>
     Task<AgentResult> RunEphemeralAsync(AgentSpec spec, string prompt, ToolCallResolver? resolveToolCalls,
-        string? evidence = null, CancellationToken cancellationToken = default, Func<AgentResult, string?>? validateOutput = null);
+        string? evidence = null, Func<AgentResult, string?>? validateOutput = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deletes this app's ephemeral agents left by crashes or failed deletes. Call it from your own schedule, or add

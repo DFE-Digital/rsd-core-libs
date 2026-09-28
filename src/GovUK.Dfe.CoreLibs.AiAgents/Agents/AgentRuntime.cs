@@ -68,11 +68,11 @@ public sealed class AgentRuntime(IAgentFactory factory, IAgentRunner runner, IAg
     }
 
     public Task<AgentResult> RunEphemeralAsync(AgentSpec spec, string prompt, CancellationToken cancellationToken = default)
-        => RunEphemeralAsync(spec, prompt, resolveToolCalls: null, evidence: null, cancellationToken);
+        => RunEphemeralAsync(spec, prompt, resolveToolCalls: null, evidence: null, cancellationToken: cancellationToken);
 
     public async Task<AgentResult> RunEphemeralAsync(AgentSpec spec, string prompt,
         ToolCallResolver? resolveToolCalls,
-        string? evidence = null, CancellationToken cancellationToken = default, Func<AgentResult, string?>? validateOutput = null)
+        string? evidence = null, Func<AgentResult, string?>? validateOutput = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(spec);
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);

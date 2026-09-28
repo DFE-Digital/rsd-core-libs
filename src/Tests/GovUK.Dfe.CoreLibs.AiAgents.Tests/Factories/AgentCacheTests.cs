@@ -26,8 +26,8 @@ public sealed class AgentCacheTests
         => new(_foundry.Admin, new FoundryAgentFactoryOptions("gpt-4o") { AgentCacheDuration = cacheDuration ?? TimeSpan.FromSeconds(30) },
             timeProvider: _clock);
 
-    private Task FoundryLookups(int expected)
-        => _foundry.Admin.Received(expected).GetAgentAsync("ofsted-agent", Arg.Any<CancellationToken>());
+    private void FoundryLookups(int expected)
+        => _ = _foundry.Admin.Received(expected).GetAgentAsync("ofsted-agent", Arg.Any<CancellationToken>());
 
     [Fact]
     public async Task RepeatedRuns_ReuseTheResolvedVersion_WithoutAskingFoundry_UntilTheCacheExpires()
@@ -37,11 +37,11 @@ public sealed class AgentCacheTests
         await factory.GetOrCreateAsync(Spec, cancellationToken);
         await factory.GetOrCreateAsync(Spec, cancellationToken);
         await factory.GetOrCreateAsync(Spec, cancellationToken);
-        await FoundryLookups(1);
+        FoundryLookups(1);
 
         _clock.Advance(TimeSpan.FromSeconds(31));
         await factory.GetOrCreateAsync(Spec, cancellationToken);
-        await FoundryLookups(2);
+        FoundryLookups(2);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class AgentCacheTests
         await factory.GetOrCreateAsync(Spec, cancellationToken);
         await factory.GetOrCreateAsync(Spec, cancellationToken);
 
-        await FoundryLookups(2);
+        FoundryLookups(2);
     }
 
     [Fact]

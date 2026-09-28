@@ -101,121 +101,85 @@ public sealed class AiAgentsOptions
         => new(principal.TenantId, principal.ClientId, principal.ClientSecret,
             new ClientSecretCredentialOptions { AuthorityHost = principal.AuthorityHost ?? AzureAuthorityHosts.AzurePublicCloud });
 
-    /// <summary>Lists every missing setting, so startup fails once with the whole picture.</summary>
+    /// <summary>Lists every missing or invalid setting, so startup fails once with the whole picture.</summary>
     internal IReadOnlyList<string> MissingSettings()
+        => [.. FoundryProblems(), .. LimitProblems(), .. CredentialProblems(), .. VersionProblems(), .. McpServerProblems()];
+
+    private static IEnumerable<string> Missing(string? value, string name)
+        => string.IsNullOrWhiteSpace(value) ? [$"{SectionName}:{name}"] : [];
+
+    private IEnumerable<string> FoundryProblems()
+        => [.. Missing(Foundry.Endpoint, "Foundry:Endpoint"), .. Missing(Foundry.DefaultModel, "Foundry:DefaultModel")];
+
+    private IEnumerable<string> LimitProblems()
     {
-        var missing = new List<string>();
-        void Require(string? value, string name)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                missing.Add($"{SectionName}:{name}");
-            }
-        }
+        (bool Invalid, string Problem)[] checks =
+        [
+            (KeepLatestVersions is < 2, "KeepLatestVersions (must be at least 2)"),
+            (MaxConcurrency is < 1, "MaxConcurrency (must be at least 1)"),
+            (AgentCacheDuration < TimeSpan.Zero, "AgentCacheDuration (0 or more)"),
+            (MaxWaitForRunSlot <= TimeSpan.Zero, "MaxWaitForRunSlot (must be positive)"),
+            (MaxEvidenceCharacters < 1, "MaxEvidenceCharacters (must be at least 1)"),
+        ];
 
-        Require(Foundry.Endpoint, "Foundry:Endpoint");
-        Require(Foundry.DefaultModel, "Foundry:DefaultModel");
+        return checks.Where(static check => check.Invalid).Select(static check => $"{SectionName}:{check.Problem}")
+            .Concat(GlobalConcurrency.Problems().Select(static problem => $"{SectionName}:GlobalConcurrency:{problem}"));
+    }
 
-        if (KeepLatestVersions is < 2)
-        {
-            missing.Add($"{SectionName}:KeepLatestVersions (must be at least 2)");
-        }
-
-        if (MaxConcurrency is < 1)
-        {
-            missing.Add($"{SectionName}:MaxConcurrency (must be at least 1)");
-        }
-
-        if (AgentCacheDuration < TimeSpan.Zero)
-        {
-            missing.Add($"{SectionName}:AgentCacheDuration (0 or more)");
-        }
-
-        if (MaxWaitForRunSlot <= TimeSpan.Zero)
-        {
-            missing.Add($"{SectionName}:MaxWaitForRunSlot (must be positive)");
-        }
-
-        if (MaxEvidenceCharacters < 1)
-        {
-            missing.Add($"{SectionName}:MaxEvidenceCharacters (must be at least 1)");
-        }
-
-        missing.AddRange(GlobalConcurrency.Problems().Select(problem => $"{SectionName}:GlobalConcurrency:{problem}"));
-
-        // Each service needs a code override, its own complete block, or the default; the default only if someone uses it.
-        var usesDefault = false;
-        void RequirePrincipal(ServicePrincipalSettings principal, string path)
-        {
-            Require(principal.TenantId, $"{path}:TenantId");
-            Require(principal.ClientId, $"{path}:ClientId");
-            Require(principal.ClientSecret, $"{path}:ClientSecret");
-        }
-
-        void CheckCredential(string serviceKey, ServicePrincipalSettings? own, string path)
-        {
-            if (CredentialOverrides.ContainsKey(serviceKey))
-            {
-                return;
-            }
-
-            if (own is null)
-            {
-                usesDefault = true;
-            }
-            else
-            {
-                RequirePrincipal(own, path);
-            }
-        }
-
-        CheckCredential(nameof(AiAgentsService.Foundry), Foundry.Authentication, "Foundry:Authentication");
+    /// <summary>Each service needs a code credential, its own complete block, or the default; the default only if used.</summary>
+    private IEnumerable<string> CredentialProblems()
+    {
+        List<(string ServiceKey, ServicePrincipalSettings? Own, string Path)> services =
+            [(nameof(AiAgentsService.Foundry), Foundry.Authentication, "Foundry:Authentication")];
         if (Search is not null)
         {
-            CheckCredential(nameof(AiAgentsService.Search), Search.Authentication, "Search:Authentication");
+            services.Add((nameof(AiAgentsService.Search), Search.Authentication, "Search:Authentication"));
         }
 
         if (GlobalConcurrency.IsEnabled)
         {
-            CheckCredential(nameof(AiAgentsService.RunSlots), GlobalConcurrency.Authentication, "GlobalConcurrency:Authentication");
+            services.Add((nameof(AiAgentsService.RunSlots), GlobalConcurrency.Authentication, "GlobalConcurrency:Authentication"));
         }
 
-        foreach (var (key, server) in McpServers)
+        services.AddRange(McpServers.Select(server => (McpCredentialKey(server.Key), server.Value.Authentication, $"McpServers:{server.Key}:Authentication")));
+
+        var needingOwn = services.Where(service => !CredentialOverrides.ContainsKey(service.ServiceKey)).ToList();
+        var problems = needingOwn.Where(static service => service.Own is not null)
+            .SelectMany(static service => PrincipalProblems(service.Own!, service.Path));
+
+        if (Credential is null && needingOwn.Exists(static service => service.Own is null))
         {
-            CheckCredential(McpCredentialKey(key), server.Authentication, $"McpServers:{key}:Authentication");
+            problems = problems.Concat(PrincipalProblems(Authentication, "Authentication"));
         }
 
-        if (usesDefault && Credential is null)
-        {
-            RequirePrincipal(Authentication, "Authentication");
-        }
-
-        missing.AddRange(CredentialOverrides.Keys
+        return problems.Concat(CredentialOverrides.Keys
             .Where(key => key.StartsWith("Mcp:", StringComparison.Ordinal) && !McpServers.ContainsKey(key[4..]))
-            .Select(key => $"{SectionName}:McpServers:{key[4..]} (UseMcpCredential names a server that isn't configured)"));
+            .Select(static key => $"{SectionName}:McpServers:{key[4..]} (UseMcpCredential names a server that isn't configured)"));
+    }
 
+    private static IEnumerable<string> PrincipalProblems(ServicePrincipalSettings principal, string path)
+        => [.. Missing(principal.TenantId, $"{path}:TenantId"), .. Missing(principal.ClientId, $"{path}:ClientId"),
+            .. Missing(principal.ClientSecret, $"{path}:ClientSecret")];
+
+    private IEnumerable<string> VersionProblems()
+    {
         // The old list form binds as { "0": "agent-name" }; catch it rather than run an agent called "0".
-        if (ExternallyManagedAgents.Keys.Any(static key => key.All(char.IsAsciiDigit)))
-        {
-            missing.Add($"{SectionName}:ExternallyManagedAgents (use {{ \"agent-name\": \"version\" }}, not a list)");
-        }
+        IEnumerable<string> listForm = ExternallyManagedAgents.Keys.Any(static key => key.All(char.IsAsciiDigit))
+            ? [$"{SectionName}:ExternallyManagedAgents (use {{ \"agent-name\": \"version\" }}, not a list)"]
+            : [];
 
         // One place per agent's version, so there's nothing to keep in step.
-        missing.AddRange(ExternallyManagedAgents.Keys.Where(VersionPins.ContainsKey)
-            .Select(agent => $"{SectionName}:VersionPins:{agent} (already versioned under ExternallyManagedAgents; remove one)"));
-
-        foreach (var (key, server) in McpServers)
-        {
-            Require(server.ServerUri, $"McpServers:{key}:ServerUri");
-            Require(server.Scope, $"McpServers:{key}:Scope");
-            if (server.AllowedToolNames.Count == 0)
-            {
-                missing.Add($"{SectionName}:McpServers:{key}:AllowedToolNames");
-            }
-        }
-
-        return missing;
+        return listForm.Concat(ExternallyManagedAgents.Keys.Where(VersionPins.ContainsKey)
+            .Select(static agent => $"{SectionName}:VersionPins:{agent} (already versioned under ExternallyManagedAgents; remove one)"));
     }
+
+    private IEnumerable<string> McpServerProblems()
+        => McpServers.SelectMany(static server => (IEnumerable<string>)
+        [
+            .. Missing(server.Value.ServerUri, $"McpServers:{server.Key}:ServerUri"),
+            .. Missing(server.Value.Scope, $"McpServers:{server.Key}:Scope"),
+            .. server.Value.AllowedToolNames.Count == 0 ? [$"{SectionName}:McpServers:{server.Key}:AllowedToolNames"] : Array.Empty<string>(),
+        ]);
 
     /// <summary>Pins from <c>VersionPins</c> plus the versions under <c>ExternallyManagedAgents</c>.</summary>
     internal Factories.AgentVersionPinningOptions ToVersionPinning() => new()

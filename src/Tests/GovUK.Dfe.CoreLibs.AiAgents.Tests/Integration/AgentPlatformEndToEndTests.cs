@@ -32,10 +32,18 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Integration;
 /// replaced: Foundry's admin API (by a stateful <see cref="InMemoryFoundry"/>) and the Responses API
 /// (by a <see cref="ScriptedConversationClient"/>).
 /// </summary>
-public sealed class AgentPlatformEndToEndTests : IDisposable
+public sealed partial class AgentPlatformEndToEndTests : IDisposable
 {
     private const string DefaultModel = "my-connection/gpt-4o";
     private const string FallbackText = "This section could not be generated due to an error retrieving or analysing evidence.";
+    private static readonly string[] PerformanceToolNames = ["get_performance_data"];
+
+    // The recorded input is JSON, so the fence's newline appears as the two characters \n.
+    [System.Text.RegularExpressions.GeneratedRegex(@"<<<REFERENCE_MATERIAL ([0-9A-F]{16})\\n")]
+    private static partial System.Text.RegularExpressions.Regex FenceStart();
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"<<<REFERENCE_MATERIAL ([0-9A-F]{16})")]
+    private static partial System.Text.RegularExpressions.Regex FenceMarker();
 
     private readonly CancellationToken cancellationToken = default;
     private readonly string _promptDirectory = Directory.CreateTempSubdirectory("aiagents-e2e-").FullName;
@@ -82,8 +90,8 @@ public sealed class AgentPlatformEndToEndTests : IDisposable
         return services.BuildServiceProvider();
     }
 
-    private static Task<string> PromptFor(AgentDefinition definition, CancellationToken _)
-        => Task.FromResult($"Brief the user on {definition.Name}.");
+    private static readonly Func<AgentDefinition, CancellationToken, Task<string>> PromptFor =
+        (definition, _) => Task.FromResult($"Brief the user on {definition.Name}.");
 
     private static Task<IReadOnlyList<AgentResult>> RunParallel(ServiceProvider provider, params AgentDefinition[] definitions)
         => RunParallel(provider, shouldSuppress: null, default, definitions);
@@ -91,7 +99,7 @@ public sealed class AgentPlatformEndToEndTests : IDisposable
     private static Task<IReadOnlyList<AgentResult>> RunParallel(ServiceProvider provider, Func<Exception, bool>? shouldSuppress,
         CancellationToken cancellationToken, params AgentDefinition[] definitions)
         => provider.GetRequiredService<IAgentService>()
-            .RunParallelAsync(definitions, PromptFor, new AgentContext(), shouldSuppress, cancellationToken);
+            .RunParallelAsync(definitions, PromptFor, new AgentContext(), shouldSuppress, cancellationToken: cancellationToken);
 
     /// <summary>What McpToolClient gives an agent for a server exposing one tool: a plain function definition.</summary>
     private static IReadOnlyList<ResponseTool> PerformanceFunctionTools()
@@ -477,7 +485,7 @@ public sealed class AgentPlatformEndToEndTests : IDisposable
             tool => Assert.IsType<WebSearchTool>(tool),
             tool => Assert.Equal("get_performance_data", Assert.IsType<FunctionTool>(tool).FunctionName));
         await mcpClient.Received(1).GetToolsAsync(
-            Arg.Is<IReadOnlyList<string>?>(names => names != null && names.SequenceEqual(new[] { "get_performance_data" })), Arg.Any<CancellationToken>());
+            Arg.Is<IReadOnlyList<string>?>(names => names != null && names.SequenceEqual(PerformanceToolNames)), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -913,7 +921,7 @@ public sealed class AgentPlatformEndToEndTests : IDisposable
             additionalContext: poisoned, cancellationToken: cancellationToken);
 
         var input = Assert.Single(_conversations.CallsFor("ofsted-agent")).SerializedInput;
-        var fence = System.Text.RegularExpressions.Regex.Match(input, @"<<<REFERENCE_MATERIAL ([0-9A-F]{16})\\n");
+        var fence = FenceStart().Match(input);
         Assert.True(fence.Success, "The fence should carry a random marker.");
         var nonce = fence.Groups[1].Value;
         Assert.NotEqual("0000000000000000", nonce);
@@ -940,7 +948,7 @@ public sealed class AgentPlatformEndToEndTests : IDisposable
         await runner.RunAsync(agent, "Q2", additionalContext: "Evidence.", cancellationToken: cancellationToken);
 
         var markers = _conversations.CallsFor("ofsted-agent")
-            .Select(call => System.Text.RegularExpressions.Regex.Match(call.SerializedInput, @"<<<REFERENCE_MATERIAL ([0-9A-F]{16})").Groups[1].Value)
+            .Select(call => FenceMarker().Match(call.SerializedInput).Groups[1].Value)
             .ToList();
         Assert.Equal(2, markers.Distinct().Count());
     }

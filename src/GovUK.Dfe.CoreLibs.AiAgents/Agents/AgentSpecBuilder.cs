@@ -12,7 +12,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Agents;
 internal sealed class AgentSpecBuilder(IPromptProvider promptProvider, IEnumerable<AgentToolBinding>? toolBindings = null,
     IEnumerable<IManagedAgentProvider>? customProviders = null)
 {
-    private readonly IReadOnlyDictionary<string, IManagedAgentProvider> _customProviders =
+    private readonly Dictionary<string, IManagedAgentProvider> _customProviders =
         (customProviders ?? []).ToDictionary(static provider => provider.AgentName);
 
     /// <summary>Each agent's bound tool providers, by agent name.</summary>

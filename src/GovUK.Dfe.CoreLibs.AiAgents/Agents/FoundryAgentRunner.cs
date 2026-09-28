@@ -27,8 +27,8 @@ public sealed class FoundryAgentRunner(IAgentFactory agentFactory, IFoundryConve
 
     public async Task<AgentResult> RunAsync(AgentSpec spec, string prompt, string? conversationId = null,
         ToolCallResolver? resolveToolCalls = null,
-        string? additionalContext = null, CancellationToken cancellationToken = default,
-        Func<AgentResult, string?>? validateOutput = null)
+        string? additionalContext = null, Func<AgentResult, string?>? validateOutput = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(spec);
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
@@ -44,8 +44,8 @@ public sealed class FoundryAgentRunner(IAgentFactory agentFactory, IFoundryConve
     public async Task<AgentResult> RunAsync(AgentReference agent, string prompt, string? conversationId = null,
         string? additionalContext = null,
         ToolCallResolver? resolveToolCalls = null,
-        CancellationToken cancellationToken = default,
-        Func<AgentResult, string?>? validateOutput = null)
+        Func<AgentResult, string?>? validateOutput = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(agent);
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);

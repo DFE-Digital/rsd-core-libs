@@ -27,8 +27,8 @@ public interface IAgentService
     /// <returns>One result per definition, in order.</returns>
     Task<IReadOnlyList<AgentResult>> RunParallelAsync(IReadOnlyCollection<AgentDefinition> definitions,
         Func<AgentDefinition, CancellationToken, Task<string>> resolvePrompt, AgentContext context,
-        Func<Exception, bool>? shouldSuppress = null, CancellationToken cancellationToken = default,
-        Func<AgentDefinition, CancellationToken, Task<string?>>? resolveEvidence = null);
+        Func<Exception, bool>? shouldSuppress = null,
+        Func<AgentDefinition, CancellationToken, Task<string?>>? resolveEvidence = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Runs agents in order. Each gets the previous output (the first gets <paramref name="initialInput"/>) as fenced

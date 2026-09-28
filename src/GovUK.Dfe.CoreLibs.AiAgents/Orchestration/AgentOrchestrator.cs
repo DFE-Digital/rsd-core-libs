@@ -16,8 +16,8 @@ public sealed class AgentOrchestrator(IAgentRunner agentRunner, ILogger<AgentOrc
     private readonly string _applicationName = runOptions?.ApplicationName ?? AgentTelemetry.DefaultApplicationName;
 
     public async Task<OrchestrationResult> RunSequentialAsync(IReadOnlyList<AgentReference> agents, string initialInput,
-        AgentContext context, Func<Exception, bool>? shouldSuppress = null, CancellationToken cancellationToken = default,
-        Func<AgentReference, ToolCallResolver?>? resolveToolCallsFor = null)
+        AgentContext context, Func<Exception, bool>? shouldSuppress = null,
+        Func<AgentReference, ToolCallResolver?>? resolveToolCallsFor = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(agents);
         ArgumentNullException.ThrowIfNull(context);
@@ -55,8 +55,7 @@ public sealed class AgentOrchestrator(IAgentRunner agentRunner, ILogger<AgentOrc
 
     public Task<OrchestrationResult> RunParallelAsync(IReadOnlyList<AgentReference> agents, string input,
         AgentContext context, int? maxConcurrency = null, Func<Exception, bool>? shouldSuppress = null,
-        CancellationToken cancellationToken = default,
-        Func<AgentReference, ToolCallResolver?>? resolveToolCallsFor = null)
+        Func<AgentReference, ToolCallResolver?>? resolveToolCallsFor = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(agents);
 

@@ -29,9 +29,9 @@ public sealed class FailFastParallelTests
                     throw;
                 }
             },
-            async _ =>
+            async ct =>
             {
-                await Task.Delay(20);
+                await Task.Delay(20, ct);
                 throw failure;
             },
         };
@@ -47,7 +47,7 @@ public sealed class FailFastParallelTests
     public async Task WithNoFailures_ReturnsEveryResult_InOrder()
     {
         var results = await FailFastParallel.WhenAllAsync(
-            [async _ => { await Task.Delay(30); return 1; }, _ => Task.FromResult(2)], CancellationToken.None);
+            [async ct => { await Task.Delay(30, ct); return 1; }, _ => Task.FromResult(2)], CancellationToken.None);
 
         Assert.Equal([1, 2], results);
     }

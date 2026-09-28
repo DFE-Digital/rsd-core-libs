@@ -9,6 +9,9 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Context;
 
 public sealed class AzureSearchContextRetrieverTests
 {
+    private static readonly string[] EstablishmentFields = ["name", "summary"];
+    private static readonly string[] InspectionFields = ["content"];
+
     private const string Scope = "establishment";
 
     private readonly CancellationToken cancellationToken = default;
@@ -192,9 +195,9 @@ public sealed class AzureSearchContextRetrieverTests
         Assert.DoesNotContain("https://example", inspection.Text, StringComparison.Ordinal);
 
         await establishments.Received(1).SearchAsync<SearchDocument>("Oak",
-            Arg.Is<SearchOptions>(o => o.Select.SequenceEqual(new[] { "name", "summary" })), cancellationToken);
+            Arg.Is<SearchOptions>(o => o.Select.SequenceEqual(EstablishmentFields)), cancellationToken);
         await inspections.Received(1).SearchAsync<SearchDocument>("Oak",
-            Arg.Is<SearchOptions>(o => o.Select.SequenceEqual(new[] { "content" })), cancellationToken);
+            Arg.Is<SearchOptions>(o => o.Select.SequenceEqual(InspectionFields)), cancellationToken);
     }
 
     [Fact]

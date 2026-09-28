@@ -137,7 +137,7 @@ public sealed class AgentServiceTests
         _agentRunner.RunAsync(Arg.Is<AgentReference>(a => a.Name == Managed.Name), Arg.Any<string>(), conversationId: Arg.Any<string?>(), additionalContext: Arg.Any<string?>(),
             resolveToolCalls: AnyResolver(), cancellationToken: Arg.Any<CancellationToken>()).ThrowsAsync(new InvalidOperationException("boom"));
         _agentRuntime.RunEphemeralAsync(Arg.Is<AgentSpec>(spec => spec.Name == Ephemeral.Name), "prompt-for-ephemeral-agent", AnyResolver(),
-            "initial", Arg.Any<CancellationToken>()).Returns(new AgentResult(Ephemeral.Name, "ephemeral output", 5));
+            "initial", Arg.Any<Func<AgentResult, string?>?>(), Arg.Any<CancellationToken>()).Returns(new AgentResult(Ephemeral.Name, "ephemeral output", 5));
 
         var results = await CreateSut().RunSequentialAsync([Managed, Ephemeral], ResolvePrompt, "initial",
             new AgentContext(), cancellationToken: cancellationToken);
@@ -167,7 +167,7 @@ public sealed class AgentServiceTests
         toolProvider.GetToolsAsync(Arg.Any<CancellationToken>()).Returns([tool]);
         AgentSpec? capturedSpec = null;
         _agentRuntime.RunEphemeralAsync(Arg.Do<AgentSpec>(spec => capturedSpec = spec), Arg.Any<string>(), AnyResolver(),
-            Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new AgentResult(Ephemeral.Name, "ephemeral output", 5));
+            Arg.Any<string?>(), Arg.Any<Func<AgentResult, string?>?>(), Arg.Any<CancellationToken>()).Returns(new AgentResult(Ephemeral.Name, "ephemeral output", 5));
 
         var sut = new AgentService(_agentRunner, _agentRuntime, new AgentSpecBuilder(_promptProvider, [new AgentToolBinding(Ephemeral.Name, toolProvider)]));
         await sut.RunParallelAsync([Ephemeral], ResolvePrompt, new AgentContext(), cancellationToken: cancellationToken);
