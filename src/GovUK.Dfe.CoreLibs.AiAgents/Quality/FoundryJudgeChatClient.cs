@@ -6,10 +6,10 @@ using System.Runtime.CompilerServices;
 namespace GovUK.Dfe.CoreLibs.AiAgents.Quality;
 
 /// <summary>
-/// Evaulates a chat with a Foundry judge model, which is a single-turn model that returns the whole answer at once. It does not support streaming.
+/// Uses the Foundry Judge API to get a response to a chat conversation. This is used for quality assurance of AI agents, and is not intended for production use.   
 /// </summary>
-/// <param name="client">The OpenAI client for interacting with the Foundry judge model.</param>
-/// <param name="model">The model to use for evaluation.</param>
+/// <param name="client">This app's Foundry project client.</param>
+/// <param name="model">The judge model, e.g. "myconnection/gpt-5.1".</param>
 public sealed class FoundryJudgeChatClient(ProjectOpenAIClient client, string model) : IChatClient
 {
     public async Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
@@ -29,13 +29,7 @@ public sealed class FoundryJudgeChatClient(ProjectOpenAIClient client, string mo
         };
     }
 
-    /// <summary>
-    /// Returns a streaming response from the Foundry judge model. Since the Foundry judge model does not support streaming, this method will yield a single update containing the complete response.
-    /// </summary>
-    /// <param name="messages">The messages to send to the model.</param>
-    /// <param name="options">The options for the chat request.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>An async enumerable of chat response updates.</returns>
+    /// <summary>Returns the whole answer as one update: this client doesn't stream, and judges don't need it.</summary>
     public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
