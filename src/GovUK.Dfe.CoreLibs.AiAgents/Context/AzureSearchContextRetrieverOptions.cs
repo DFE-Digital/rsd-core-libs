@@ -1,6 +1,6 @@
 namespace GovUK.Dfe.CoreLibs.AiAgents.Context;
 
-/// <summary>The <c>AiAgents:Search</c> section. Signs in with the same credential as everything else.</summary>
+/// <summary>The <c>AiAgents:Search</c> section.</summary>
 public sealed class AzureSearchContextRetrieverOptions
 {
     public required string Endpoint { get; init; }

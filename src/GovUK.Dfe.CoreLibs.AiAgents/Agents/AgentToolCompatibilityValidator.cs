@@ -12,15 +12,11 @@ using OpenAI.Responses;
 namespace GovUK.Dfe.CoreLibs.AiAgents.Agents;
 
 /// <summary>
-/// At startup, checks that this app can run every tool its agents will call - for agents it didn't build
-/// itself (pinned, or provisioned centrally and used through <see cref="ExternallyManagedAgentProvider"/>).
-/// Each tool in the deployed version must be in the agent's <see cref="AgentDefinition.AllowedTools"/> and
-/// offered by one of this app's <see cref="AgentToolBinding"/>s. A mismatch fails startup with one error
-/// listing every problem, instead of tool calls failing one by one at run time.
+/// At startup, checks this app can run every tool its pinned and externally managed agents call: each must be in
+/// <see cref="AgentDefinition.AllowedTools"/> and offered by a binding. Fails once, listing every problem.
 /// </summary>
 /// <remarks>
-/// Agents this app builds itself are skipped: their tools come from the same bindings, so they always match.
-/// If Foundry or a tool server can't be reached at startup, a warning is logged and startup continues.
+/// Agents this app builds are skipped: their tools come from the same bindings. Unreachable services only log a warning.
 /// </remarks>
 internal sealed class AgentToolCompatibilityValidator(IServiceProvider services, AgentRunOptions runOptions,
     IAgentDefinitionProvider? definitionProvider = null, AgentVersionPinningOptions? versionPinning = null,
@@ -33,8 +29,8 @@ internal sealed class AgentToolCompatibilityValidator(IServiceProvider services,
 
     private readonly ILogger<AgentToolCompatibilityValidator> _logger = logger ?? NullLogger<AgentToolCompatibilityValidator>.Instance;
     private readonly IReadOnlyDictionary<string, List<IAgentToolProvider>> _toolProviders = AgentToolResolver.GroupByAgentName(toolBindings);
-    private readonly HashSet<string> _externallyManaged =
-        [.. (managedAgentProviders ?? []).Where(static provider => !provider.CreatesAgent).Select(static provider => provider.AgentName)];
+    private readonly Dictionary<string, IManagedAgentProvider> _externallyManaged =
+        (managedAgentProviders ?? []).Where(static provider => !provider.CreatesAgent).ToDictionary(static provider => provider.AgentName);
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -62,8 +58,9 @@ internal sealed class AgentToolCompatibilityValidator(IServiceProvider services,
 
     private async Task<string?> CheckAsync(AgentDefinition definition, CancellationToken cancellationToken)
     {
-        var pinnedVersion = versionPinning?.GetPinnedVersion(definition.Name);
-        if (pinnedVersion is null && !_externallyManaged.Contains(definition.Name))
+        var external = _externallyManaged.GetValueOrDefault(definition.Name);
+        var pinnedVersion = external is ExternalProjectAgentProvider inOtherProject ? inOtherProject.Version : versionPinning?.GetPinnedVersion(definition.Name);
+        if (pinnedVersion is null && external is null)
         {
             return null;
         }
@@ -72,7 +69,9 @@ internal sealed class AgentToolCompatibilityValidator(IServiceProvider services,
         HashSet<string> offeredTools;
         try
         {
-            deployedTools = await AgentFactory.GetFunctionToolNamesAsync(definition.Name, pinnedVersion, cancellationToken).ConfigureAwait(false);
+            // An agent in another Foundry project is checked there.
+            var factory = external is ExternalProjectAgentProvider other ? other.Project.Factory : AgentFactory;
+            deployedTools = await factory.GetFunctionToolNamesAsync(definition.Name, pinnedVersion, cancellationToken).ConfigureAwait(false);
             if (deployedTools.Count == 0)
             {
                 return null;

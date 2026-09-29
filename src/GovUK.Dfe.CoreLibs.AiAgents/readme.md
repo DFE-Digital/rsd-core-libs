@@ -144,7 +144,7 @@ instructions in the prompt. Evidence over `MaxEvidenceCharacters` (100,000) is c
 | --- | --- |
 | `Name` | Its Foundry name; unique per app if the project is shared |
 | `SystemPromptType` | Its key under `PromptFiles:SystemPrompts` |
-| `IsManagedAgent` | `true` (default): kept and reused. `false`: created per run, then deleted, at two extra Foundry calls. Use only if its instructions or tools change every run. |
+| `IsManagedAgent` | `true` (default): kept and reused. `false`: created and deleted per run (two extra Foundry calls); only if its instructions or tools change every run |
 | `AllowedTools` | Tools it may use; none if empty |
 | `OutputSchema` | JSON schema for its answer; read with `result.ReadOutputAs<T>()` |
 | `Validate`, `RequireCitations` | [Answer checks](#check-every-answer) |
@@ -207,10 +207,22 @@ production's version) are never deleted. Unset: never prunes.
    "ExternallyManagedAgents": { "establishment-agent": "1", "ofsted-agent": "4", "trust-agent": "2" }
    ```
 
+   In another Foundry project, add its `Endpoint` and optionally `Authentication` (unset: this app's Foundry
+   credential). They then run there; all must be in that one project:
+
+   ```json
+   "ExternallyManagedAgents": {
+     "Endpoint": "https://<central>.services.ai.azure.com/api/projects/<project>",
+     "Authentication": { "TenantId": "<tenant>", "ClientId": "<client id>" },
+     "ofsted-agent": "4"
+   }
+   ```
+
 3. Apps keep their MCP servers and `AllowedTools`, because they run the tools. At startup each app checks it can
    run every tool the version calls (`ValidateAgentToolsAtStartup`).
 
-`"latest"` follows the newest version (dev only). `VersionPins` is for agents the app builds; an agent can't be in both.
+To add an agent, add its line here and its `AgentDefinition` (same name) to `AddAgents`. `"latest"` follows the
+newest version (dev only). `VersionPins` is for agents the app builds; an agent can't be in both.
 
 ## Answer quality
 
@@ -337,7 +349,7 @@ All under `AiAgents`:
 | `ValidateAgentToolsAtStartup` | `true` | Fails if a pinned or external agent's tools can't run here |
 | `KeepLatestVersions` | None | Versions kept on each new one (min 2); unset = never prune |
 | `VersionPins` / `ProtectedVersions` | None | Versions this environment runs / other environments need kept |
-| `ExternallyManagedAgents` | None | Agents from a provisioning job, with their version (or `"latest"`) |
+| `ExternallyManagedAgents` | None | Agents from a provisioning job, with their version (or `"latest"`); optional `Endpoint` and `Authentication` for another project |
 | `ResponseFormatKey` / `ResponseFormatExemptPromptTypes` | None | Prompt appended to every agent / types it isn't appended to |
 | `MaxRetries` | 3 | Foundry client retries; a retried call may be billed twice |
 
@@ -346,7 +358,8 @@ Change settings in code with `agents.Configure(o => ...)`.
 ## Credentials
 
 `Authentication` is the default. `Foundry`, `Search`, each MCP server and `GlobalConcurrency` can have their own
-`Authentication` block, e.g. an MCP server in another tenant:
+`Authentication` block; so can [`ExternallyManagedAgents`](#centrally-managed-agents) in another project. For example,
+an MCP server in another tenant:
 
 ```json
 "McpServers": {
@@ -363,7 +376,8 @@ For managed identities, set credentials in code:
 ```csharp
 agents.UseCredential(new ManagedIdentityCredential())                     // default
       .UseCredentialFor(AiAgentsService.Search, searchCredential)         // one service
-      .UseMcpCredential("school-performance", partnerCredential);         // one MCP server
+      .UseMcpCredential("school-performance", partnerCredential)          // one MCP server
+      .UseExternallyManagedAgentsCredential(centralCredential);           // externally managed agents' project
 ```
 
 A service uses its code credential, then its own block, then the default. The default is required only if a service

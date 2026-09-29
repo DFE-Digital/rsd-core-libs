@@ -9,9 +9,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 /// </summary>
 public interface IManagedAgentProvider
 {
-    /// <summary>
-    /// The agent's name in Foundry.
-    /// </summary>
+    /// <summary>The agent's name in Foundry.</summary>
     string AgentName { get; }
 
     /// <summary>
@@ -27,13 +25,9 @@ public interface IManagedAgentProvider
     /// </summary>
     Task<AgentSpec?> BuildSpecAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Ensures the agent exists (creating or versioning it if needed), then resolves its reference, respecting any configured version pin.
-    /// </summary>
+    /// <summary>The agent at its pinned version, creating or versioning it first if needed.</summary>
     Task<AgentReference> GetAgentAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Ensures the agent exists (creating or versioning it if needed), then resolves its reference to the latest version, ignoring any configured version pin.
-    /// </summary>
+    /// <summary>As above, at the latest version, ignoring any pin.</summary>
     Task<AgentReference> GetLatestAgentAsync(CancellationToken cancellationToken = default);
 }

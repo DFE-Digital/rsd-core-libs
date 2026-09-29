@@ -4,10 +4,7 @@ using OpenAI.Responses;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Tools.Mcp;
 
-/// <summary>
-/// Gives an agent a subset of an MCP server's tools, and runs only that subset when the model calls them.
-/// </summary>
-/// <param name="client">The MCP tool client to retrieve and run tools with.</param>
+/// <summary>Gives an agent a subset of an MCP server's tools, and runs only that subset when the model calls them.</summary>
 /// <param name="allowedToolNames">The tool names this agent may see and call.</param>
 public sealed class McpAllowedToolsProvider(IMcpToolClient client, IReadOnlyList<string> allowedToolNames)
     : IAgentToolProvider, IAgentToolExecutor

@@ -2,16 +2,10 @@ using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Extensions;
 
-/// <summary>
-/// Provides extension methods for working with <see cref="AgentResult"/> instances and related data, such as formatting agent names for display and compiling multiple results into a single context block.
-/// </summary>
+/// <summary>Helpers for agent names and results.</summary>
 public static class AgentResultExtensions
 {
-    /// <summary>
-    /// Converts a kebab-case agent name (e.g., "trust-agent") into a human-readable display name (e.g., "Trust"). It removes the "-agent" suffix if present and capitalizes each word.
-    /// </summary>
-    /// <param name="agentName">The agent's stable name, e.g. <see cref="AgentDefinition.Name"/> or <see cref="AgentResult.AgentName"/>.</param>
-    /// <returns>The human-readable display name.</returns>
+    /// <summary>Turns "trust-agent" into "Trust": drops "-agent" and capitalises each word.</summary>
     public static string ToDisplayName(this string agentName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(agentName);
@@ -49,8 +43,6 @@ public static class AgentResultExtensions
     /// Adds up the tokens used across <paramref name="results"/> - e.g. every specialist result plus the
     /// synthesis result of a briefing - in total and per agent. A failed agent counts as zero.
     /// </summary>
-    /// <param name="results">The results to add up.</param>
-    /// <returns>The total and per-agent token usage.</returns>
     public static TokenUsageSummary ToTokenUsageSummary(this IEnumerable<AgentResult> results)
     {
         ArgumentNullException.ThrowIfNull(results);

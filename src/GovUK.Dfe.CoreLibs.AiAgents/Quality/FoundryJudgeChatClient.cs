@@ -5,9 +5,8 @@ using System.Runtime.CompilerServices;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Quality;
 
-/// <summary>
-/// Uses the Foundry Judge API to get a response to a chat conversation. This is used for quality assurance of AI agents, and is not intended for production use.   
-/// </summary>
+/// <summary>A judge model called through this app's Foundry project, with no extra client or credential.</summary>
+/// <remarks>Sends only the model and messages, so reasoning models (e.g. gpt-5.1) work.</remarks>
 /// <param name="client">This app's Foundry project client.</param>
 /// <param name="model">The judge model, e.g. "myconnection/gpt-5.1".</param>
 public sealed class FoundryJudgeChatClient(ProjectOpenAIClient client, string model) : IChatClient

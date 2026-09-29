@@ -1,11 +1,7 @@
 namespace GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 
-/// <summary>
-/// Represents the result of an agent execution.
-/// </summary>
-/// <param name="AgentName">The agent name.</param>
-/// <param name="Output">The agent's response, if any.</param>
-/// <param name="TotalTokens">The total input and output tokens used.</param>
+/// <summary>One run's answer and token usage.</summary>
+/// <param name="TotalTokens">Input plus output tokens.</param>
 public sealed record AgentResult(string AgentName, string? Output, long TotalTokens)
 {
     /// <summary>The input (prompt) tokens used, when Foundry reported them.</summary>

@@ -6,9 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents;
 
-/// <summary>
-/// Builds an app's agents, extra tools and code-only settings in <c>AddAiAgents</c>.
-/// </summary>
+/// <summary>Adds an app's agents, tools and code-only settings in <c>AddAiAgents</c>.</summary>
 public sealed class AiAgentsBuilder
 {
     private readonly List<Action<AiAgentsOptions>> _configureOptions = [];
@@ -21,11 +19,7 @@ public sealed class AiAgentsBuilder
 
     internal IReadOnlyList<AgentDefinition> Definitions => _definitions;
 
-    /// <summary>
-    /// Adds one or more agents to this app, e.g. <c>new AgentDefinition { Name = "myagent", SystemPromptType = "mytype" }</c>.
-    /// </summary>
-    /// <param name="definitions">The agent definitions to add.</param>
-    /// <returns>The builder instance.</returns>
+    /// <summary>Adds this app's agents.</summary>
     /// <exception cref="ArgumentException">Two definitions share a name.</exception>
     public AiAgentsBuilder AddAgents(params AgentDefinition[] definitions)
     {
@@ -44,12 +38,7 @@ public sealed class AiAgentsBuilder
         return this;
     }
 
-    /// <summary>
-    /// Gives an agent access to extra tools, e.g. a <c>SearchToolProvider</c> or <c>WeatherToolProvider</c>. The provider is called every time the agent runs.
-    /// </summary>
-    /// <param name="agentName">The name of the agent to give tools to.</param>
-    /// <param name="provider">The tool provider to add.</param>
-    /// <returns>The builder instance.</returns>
+    /// <summary>Gives an agent extra tools, e.g. <c>WebSearchToolProvider</c>. Called on every run.</summary>
     public AiAgentsBuilder AddTools(string agentName, IAgentToolProvider provider)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(agentName);
@@ -59,23 +48,15 @@ public sealed class AiAgentsBuilder
         return this;
     }
 
-    /// <summary>
-    /// Builds an agent on demand, e.g. a <c>ManagedAgentProvider</c> that creates a new agent for each user. The provider is called every time the agent runs.
-    /// </summary>
-    /// <typeparam name="TProvider">The type of the agent provider to add.</typeparam>
-    /// <returns>The builder instance.</returns>
+    /// <summary>Builds an agent in code on every run, e.g. one per user.</summary>
     public AiAgentsBuilder AddAgentProvider<TProvider>() where TProvider : class, IManagedAgentProvider
     {
         Services.AddSingleton<IManagedAgentProvider, TProvider>();
         return this;
     }
 
-    /// <summary>
-    /// Deletes ephemeral agents that haven't been used for a while, every <paramref name="interval"/> (default 30 minutes). Ephemeral agents are those created by a <c>ManagedAgentProvider</c> or with <c>AgentDefinition.IsEphemeral</c>.
-    /// </summary>
-    /// <param name="interval">The interval at which to sweep ephemeral agents.</param>
-    /// <returns>The builder instance.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when the interval is not positive.</exception>
+    /// <summary>Deletes unused ephemeral agents every <paramref name="interval"/> (default 30 minutes).</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The interval isn't positive.</exception>
     public AiAgentsBuilder AddEphemeralAgentSweep(TimeSpan? interval = null)
     {
         var every = interval ?? TimeSpan.FromMinutes(30);
@@ -90,8 +71,8 @@ public sealed class AiAgentsBuilder
     }
 
     /// <summary>
-    /// Scores answers with <paramref name="evaluator"/>: a <paramref name="sampleRate"/> share of live runs in the
-    /// background (<c>aiagents.quality.score</c>), and every <c>IAgentTestRunner</c> case. A rate of 0 scores only tests.
+    /// Scores every <c>IAgentTestRunner</c> case, and a <paramref name="sampleRate"/> share of live runs in the background
+    /// (<c>aiagents.quality.score</c>). A rate of 0 scores only tests.
     /// </summary>
     public AiAgentsBuilder AddQualityEvaluation(Func<IServiceProvider, Quality.IAgentRunEvaluator> evaluator, double sampleRate = 0.05)
     {
@@ -117,7 +98,6 @@ public sealed class AiAgentsBuilder
     /// <param name="sampleRate">The rate at which to sample live runs for quality evaluation.</param>
     /// <param name="evaluator">The evaluator to use for quality assessment.</param>
     /// <returns>The builder instance.</returns>
-
     public AiAgentsBuilder AddQualityEvaluation(string judgeModel, double sampleRate = 0.05,
         Microsoft.Extensions.AI.Evaluation.IEvaluator? evaluator = null)
     {
@@ -144,9 +124,9 @@ public sealed class AiAgentsBuilder
     }
 
     /// <summary>
-    /// Credential for a specific service, e.g. <c>AiAgentsService.Foundry</c>. Overrides its block and the default.
+    /// Sets the credential for a specific service.
     /// </summary>
-    /// <param name="service">The service for which to use the credential.</param>
+    /// <param name="service">The AI agents service.</param>
     /// <param name="credential">The token credential to use.</param>
     /// <returns>The builder instance.</returns>
     public AiAgentsBuilder UseCredentialFor(AiAgentsService service, TokenCredential credential)
@@ -155,12 +135,7 @@ public sealed class AiAgentsBuilder
         return Configure(options => options.CredentialOverrides[service.ToString()] = credential);
     }
 
-    /// <summary>
-    /// A credential for one MCP server (its key under <c>McpServers</c>). Overrides its block and the default.
-    /// </summary>
-    /// <param name="serverName">The name of the MCP server.</param>
-    /// <param name="credential">The token credential to use.</param>
-    /// <returns>The builder instance.</returns>
+    /// <summary>A credential for one MCP server (its key under <c>McpServers</c>). Overrides its block and the default.</summary>
     public AiAgentsBuilder UseMcpCredential(string serverName, TokenCredential credential)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(serverName);
@@ -168,11 +143,14 @@ public sealed class AiAgentsBuilder
         return Configure(options => options.CredentialOverrides[AiAgentsOptions.McpCredentialKey(serverName)] = credential);
     }
 
-    /// <summary>
-    /// Configures the AI agents with custom options. The <paramref name="configure"/> action is called once during startup to modify the <c>AiAgentsOptions</c>.
-    /// </summary>
-    /// <param name="configure">The action to configure the options.</param>
-    /// <returns>The builder instance.</returns>
+    /// <summary>A credential for the <c>ExternallyManagedAgents</c> project (needs its <c>Endpoint</c>). Overrides its <c>Authentication</c> and this app's Foundry credential.</summary>
+    public AiAgentsBuilder UseExternallyManagedAgentsCredential(TokenCredential credential)
+    {
+        ArgumentNullException.ThrowIfNull(credential);
+        return Configure(options => options.CredentialOverrides[AiAgentsOptions.ExternallyManagedCredentialKey] = credential);
+    }
+
+    /// <summary>Changes settings in code, after configuration is read.</summary>
     public AiAgentsBuilder Configure(Action<AiAgentsOptions> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);

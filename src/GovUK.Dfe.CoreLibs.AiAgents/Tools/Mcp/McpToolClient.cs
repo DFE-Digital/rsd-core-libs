@@ -69,7 +69,6 @@ public sealed class McpToolClient : IMcpToolClient, IDisposable
     /// <see cref="McpServerConnectionOptions.AllowedToolNames"/>, which is the most any agent can have.
     /// </summary>
     /// <param name="allowedToolNames">The tools to describe, or null/empty for all of the server's allowed tools.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IReadOnlyList<ResponseTool>> GetToolsAsync(IReadOnlyList<string>? allowedToolNames,
         CancellationToken cancellationToken = default)
     {

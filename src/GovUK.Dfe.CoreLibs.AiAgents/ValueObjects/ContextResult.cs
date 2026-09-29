@@ -1,8 +1,6 @@
 namespace GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 
-/// <summary>
-/// Represents the result of a context lookup.
-/// </summary>
-/// <param name="Text">The formatted context text.</param>
-/// <param name="HasEvidence">Indicates whether evidence was found.</param>
+/// <summary>Evidence found for a prompt.</summary>
+/// <param name="Text">The evidence, formatted for the prompt.</param>
+/// <param name="HasEvidence">Whether anything matched.</param>
 public sealed record ContextResult(string Text, bool HasEvidence);

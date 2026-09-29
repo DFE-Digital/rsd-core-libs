@@ -1,28 +1,16 @@
 namespace GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 
-/// <summary>
-/// Represents the result of an orchestration.
-/// </summary>
-/// <param name="FinalOutput">The combined final output.</param>
-/// <param name="Results">The results of each agent step.</param>
+/// <summary>The result of an orchestration.</summary>
 public sealed record OrchestrationResult(string? FinalOutput, IReadOnlyList<AgentStepResult> Results)
 {
     public long TotalTokens => Results.Sum(r => r.Result?.TotalTokens ?? 0);
 
-    /// <summary>
-    /// Tokens used by every step, in total and split into input and output - including what failed
-    /// steps used before failing, since Foundry billed it.
-    /// </summary>
+    /// <summary>Tokens used by every step, including failed ones, since Foundry billed them.</summary>
     public TokenUsage Usage => Results.Aggregate(TokenUsage.None,
         (total, step) => total + (step.Result?.Usage ?? Diagnostics.AgentTelemetry.TokenUsageOf(step.Error)));
 }
 
-/// <summary>
-/// Represents the result of a single agent step.
-/// </summary>
-/// <param name="AgentName">The agent that ran.</param>
-/// <param name="Result">The agent result, if successful.</param>
-/// <param name="Error">The error, if the step failed.</param>
+/// <summary>One step: its result, or the error if it failed.</summary>
 public sealed record AgentStepResult(string AgentName, AgentResult? Result, Exception? Error)
 {
     public bool Succeeded => Error is null;

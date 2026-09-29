@@ -1,17 +1,10 @@
 namespace GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 
-/// <summary>
-/// One step of an orchestration: which agent to run and what to send it.
-/// </summary>
-/// <param name="AgentName">The name of the agent.</param>
-/// <param name="ResolveAgent">A function to resolve the agent reference.</param>
-/// <param name="ResolvePrompt">A function to resolve the prompt.</param>
+/// <summary>One step of an orchestration: which agent to run and what to send it.</summary>
 public sealed record AgentOrchestrationStep(string AgentName, Func<CancellationToken, Task<AgentReference>> ResolveAgent,
     Func<CancellationToken, Task<string>> ResolvePrompt)
 {
-    /// <summary>
-    /// Untrusted material for the agent (search results, documents), sent fenced as data. Null for none.
-    /// </summary>
+    /// <summary>Untrusted material for the agent (search results, documents), sent fenced as data. Null for none.</summary>
     public Func<CancellationToken, Task<string?>>? ResolveEvidence { get; init; }
 
     /// <summary>

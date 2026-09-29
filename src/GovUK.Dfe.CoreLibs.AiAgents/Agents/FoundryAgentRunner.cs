@@ -14,9 +14,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Agents;
 public sealed class FoundryAgentRunner(IAgentFactory agentFactory, IFoundryConversationClient conversationClient,
     ILogger<FoundryAgentRunner>? logger = null, AgentRunOptions? runOptions = null, IAgentRunLimiter? runLimiter = null) : IAgentRunner
 {
-    /// <summary>
-    /// The maximum number of tool-call rounds allowed per agent run.
-    /// </summary>
+    /// <summary>The most tool-call rounds in one run.</summary>
     private const int MaxToolCallRounds = 10;
 
     /// <summary>How long conversation clean-up may take once a run has finished (or been cancelled).</summary>

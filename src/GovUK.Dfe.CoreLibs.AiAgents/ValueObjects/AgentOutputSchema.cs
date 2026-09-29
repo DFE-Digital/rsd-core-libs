@@ -4,11 +4,8 @@ using System.Text.Json.Schema;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 
-/// <summary>
-/// A JSON schema of an agent's output, including its name, JSON schema, and an optional description.
-/// </summary>
+/// <summary>A JSON schema the agent's answer must follow.</summary>
 /// <param name="Name">A short name for the format, e.g. "ofsted_findings" (letters, digits, '_' and '-').</param>
-/// <param name="JsonSchema">The JSON schema, as JSON text.</param>
 /// <param name="Description">What the output is, to help the model.</param>
 public sealed record AgentOutputSchema(string Name, string JsonSchema, string? Description = null)
 {
@@ -18,13 +15,7 @@ public sealed record AgentOutputSchema(string Name, string JsonSchema, string? D
         TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(),
     };
 
-    /// <summary>
-    /// Creates an <see cref="AgentOutputSchema"/> for a given type <typeparamref name="T"/>, using the provided name and optional description. 
-    /// </summary>
-    /// <typeparam name="T">The type the answer deserializes to.</typeparam>
-    /// <param name="name">A short name for the format.</param>
-    /// <param name="description">What the output is, to help the model.</param>
-    /// <returns></returns>
+    /// <summary>A schema for <typeparamref name="T"/>: every property required, no others allowed.</summary>
     public static AgentOutputSchema For<T>(string name, string? description = null)
     {
         var schema = WebOptions.GetJsonSchemaAsNode(typeof(T), new JsonSchemaExporterOptions

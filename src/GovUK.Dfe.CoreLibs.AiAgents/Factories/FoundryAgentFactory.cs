@@ -303,10 +303,8 @@ public sealed class FoundryAgentFactory(AgentAdministrationClient administration
     }
 
     /// <summary>
-    /// Finds an existing version of the agent named <c>spec.Name</c> that matches the spec: the latest
-    /// version if it matches (one call), otherwise the most recent matching version among the last
-    /// <see cref="RecentVersionsToSearch"/>. Searching beyond the latest stops two apps or deployments
-    /// that share a name from creating a new version on every call as each overtakes the other.
+    /// A version matching the spec: the latest (one call), else the newest match among the last
+    /// <see cref="RecentVersionsToSearch"/>, so apps sharing a name don't keep creating versions.
     /// </summary>
     private async Task<ProjectsAgentVersion?> FindMatchingVersionAsync(AgentSpec spec, CancellationToken cancellationToken)
     {
@@ -348,11 +346,7 @@ public sealed class FoundryAgentFactory(AgentAdministrationClient administration
         return null;
     }
 
-    /// <summary>
-    /// Compares a spec's content (model, instructions, tools) against a deployed version's definition -
-    /// shared by <see cref="FindMatchingVersionAsync"/> (against the latest version) and
-    /// <see cref="MatchesDeployedVersionAsync"/> (against a specific pinned version).
-    /// </summary>
+    /// <summary>Whether a deployed version has the spec's model, instructions and tools.</summary>
     private static bool SpecMatchesDefinition(AgentSpec spec, string model, ProjectsAgentDefinition? deployedDefinition)
         => deployedDefinition is DeclarativeAgentDefinition definition
             && definition.Model == model
@@ -391,12 +385,7 @@ public sealed class FoundryAgentFactory(AgentAdministrationClient administration
     private static bool ToolsMatch(IEnumerable<OpenAI.Responses.ResponseTool> deployedTools, IEnumerable<OpenAI.Responses.ResponseTool> specTools)
         => deployedTools.Select(ToolSignature).SequenceEqual(specTools.Select(ToolSignature));
 
-    /// <summary>
-    /// Creates a new version of the agent named <c>spec.Name</c> on Foundry based on the given spec.
-    /// </summary>
-    /// <param name="spec">The agent specification to use for creation.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The created agent reference.</returns>
+    /// <summary>Creates a new version of <c>spec.Name</c>.</summary>
     private async Task<AgentReference> CreateAgentVersionAsync(AgentSpec spec, CancellationToken cancellationToken)
     {
         try

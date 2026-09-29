@@ -3,26 +3,22 @@ using OpenAI.Responses;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 
-/// <summary>
-/// Defines the configuration for a Foundry agent.
-/// </summary>
+/// <summary>What a Foundry agent version is built from.</summary>
 public sealed record AgentSpec
 {
-    /// <summary>The stable name of the agent.</summary>
+    /// <summary>Its stable name.</summary>
     public required string Name { get; init; }
 
-    /// <summary>The system instructions for the agent.</summary>
+    /// <summary>Its instructions.</summary>
     public required string Instructions { get; init; }
 
-    /// <summary>
-    /// The model deployment, or the default from <see cref="FoundryAgentFactoryOptions.DefaultModel"/>.
-    /// </summary>
+    /// <summary>The model deployment, or the default from <see cref="FoundryAgentFactoryOptions.DefaultModel"/>.</summary>
     public string? Model { get; init; }
 
-    /// <summary>An optional description of the agent.</summary>
+    /// <summary>Optional description.</summary>
     public string? Description { get; init; }
 
-    /// <summary>The tools available to the agent.</summary>
+    /// <summary>Its tools.</summary>
     public IReadOnlyList<ResponseTool> Tools { get; init; } = [];
 
     /// <summary>A JSON schema the agent's answer must follow, or <see langword="null"/> for free text.</summary>

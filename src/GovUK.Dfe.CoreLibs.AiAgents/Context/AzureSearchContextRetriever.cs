@@ -10,7 +10,6 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Context;
 
 /// <param name="clients">One search client per index, keyed by the scope name callers pass.</param>
 /// <param name="relevanceFilter">Drops weak matches before they reach the prompt.</param>
-/// <param name="logger">The logger.</param>
 /// <param name="contentFields">
 /// The fields to use as evidence for each index, keyed by scope, in order. An index with no entry
 /// uses every non-empty string field.

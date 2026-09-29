@@ -30,8 +30,8 @@ namespace GovUK.Dfe.CoreLibs.AiAgents;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers everything from the <c>"AiAgents"</c> section: Foundry, prompt files, version pins, Azure AI Search
-    /// (when <c>AiAgents:Search</c> is set), MCP servers and each agent's MCP tools, all signed in with one credential.
+    /// Registers everything from the <c>"AiAgents"</c> section: Foundry, prompts, version pins, Azure AI Search (when set),
+    /// MCP servers and each agent's tools. Each service uses its own credential, or the default.
     /// </summary>
     /// <param name="configure">Adds the app's agents and any non-MCP tools, e.g. <c>agents => agents.AddAgents(...)</c>.</param>
     /// <exception cref="InvalidOperationException">A setting is missing or invalid; the message lists them all.</exception>
@@ -46,6 +46,7 @@ public static class DependencyInjection
 
         var section = configuration.GetSection(AiAgentsOptions.SectionName);
         var options = section.Get<AiAgentsOptions>() ?? new AiAgentsOptions();
+        options.ExternallyManagedAgents.ReadAgents(section.GetSection(nameof(AiAgentsOptions.ExternallyManagedAgents)));
         builder.ApplyTo(options);
 
         // A Search section with only Endpoint and Indexes binds no SearchSettings property; it's still in use.
@@ -103,7 +104,7 @@ public static class DependencyInjection
             services.AddSingleton<IRunSlotStore>(sp => new BlobRunSlotStore(slotContainer, maxConcurrentRuns, sp.GetService<ILogger<BlobRunSlotStore>>()));
         }
 
-        RegisterAgents(services, builder.Definitions, options);
+        RegisterAgents(services, builder.Definitions, options, foundryCredential);
         return services;
     }
 
@@ -111,7 +112,8 @@ public static class DependencyInjection
     /// Registers the builder's definitions, binds each agent's allowed MCP tools to the server that allows them,
     /// and marks the configured agents as externally managed.
     /// </summary>
-    private static void RegisterAgents(IServiceCollection services, IReadOnlyList<AgentDefinition> definitions, AiAgentsOptions options)
+    private static void RegisterAgents(IServiceCollection services, IReadOnlyList<AgentDefinition> definitions, AiAgentsOptions options,
+        TokenCredential foundryCredential)
     {
         if (definitions.Count > 0)
         {
@@ -131,10 +133,41 @@ public static class DependencyInjection
             }
         }
 
-        foreach (var agentName in options.ExternallyManagedAgents.Keys)
+        RegisterExternallyManagedAgents(services, options, foundryCredential);
+    }
+
+    /// <summary>
+    /// Agents another pipeline provisions. In this app's project they're resolved at their pinned version; in another
+    /// project (<c>Endpoint</c> set) they're resolved and run there, with its own credential or this app's Foundry one.
+    /// </summary>
+    private static void RegisterExternallyManagedAgents(IServiceCollection services, AiAgentsOptions options, TokenCredential foundryCredential)
+    {
+        var external = options.ExternallyManagedAgents;
+        if (!external.InOtherProject)
         {
-            services.AddSingleton<IManagedAgentProvider>(sp => new ExternallyManagedAgentProvider(agentName,
-                sp.GetRequiredService<IAgentFactory>(), sp.GetRequiredService<IAgentRuntime>()));
+            foreach (var agentName in external.Agents.Keys)
+            {
+                services.AddSingleton<IManagedAgentProvider>(sp => new ExternallyManagedAgentProvider(agentName,
+                    sp.GetRequiredService<IAgentFactory>(), sp.GetRequiredService<IAgentRuntime>()));
+            }
+
+            return;
+        }
+
+        var credential = options.ExternallyManagedCredentialFor(foundryCredential);
+        services.AddSingleton(sp =>
+        {
+            var client = new AIProjectClient(new Uri(external.Endpoint!), credential,
+                new AIProjectClientOptions { RetryPolicy = new ClientRetryPolicy(options.MaxRetries) });
+            return new ExternalFoundryProject(credential, client.AgentAdministrationClient, new FoundryConversationClient(client.ProjectOpenAIClient),
+                new FoundryAgentFactoryOptions(options.Foundry.DefaultModel!) { AgentCacheDuration = options.AgentCacheDuration },
+                sp.GetRequiredService<AgentRunOptions>(), sp.GetRequiredService<IAgentRunLimiter>(), sp.GetRequiredService<ILoggerFactory>());
+        });
+
+        foreach (var (agentName, version) in external.Agents)
+        {
+            services.AddSingleton<IManagedAgentProvider>(sp => new ExternalProjectAgentProvider(agentName,
+                AiAgentsOptions.FollowsLatest(version) ? null : version, sp.GetRequiredService<ExternalFoundryProject>));
         }
     }
 

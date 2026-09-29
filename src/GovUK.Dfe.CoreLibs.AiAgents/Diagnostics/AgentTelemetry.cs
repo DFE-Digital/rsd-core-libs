@@ -64,9 +64,7 @@ public static class AgentTelemetry
     /// <summary>The <see cref="Exception.Data"/> key a failed run stores its token usage under.</summary>
     public const string TokenUsageDataKey = "aiagents.token_usage";
 
-    /// <summary>
-    /// The tokens a failed run used before it failed, read from the exception it threw (or one it wraps).
-    /// </summary>
+    /// <summary>The tokens a failed run used before it failed, read from the exception it threw (or one it wraps).</summary>
     public static ValueObjects.TokenUsage TokenUsageOf(Exception? exception)
     {
         for (var current = exception; current is not null; current = current.InnerException)

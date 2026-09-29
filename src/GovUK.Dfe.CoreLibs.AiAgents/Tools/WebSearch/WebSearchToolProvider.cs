@@ -3,10 +3,7 @@ using OpenAI.Responses;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Tools.WebSearch;
 
-/// <summary>
-/// Provides a web search tool for agents, allowing them to perform web searches based on a specified location.
-/// </summary>
-/// <param name="location"></param>
+/// <summary>Gives an agent Foundry's web search, biased towards <paramref name="location"/> (default: the UK).</summary>
 public sealed class WebSearchToolProvider(WebSearchLocation? location = null) : IAgentToolProvider
 {
     private readonly WebSearchLocation _location = location ?? WebSearchLocation.UnitedKingdom;

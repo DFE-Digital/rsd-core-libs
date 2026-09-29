@@ -10,9 +10,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Tools;
 /// </summary>
 public static class AgentToolExecution
 {
-    /// <summary>
-    /// Creates a callback that runs each call on the first of <paramref name="providers"/> that owns it.
-    /// </summary>
+    /// <summary>Creates a callback that runs each call on the first of <paramref name="providers"/> that owns it.</summary>
     /// <param name="providers">The agent's tool providers. Only those implementing <see cref="IAgentToolExecutor"/> run calls.</param>
     /// <param name="allowedTools">
     /// The tool names this agent may call. A call to any other tool is refused, even if a provider could

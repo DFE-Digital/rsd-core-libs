@@ -182,7 +182,9 @@ internal sealed class AgentService(IAgentRunner agentRunner, IAgentRuntime agent
                 : await agentRuntime.GetOrCreateAsync(definition.Name,
                     async ct => (await _specs.BuildAsync(definition, ct).ConfigureAwait(false))!, cancellationToken).ConfigureAwait(false);
 
-            result = await agentRunner.RunAsync(agent, runPrompt, additionalContext: evidence, resolveToolCalls: resolveToolCalls,
+            // An agent from another Foundry project runs there.
+            var runner = _specs.CustomProviderFor(definition) is ExternalProjectAgentProvider external ? external.Project.Runner : agentRunner;
+            result = await runner.RunAsync(agent, runPrompt, additionalContext: evidence, resolveToolCalls: resolveToolCalls,
                 cancellationToken: cancellationToken, validateOutput: validate).ConfigureAwait(false);
         }
 

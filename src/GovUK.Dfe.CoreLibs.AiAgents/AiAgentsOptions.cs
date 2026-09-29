@@ -3,9 +3,7 @@ using Azure.Identity;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents;
 
-/// <summary>
-/// Everything <c>AddAiAgents</c> needs, bound from the <c>"AiAgents"</c> configuration section.
-/// </summary>
+/// <summary>Everything <c>AddAiAgents</c> needs, bound from the <c>"AiAgents"</c> configuration section.</summary>
 public sealed class AiAgentsOptions
 {
     public const string SectionName = "AiAgents";
@@ -15,9 +13,7 @@ public sealed class AiAgentsOptions
 
     public FoundrySettings Foundry { get; set; } = new();
 
-    /// <summary>
-    /// The default Microsoft Entra ID service principal, for every service without its own <c>Authentication</c> block.
-    /// </summary>
+    /// <summary>The default Microsoft Entra ID service principal, for every service without its own <c>Authentication</c> block.</summary>
     public ServicePrincipalSettings Authentication { get; set; } = new();
 
     /// <summary>Azure AI Search. Only its <c>Authentication</c> is read here; null when there's no <c>Search</c> section.</summary>
@@ -70,11 +66,8 @@ public sealed class AiAgentsOptions
 
     /// <summary>How long a resolved agent version is reused before asking Foundry again. 0 turns caching off.</summary>
     public TimeSpan AgentCacheDuration { get; set; } = TimeSpan.FromSeconds(30);
-    /// <summary>
-    /// Agents provisioned by another pipeline, with the version this app runs, e.g. <c>{ "ofsted-agent": "4" }</c>.
-    /// This app only runs them. Use <c>"latest"</c> to follow the newest version (not recommended in production).
-    /// </summary>
-    public Dictionary<string, string> ExternallyManagedAgents { get; set; } = [];
+    /// <summary>Agents provisioned by another pipeline, which this app only runs; optionally in another Foundry project.</summary>
+    public ExternallyManagedAgentsSettings ExternallyManagedAgents { get; set; } = new();
 
     /// <summary>The version this environment runs, for agents this app builds itself.</summary>
     public Dictionary<string, string> VersionPins { get; set; } = [];
@@ -90,6 +83,8 @@ public sealed class AiAgentsOptions
 
     internal static string McpCredentialKey(string serverName) => $"Mcp:{serverName}";
 
+    internal const string ExternallyManagedCredentialKey = nameof(ExternallyManagedAgents);
+
     private TokenCredential? _defaultCredential;
 
     /// <summary>A service's credential: its code override, else its own <c>Authentication</c> block, else the default.</summary>
@@ -97,13 +92,50 @@ public sealed class AiAgentsOptions
         => CredentialOverrides.GetValueOrDefault(serviceKey)
            ?? (own is null ? _defaultCredential ??= Credential ?? Create(Authentication) : Create(own));
 
+    /// <summary>The external project's credential: its code override, else its own block, else this app's Foundry credential.</summary>
+    internal TokenCredential ExternallyManagedCredentialFor(TokenCredential foundryCredential)
+        => CredentialOverrides.GetValueOrDefault(ExternallyManagedCredentialKey)
+           ?? (ExternallyManagedAgents.Authentication is { } own ? Create(own) : foundryCredential);
+
     private static ClientSecretCredential Create(ServicePrincipalSettings principal)
         => new(principal.TenantId, principal.ClientId, principal.ClientSecret,
             new ClientSecretCredentialOptions { AuthorityHost = principal.AuthorityHost ?? AzureAuthorityHosts.AzurePublicCloud });
 
     /// <summary>Lists every missing or invalid setting, so startup fails once with the whole picture.</summary>
     internal IReadOnlyList<string> MissingSettings()
-        => [.. FoundryProblems(), .. LimitProblems(), .. CredentialProblems(), .. VersionProblems(), .. McpServerProblems()];
+        => [.. FoundryProblems(), .. LimitProblems(), .. CredentialProblems(), .. VersionProblems(), .. McpServerProblems(),
+            .. ExternallyManagedProblems()];
+
+    private List<string> ExternallyManagedProblems()
+    {
+        const string Path = $"{SectionName}:ExternallyManagedAgents";
+        var external = ExternallyManagedAgents;
+        var problems = new List<string>();
+
+        // The list form binds as { "0": "agent-name" }; catch it rather than run an agent called "0".
+        if (external.Agents.Keys.Any(static key => key.All(char.IsAsciiDigit)))
+        {
+            problems.Add($"{Path} (use {{ \"agent-name\": \"version\" }}, not a list)");
+        }
+
+        if (external.Endpoint is not null && !Uri.TryCreate(external.Endpoint, UriKind.Absolute, out _))
+        {
+            problems.Add($"{Path}:Endpoint");
+        }
+
+        // A credential only means something for another project; this app's own project uses its Foundry credential.
+        var hasOwnCredential = external.Authentication is not null || CredentialOverrides.ContainsKey(ExternallyManagedCredentialKey);
+        if (external.Endpoint is null && hasOwnCredential)
+        {
+            problems.Add($"{Path}:Endpoint (a credential for externally managed agents needs the other project's Endpoint)");
+        }
+        else if (external.Authentication is { } own && !CredentialOverrides.ContainsKey(ExternallyManagedCredentialKey))
+        {
+            problems.AddRange(PrincipalProblems(own, "ExternallyManagedAgents:Authentication"));
+        }
+
+        return problems;
+    }
 
     private static IEnumerable<string> Missing(string? value, string name)
         => string.IsNullOrWhiteSpace(value) ? [$"{SectionName}:{name}"] : [];
@@ -161,17 +193,10 @@ public sealed class AiAgentsOptions
         => [.. Missing(principal.TenantId, $"{path}:TenantId"), .. Missing(principal.ClientId, $"{path}:ClientId"),
             .. Missing(principal.ClientSecret, $"{path}:ClientSecret")];
 
+    // One place per agent's version, so there's nothing to keep in step.
     private IEnumerable<string> VersionProblems()
-    {
-        // The old list form binds as { "0": "agent-name" }; catch it rather than run an agent called "0".
-        IEnumerable<string> listForm = ExternallyManagedAgents.Keys.Any(static key => key.All(char.IsAsciiDigit))
-            ? [$"{SectionName}:ExternallyManagedAgents (use {{ \"agent-name\": \"version\" }}, not a list)"]
-            : [];
-
-        // One place per agent's version, so there's nothing to keep in step.
-        return listForm.Concat(ExternallyManagedAgents.Keys.Where(VersionPins.ContainsKey)
-            .Select(static agent => $"{SectionName}:VersionPins:{agent} (already versioned under ExternallyManagedAgents; remove one)"));
-    }
+        => ExternallyManagedAgents.Agents.Keys.Where(VersionPins.ContainsKey)
+            .Select(static agent => $"{SectionName}:VersionPins:{agent} (already versioned under ExternallyManagedAgents; remove one)");
 
     private IEnumerable<string> McpServerProblems()
         => McpServers.SelectMany(static server => (IEnumerable<string>)
@@ -181,16 +206,19 @@ public sealed class AiAgentsOptions
             .. server.Value.AllowedToolNames.Count == 0 ? [$"{SectionName}:McpServers:{server.Key}:AllowedToolNames"] : Array.Empty<string>(),
         ]);
 
-    /// <summary>Pins from <c>VersionPins</c> plus the versions under <c>ExternallyManagedAgents</c>.</summary>
+    /// <summary>
+    /// Pins from <c>VersionPins</c>, plus <c>ExternallyManagedAgents</c> versions when those agents are in this app's project.
+    /// Agents in another project are resolved there, at their own version.
+    /// </summary>
     internal Factories.AgentVersionPinningOptions ToVersionPinning() => new()
     {
         VersionPins = VersionPins
-            .Concat(ExternallyManagedAgents.Where(static agent => !FollowsLatest(agent.Value)))
+            .Concat(ExternallyManagedAgents.InOtherProject ? [] : ExternallyManagedAgents.Agents.Where(static agent => !FollowsLatest(agent.Value)))
             .ToDictionary(static pin => pin.Key, static pin => pin.Value),
         ProtectedVersions = ProtectedVersions.ToDictionary(static entry => entry.Key, static entry => (IReadOnlyList<string>)entry.Value),
     };
 
-    private static bool FollowsLatest(string? version)
+    internal static bool FollowsLatest(string? version)
         => string.IsNullOrWhiteSpace(version) || version.Equals("latest", StringComparison.OrdinalIgnoreCase);
 
     internal AgentRunOptions ToRunOptions() => new()
@@ -278,6 +306,32 @@ public sealed class AiAgentsOptions
 
             return problems;
         }
+    }
+
+    /// <summary>
+    /// <c>{ "Endpoint": ..., "Authentication": { ... }, "ofsted-agent": "4" }</c>: every key except <c>Endpoint</c> and
+    /// <c>Authentication</c> is an agent, with the version to run (or <c>"latest"</c>).
+    /// </summary>
+    public sealed class ExternallyManagedAgentsSettings
+    {
+        private static readonly string[] Reserved = [nameof(Endpoint), nameof(Authentication)];
+
+        /// <summary>Optional: the agents' Foundry project. Unset: this app's own project.</summary>
+        public string? Endpoint { get; set; }
+
+        /// <summary>Optional: a service principal for <see cref="Endpoint"/>'s project. Unset: this app's Foundry credential.</summary>
+        public ServicePrincipalSettings? Authentication { get; set; }
+
+        /// <summary>The agents, with the version to run.</summary>
+        public IReadOnlyDictionary<string, string> Agents { get; internal set; } = new Dictionary<string, string>();
+
+        internal bool InOtherProject => Endpoint is not null;
+
+        /// <summary>Reads the agents: the keys binding can't map, as they're names chosen by the app.</summary>
+        internal void ReadAgents(Microsoft.Extensions.Configuration.IConfigurationSection section)
+            => Agents = section.GetChildren()
+                .Where(static child => !Reserved.Contains(child.Key, StringComparer.OrdinalIgnoreCase) && child.Value is not null)
+                .ToDictionary(static child => child.Key, static child => child.Value!);
     }
 
     public sealed class McpServerSettings

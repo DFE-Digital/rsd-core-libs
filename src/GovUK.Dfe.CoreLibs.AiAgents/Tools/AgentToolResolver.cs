@@ -4,24 +4,16 @@ using OpenAI.Responses;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Tools;
 
-/// <summary>
-/// Resolves the tools available to an agent, based on its name and the registered providers.
-/// </summary>
+/// <summary>Resolves an agent's tools from its bound providers.</summary>
 public static class AgentToolResolver
 {
-    /// <summary>Groups a set of bindings by agent name, for repeated lookups via <see cref="ResolveAsync(IReadOnlyDictionary{string, List{IAgentToolProvider}}, AgentDefinition, CancellationToken)"/>.</summary>
+    /// <summary>Groups bindings by agent name, for repeated lookups.</summary>
     public static IReadOnlyDictionary<string, List<IAgentToolProvider>> GroupByAgentName(IEnumerable<AgentToolBinding>? bindings)
         => (bindings ?? [])
             .GroupBy(static binding => binding.AgentName)
             .ToDictionary(static group => group.Key, static group => group.Select(static binding => binding.Provider).ToList());
 
-    /// <summary>
-    /// Resolves every tool the agent's bound providers offer, with no filtering.
-    /// </summary>
-    /// <param name="toolProvidersByAgentName">A dictionary mapping agent names to their respective tool providers.</param>
-    /// <param name="agentName">The name of the agent for which to resolve tools.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A list of available tools for the specified agent.</returns>
+    /// <summary>Resolves every tool the agent's bound providers offer, with no filtering.</summary>
     public static async Task<IReadOnlyList<ResponseTool>> ResolveAsync(
         IReadOnlyDictionary<string, List<IAgentToolProvider>> toolProvidersByAgentName, string agentName, CancellationToken cancellationToken)
     {
@@ -48,9 +40,7 @@ public static class AgentToolResolver
         return FilterToAllowed(offered, definition);
     }
 
-    /// <summary>
-    /// Keeps built-in tools and only the function tools in <see cref="AgentDefinition.AllowedTools"/>.
-    /// </summary>
+    /// <summary>Keeps built-in tools and only the function tools in <see cref="AgentDefinition.AllowedTools"/>.</summary>
     /// <exception cref="InvalidOperationException">An allowed tool isn't among <paramref name="offered"/>.</exception>
     public static IReadOnlyList<ResponseTool> FilterToAllowed(IReadOnlyList<ResponseTool> offered, AgentDefinition definition)
     {
