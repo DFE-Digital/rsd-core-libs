@@ -9,7 +9,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Quality;
 /// <summary>
 /// Scores answers with Microsoft.Extensions.AI.Evaluation evaluators, e.g. <see cref="GroundednessEvaluator"/> and
 /// <see cref="RelevanceEvaluator"/>, judged by the model in <paramref name="chatConfiguration"/>. The run's evidence
-/// is the grounding context. A metric the judge couldn't score is logged with the reason.
+/// is the grounding context. A metric left unscored, by a failed judge call or an unreadable reply, is logged with the reason.
 /// </summary>
 public sealed class ExtensionsAiEvaluator(IEvaluator evaluator, ChatConfiguration chatConfiguration,
     ILogger<ExtensionsAiEvaluator>? logger = null) : IAgentRunEvaluator
@@ -27,16 +27,16 @@ public sealed class ExtensionsAiEvaluator(IEvaluator evaluator, ChatConfiguratio
         var result = await evaluator.EvaluateAsync(messages, response, chatConfiguration, context, cancellationToken).ConfigureAwait(false);
 
         var scores = new Dictionary<string, double>();
-        foreach (var metric in result.Metrics.Values.OfType<NumericMetric>())
+        // Not only NumericMetric: when the judge call throws, CompositeEvaluator reports a plain EvaluationMetric.
+        foreach (var metric in result.Metrics.Values)
         {
-            if (metric.Value is { } score)
+            if (metric is NumericMetric { Value: { } score })
             {
                 scores[metric.Name] = score;
+                continue;
             }
-            else
-            {
-                _logger.LogWarning("No {Metric} score for {AgentName}: {Reason}", metric.Name, sample.AgentName, WhyUnscored(metric));
-            }
+
+            _logger.LogWarning("No {Metric} score for {AgentName}: {Reason}", metric.Name, sample.AgentName, WhyUnscored(metric));
         }
 
         return scores;

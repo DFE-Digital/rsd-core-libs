@@ -82,6 +82,32 @@ public sealed class QualityIssueFixTests
         Assert.DoesNotContain("Some.Stack.Frame", warning.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task AFailedJudgeCall_IsLoggedForEachMetric_WithoutTheStackTrace()
+    {
+        var judge = Substitute.For<IChatClient>();
+        judge.GetResponseAsync(Arg.Any<IEnumerable<ChatMessage>>(), Arg.Any<ChatOptions?>(), Arg.Any<CancellationToken>())
+            .Returns<Task<ChatResponse>>(_ => throw new InvalidOperationException("Status: 404 (Not Found) The model 'x' does not exist."));
+        var evaluator = new CompositeEvaluator(new Microsoft.Extensions.AI.Evaluation.Quality.GroundednessEvaluator(),
+            new Microsoft.Extensions.AI.Evaluation.Quality.RelevanceEvaluator());
+        var logs = new CollectingLoggerProvider();
+        using var loggers = LoggerFactory.Create(builder => builder.AddProvider(logs));
+
+        var scores = await new ExtensionsAiEvaluator(evaluator, new ChatConfiguration(judge),
+            loggers.CreateLogger<ExtensionsAiEvaluator>()).EvaluateAsync(Sample);
+
+        Assert.Empty(scores);
+        var warnings = logs.AtLevel(LogLevel.Warning).ToList();
+        Assert.Equal(2, warnings.Count);
+        Assert.Contains(warnings, warning => warning.Message.StartsWith("No Groundedness score", StringComparison.Ordinal));
+        Assert.Contains(warnings, warning => warning.Message.StartsWith("No Relevance score", StringComparison.Ordinal));
+        Assert.All(warnings, warning =>
+        {
+            Assert.Contains("does not exist", warning.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("   at ", warning.Message, StringComparison.Ordinal);
+        });
+    }
+
     // ===================== 4: testing without publishing =====================
 
     private static readonly AgentDefinition Ofsted = new("ofsted-agent", "Ofsted");
