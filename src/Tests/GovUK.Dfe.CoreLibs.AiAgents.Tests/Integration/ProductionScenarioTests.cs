@@ -5,6 +5,7 @@ using GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Concurrency;
 using GovUK.Dfe.CoreLibs.AiAgents.Context;
 using GovUK.Dfe.CoreLibs.AiAgents.Extensions;
+using GovUK.Dfe.CoreLibs.AiAgents.Quality;
 using GovUK.Dfe.CoreLibs.AiAgents.Factories.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Tests.Integration.Fakes;
 using GovUK.Dfe.CoreLibs.AiAgents.Tools;
@@ -394,6 +395,20 @@ public sealed class ProductionScenarioTests : IDisposable
         Assert.Equal("Rated Good [Evidence 1].", result.Output);
         Assert.Contains("Cite the evidence each point relies on", _conversations.Calls[0].SerializedInput, StringComparison.Ordinal);
         Assert.Contains("[Evidence 5] doesn't exist", _conversations.Calls[1].SerializedInput, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReleaseGate_TestsTheCandidate_WithoutPublishingAVersion()
+    {
+        _conversations.Reply("ofsted-agent", FoundryResponses.Completed("r1", "Rated Good."));
+        var app = StartInstance(Settings());
+
+        var report = await app.GetRequiredService<IAgentTestRunner>().RunAsync(Ofsted,
+            [new AgentTestCase("good-school", "Summarise.") { MustMention = ["Good"] }], cancellationToken: cancellationToken);
+
+        Assert.True(report.Passed);
+        Assert.Empty(_foundry.Versions("ofsted-agent"));   // no managed version for "latest" to pick up
+        Assert.Empty(_foundry.AgentNames);                  // the ephemeral copy was deleted
     }
 
     // ===================== Several apps in one Foundry project =====================

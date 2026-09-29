@@ -64,17 +64,28 @@ public sealed record AgentEvaluationReport(string AgentName, IReadOnlyList<Agent
         .GroupBy(static score => score.Key)
         .ToDictionary(static group => group.Key, static group => group.Average(static score => score.Value));
 
-    /// <summary>Metrics averaging below <paramref name="minimum"/>.</summary>
-    public IReadOnlyList<string> BelowMinimum(double minimum)
-        => [.. AverageScores.Where(score => score.Value < minimum).Select(static score => score.Key).Order()];
+    /// <summary>
+    /// Metrics averaging below <paramref name="minimum"/>, plus any <paramref name="requiredMetrics"/> with no score at
+    /// all, so a failing judge fails the gate instead of passing it.
+    /// </summary>
+    public IReadOnlyList<string> BelowMinimum(double minimum, params string[] requiredMetrics)
+    {
+        var averages = AverageScores;
+        return [.. averages.Where(score => score.Value < minimum).Select(static score => score.Key)
+            .Concat(requiredMetrics.Where(metric => !averages.ContainsKey(metric)))
+            .Distinct().Order()];
+    }
 
-    /// <summary>Metrics whose average fell by more than <paramref name="tolerance"/> since <paramref name="baseline"/>.</summary>
+    /// <summary>
+    /// Metrics whose average fell by more than <paramref name="tolerance"/> since <paramref name="baseline"/>, or that
+    /// the baseline scored and this run didn't.
+    /// </summary>
     public IReadOnlyList<string> RegressionsFrom(AgentEvaluationReport baseline, double tolerance = 0)
     {
         ArgumentNullException.ThrowIfNull(baseline);
         var current = AverageScores;
         return [.. baseline.AverageScores
-            .Where(before => current.TryGetValue(before.Key, out var now) && now < before.Value - tolerance)
+            .Where(before => !current.TryGetValue(before.Key, out var now) || now < before.Value - tolerance)
             .Select(static before => before.Key).Order()];
     }
 }

@@ -217,23 +217,30 @@ public static readonly AgentDefinition Ofsted = new("ofsted-agent", "Ofsted")
 ```
 
 **Score live answers.** A sample of runs is scored in the background, never slowing a run, and recorded as
-`aiagents.quality.score` by agent, version and metric. Any `IChatClient` can be the judge, e.g. an Azure OpenAI deployment:
+`aiagents.quality.score` by agent, version and metric. The judge is a model in your Foundry project, called
+with the project's own connection and credential:
 
 ```csharp
-agents.AddQualityEvaluation(_ => new ExtensionsAiEvaluator(
-    new CompositeEvaluator(new GroundednessEvaluator(), new RelevanceEvaluator()),
-    new ChatConfiguration(judgeChatClient)), sampleRate: 0.05);
+agents.AddQualityEvaluation(judgeModel: "myconnection/gpt-5.1", sampleRate: 0.05);   // groundedness and relevance
 ```
 
+- Reasoning models such as gpt-5.1 work: the built-in judge sends only the model and messages, not the
+  evaluators' sampling settings or output limit.
+- A metric the judge can't score is logged as a warning with the reason, e.g. the judge call's error.
+- Pass your own `IEvaluator` as `evaluator`, or your own judge with the `Func<IServiceProvider, IAgentRunEvaluator>`
+  overload. Don't add Microsoft.Extensions.AI.OpenAI for a judge: its versions conflict with this library's.
+
 **Gate releases.** Keep test cases per agent as JSON (`{ "prompt", "evidence", "mustMention", "mustNotMention" }`)
-and run them in the provisioning job before publishing the new version:
+and run them in the provisioning job. They run against an ephemeral copy by default, so a failed gate publishes
+nothing; `AgentTestTarget.Deployed` tests the version running now instead.
 
 ```csharp
 var cases = await AgentTestCase.LoadAsync("tests/ofsted-agent");
-var report = await tests.RunAsync(BriefingAgents.Ofsted, cases);              // IAgentTestRunner
+var report = await tests.RunAsync(BriefingAgents.Ofsted, cases);              // IAgentTestRunner, candidate copy
 var baseline = JsonSerializer.Deserialize<AgentEvaluationReport>(await File.ReadAllTextAsync("baseline.json"))!;
 
-if (!report.Passed || report.BelowMinimum(3.5).Any() || report.RegressionsFrom(baseline, tolerance: 0.2).Any())
+// Name the metrics you expect, so a judge that scored nothing fails the gate.
+if (!report.Passed || report.BelowMinimum(3.5, "Groundedness", "Relevance").Any() || report.RegressionsFrom(baseline, tolerance: 0.2).Any())
 {
     throw new InvalidOperationException("ofsted-agent got worse; not publishing it.");
 }

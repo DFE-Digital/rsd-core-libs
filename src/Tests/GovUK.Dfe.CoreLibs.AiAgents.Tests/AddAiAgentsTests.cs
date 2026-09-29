@@ -269,6 +269,14 @@ public sealed class AddAiAgentsTests
     }
 
     [Fact]
+    public void AddQualityEvaluation_WithAJudgeModel_JudgesThroughTheFoundryProject()
+    {
+        using var provider = Build(ValidSettings(), agents => agents.AddQualityEvaluation(judgeModel: "myconnection/gpt-5.1"));
+
+        Assert.IsType<ExtensionsAiEvaluator>(provider.GetRequiredService<IAgentRunEvaluator>());
+    }
+
+    [Fact]
     public void RejectsTwoDefinitionsWithTheSameName()
         => Assert.Throws<ArgumentException>(() => Build(ValidSettings(), agents => agents.AddAgents(
             new AgentDefinition("ofsted-agent", "Ofsted"), new AgentDefinition("ofsted-agent", "Other"))));

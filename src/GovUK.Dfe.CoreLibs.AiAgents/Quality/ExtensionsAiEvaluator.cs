@@ -1,16 +1,21 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.Quality;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Quality;
 
 /// <summary>
 /// Scores answers with Microsoft.Extensions.AI.Evaluation evaluators, e.g. <see cref="GroundednessEvaluator"/> and
 /// <see cref="RelevanceEvaluator"/>, judged by the model in <paramref name="chatConfiguration"/>. The run's evidence
-/// is the grounding context.
+/// is the grounding context. A metric the judge couldn't score is logged with the reason.
 /// </summary>
-public sealed class ExtensionsAiEvaluator(IEvaluator evaluator, ChatConfiguration chatConfiguration) : IAgentRunEvaluator
+public sealed class ExtensionsAiEvaluator(IEvaluator evaluator, ChatConfiguration chatConfiguration,
+    ILogger<ExtensionsAiEvaluator>? logger = null) : IAgentRunEvaluator
 {
+    private readonly ILogger _logger = logger ?? NullLogger<ExtensionsAiEvaluator>.Instance;
+
     public async Task<IReadOnlyDictionary<string, double>> EvaluateAsync(AgentRunSample sample, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sample);
@@ -20,8 +25,31 @@ public sealed class ExtensionsAiEvaluator(IEvaluator evaluator, ChatConfiguratio
         EvaluationContext[] context = sample.Evidence is null ? [] : [new GroundednessEvaluatorContext(sample.Evidence)];
 
         var result = await evaluator.EvaluateAsync(messages, response, chatConfiguration, context, cancellationToken).ConfigureAwait(false);
-        return result.Metrics.Values.OfType<NumericMetric>()
-            .Where(static metric => metric.Value is not null)
-            .ToDictionary(static metric => metric.Name, static metric => metric.Value!.Value);
+
+        var scores = new Dictionary<string, double>();
+        foreach (var metric in result.Metrics.Values.OfType<NumericMetric>())
+        {
+            if (metric.Value is { } score)
+            {
+                scores[metric.Name] = score;
+            }
+            else
+            {
+                _logger.LogWarning("No {Metric} score for {AgentName}: {Reason}", metric.Name, sample.AgentName, WhyUnscored(metric));
+            }
+        }
+
+        return scores;
+    }
+
+    /// <summary>The evaluator's diagnostics without stack traces, e.g. the judge call's error or an unreadable reply.</summary>
+    internal static string WhyUnscored(EvaluationMetric metric)
+    {
+        var reasons = (metric.Diagnostics ?? [])
+            .Select(static diagnostic => diagnostic.Message.Split("\n   at ", 2)[0].Trim())
+            .Where(static reason => reason.Length > 0)
+            .ToList();
+
+        return reasons.Count > 0 ? string.Join(" | ", reasons) : metric.Reason ?? "the evaluator gave no reason";
     }
 }

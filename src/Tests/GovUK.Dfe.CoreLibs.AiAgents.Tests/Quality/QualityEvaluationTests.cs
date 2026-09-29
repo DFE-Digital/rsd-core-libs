@@ -151,6 +151,17 @@ public sealed class QualityEvaluationTests
     }
 
     [Fact]
+    public void AJudgeThatScoredNothing_FailsTheGate_InsteadOfPassingIt()
+    {
+        var baseline = new AgentEvaluationReport("ofsted-agent",
+            [new AgentTestResult("c", "x", [], new Dictionary<string, double> { ["Groundedness"] = 4.5 })]);
+        var unscored = new AgentEvaluationReport("ofsted-agent", [new AgentTestResult("c", "x", [], new Dictionary<string, double>())]);
+
+        Assert.Equal(["Groundedness"], unscored.BelowMinimum(3.5, "Groundedness"));
+        Assert.Equal(["Groundedness"], unscored.RegressionsFrom(baseline));
+    }
+
+    [Fact]
     public void Report_RoundTripsThroughJson_SoItCanBeTheNextBaseline()
     {
         var report = new AgentEvaluationReport("ofsted-agent",
