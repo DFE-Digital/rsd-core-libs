@@ -2,35 +2,18 @@ using OpenAI.Responses;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 
-/// <summary>
-/// Provides access to Foundry conversations, including creating conversations and sending input to agents.
-/// </summary>
+/// <summary>Foundry conversations: create one, send input to an agent in it, delete it.</summary>
 public interface IFoundryConversationClient
 {
-    /// <summary>
-    /// Creates a new conversation.
-    /// </summary>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The ID of the created conversation.</returns>
+    /// <summary>Creates a conversation and returns its ID.</summary>
     Task<string> CreateConversationAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Sends input items to an agent in a conversation and returns the agent's response.
-    /// </summary>
-    /// <param name="agentName">The name of the agent to send input to.</param>
-    /// <param name="conversationId">The ID of the conversation.</param>
-    /// <param name="inputItems">The input items to send.</param>
-    /// <param name="agentVersion">A specific version to pin the call to, or null to use whatever Foundry currently considers the latest version of <paramref name="agentName"/>.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The response from the agent.</returns>
+    /// <summary>Sends input to an agent in a conversation and returns its response.</summary>
+    /// <param name="agentVersion">The version to run; null runs the latest.</param>
+    /// <param name="maxOutputTokens">The most output tokens this response may use; null for the model's own limit.</param>
     Task<ResponseResult> CreateResponseAsync(string agentName, string conversationId, IReadOnlyList<ResponseItem> inputItems,
-        string? agentVersion = null, CancellationToken cancellationToken = default);
+        string? agentVersion = null, int? maxOutputTokens = null, CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Deletes a conversation from Foundry. It cleans up ephemeral conversations that are no longer needed.
-    /// </summary>
-    /// <param name="conversationId">The ID of the conversation to delete.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <summary>Deletes a conversation.</summary>
     Task DeleteConversationAsync(string conversationId, CancellationToken cancellationToken = default);
 }

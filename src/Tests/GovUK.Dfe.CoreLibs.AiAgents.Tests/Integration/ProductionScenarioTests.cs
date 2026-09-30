@@ -386,9 +386,9 @@ public sealed class ProductionScenarioTests : IDisposable
     }
 
     [Fact]
-    public async Task Citations_AnAnswerCitingEvidenceThatDoesntExist_IsCorrected()
+    public async Task Citations_AreRequiredByDefault_AndAnAnswerCitingEvidenceThatDoesntExist_IsCorrected()
     {
-        var definition = Ofsted with { RequireCitations = true };
+        var definition = Ofsted;   // RequireCitations is on unless the definition turns it off
         _conversations.Reply("ofsted-agent",
             FoundryResponses.Completed("r1", "Rated Outstanding [Evidence 5]."),
             FoundryResponses.Completed("r2", "Rated Good [Evidence 1]."));

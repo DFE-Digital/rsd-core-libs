@@ -5,30 +5,60 @@ using Azure.Storage.Blobs.Specialized;
 using GovUK.Dfe.CoreLibs.AiAgents.Constants;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Net;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Concurrency;
 
 /// <summary>
 /// Run slots as blob leases: one empty blob per slot, created on first use. A held lease is renewed while the
 /// run lasts; if the instance dies, the lease expires within <see cref="LeaseDuration"/> and the slot frees itself.
+/// The container is created, private, if it's missing.
 /// </summary>
 internal sealed class BlobRunSlotStore(BlobContainerClient container, int capacity, ILogger<BlobRunSlotStore>? logger = null)
     : IRunSlotStore
 {
     internal static readonly TimeSpan LeaseDuration = TimeSpan.FromSeconds(60);
+    internal const string AccessCheckBlob = "access-check";
     private static readonly TimeSpan RenewEvery = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan ReleaseTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan AccessCheckLease = TimeSpan.FromSeconds(15);
 
     private readonly ILogger<BlobRunSlotStore> _logger = logger ?? NullLogger<BlobRunSlotStore>.Instance;
 
     public int Capacity => capacity;
+
+    public Uri ContainerUri => container.Uri;
+
+    /// <summary>Creates the container if it's missing, then proves this identity can write and lease blobs in it.</summary>
+    /// <exception cref="InvalidOperationException">The identity lacks Storage Blob Data Contributor.</exception>
+    public async Task EnsureAccessAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (!(await container.ExistsAsync(cancellationToken).ConfigureAwait(false)).Value)
+            {
+                await CreateContainerAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            var probe = container.GetBlobClient(AccessCheckBlob);
+            await probe.UploadAsync(BinaryData.Empty, overwrite: true, cancellationToken).ConfigureAwait(false);
+            var lease = probe.GetBlobLeaseClient();
+            await lease.AcquireAsync(AccessCheckLease, cancellationToken: cancellationToken).ConfigureAwait(false);
+            await lease.ReleaseAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+        catch (RequestFailedException ex) when (ex.Status == (int)HttpStatusCode.Forbidden)
+        {
+            throw AccessDenied(ex);
+        }
+    }
 
     public async Task<IAsyncDisposable?> TryAcquireAsync(int slot, CancellationToken cancellationToken = default)
     {
         var blob = container.GetBlobClient($"run-slot-{slot:D4}");
         var lease = blob.GetBlobLeaseClient();
 
-        for (var attempt = 1; attempt <= 2; attempt++)
+        // At most: create the container, then the slot's blob, then take the lease.
+        for (var attempt = 1; attempt <= 3; attempt++)
         {
             try
             {
@@ -39,17 +69,39 @@ internal sealed class BlobRunSlotStore(BlobContainerClient container, int capaci
             {
                 return null;
             }
-            catch (RequestFailedException ex) when (ex.ErrorCode == BlobErrorCode.ContainerNotFound)
+            catch (RequestFailedException ex) when (ex.Status == (int)HttpStatusCode.Forbidden)
             {
-                throw new InvalidOperationException(string.Format(ErrorMessages.RunSlotContainerNotFound, container.Uri), ex);
+                throw AccessDenied(ex);
             }
-            catch (RequestFailedException ex) when (ex.ErrorCode == BlobErrorCode.BlobNotFound && attempt == 1)
+            catch (RequestFailedException ex) when (ex.ErrorCode == BlobErrorCode.ContainerNotFound && attempt < 3)
+            {
+                await CreateContainerAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (RequestFailedException ex) when (ex.ErrorCode == BlobErrorCode.BlobNotFound && attempt < 3)
             {
                 await CreateSlotAsync(blob, cancellationToken).ConfigureAwait(false);
             }
         }
 
         return null;
+    }
+
+    private async Task CreateContainerAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Private: no anonymous access, whatever the account allows.
+            await container.CreateAsync(PublicAccessType.None, cancellationToken: cancellationToken).ConfigureAwait(false);
+            _logger.LogInformation("Created the run slot container {Container}", container.Uri);
+        }
+        catch (RequestFailedException ex) when (ex.ErrorCode == BlobErrorCode.ContainerAlreadyExists)
+        {
+            // Another instance created it first.
+        }
+        catch (RequestFailedException ex) when (ex.Status == (int)HttpStatusCode.Forbidden)
+        {
+            throw AccessDenied(ex);
+        }
     }
 
     private static async Task CreateSlotAsync(BlobClient blob, CancellationToken cancellationToken)
@@ -63,6 +115,9 @@ internal sealed class BlobRunSlotStore(BlobContainerClient container, int capaci
             // Another instance created it first.
         }
     }
+
+    private InvalidOperationException AccessDenied(RequestFailedException ex)
+        => new(string.Format(ErrorMessages.RunSlotAccessDenied, container.Uri), ex);
 
     private sealed class HeldSlot : IAsyncDisposable
     {

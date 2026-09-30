@@ -101,7 +101,9 @@ public static class DependencyInjection
         {
             var slotContainer = new BlobContainerClient(new Uri(options.GlobalConcurrency.BlobContainerUri!),
                 options.CredentialFor(nameof(AiAgentsService.RunSlots), options.GlobalConcurrency.Authentication));
-            services.AddSingleton<IRunSlotStore>(sp => new BlobRunSlotStore(slotContainer, maxConcurrentRuns, sp.GetService<ILogger<BlobRunSlotStore>>()));
+            services.AddSingleton(sp => new BlobRunSlotStore(slotContainer, maxConcurrentRuns, sp.GetService<ILogger<BlobRunSlotStore>>()));
+            services.AddSingleton<IRunSlotStore>(sp => sp.GetRequiredService<BlobRunSlotStore>());
+            services.AddHostedService<RunSlotStartupValidator>();
         }
 
         RegisterAgents(services, builder.Definitions, options, foundryCredential);

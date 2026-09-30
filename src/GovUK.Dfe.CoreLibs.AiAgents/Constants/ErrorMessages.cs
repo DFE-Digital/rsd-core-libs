@@ -46,6 +46,7 @@ internal static class ErrorMessages
     public const string AgentAnswerInvalid = "Agent '{0}' gave an invalid answer twice: {1}";
     public const string TestCaseWithoutPrompt = "Test case {0} has no \"prompt\".";
     public const string NoRunSlot = "No agent run slot came free within {0}. Raise MaxConcurrency or GlobalConcurrency:MaxConcurrentRuns, or MaxWaitForRunSlot.";
-    public const string RunSlotContainerNotFound = "The run slot container {0} doesn't exist. Create it, or check GlobalConcurrency:BlobContainerUri.";
+    public const string OutputTokenLimitReached = "Agent '{0}' used its {1} output tokens for this run. Raise MaxOutputTokensPerRun, or ask for a shorter answer.";
+    public const string RunSlotAccessDenied = "This app's identity can't use the run slot container {0}. Give it Storage Blob Data Contributor on the container, or on the storage account so the library can create the container.";
     public const string McpToolArgumentsInvalid = "The arguments for {0} weren't a valid JSON object. Call it again with arguments matching its input schema.";
 }

@@ -11,11 +11,12 @@ evidence from Azure AI Search, checked answers, and token usage for every run.
 | Give an agent tools from your MCP server | List them in `AllowedToolNames` and the agent's `AllowedTools` | [Tools](#tools) |
 | Ground answers in search results | Pass `search.GetContextAsync(...)` as `evidence` | [Search](#search-and-prompts) |
 | Get a typed answer | Set `OutputSchema`, read with `ReadOutputAs<T>()` | [Agents](#agents) |
-| Reject bad answers | Set `Validate` or `RequireCitations` on the agent | [Check every answer](#check-every-answer) |
+| Reject bad answers | Citations are checked by default; add `Validate` for your own rules | [Check every answer](#check-every-answer) |
 | Score answers with an AI judge | `agents.AddQualityEvaluation(judgeModel: "myconnection/gpt-5.1")` | [Judge](#score-answers-with-a-judge) |
 | Block a worse agent before release | Run test cases with `IAgentTestRunner` in CI | [Gate releases](#gate-releases) |
 | Run tested versions in production | `VersionPins`, or `ExternallyManagedAgents` for a central job | [Versions](#environments-and-versions) |
 | Stay within your Foundry quota | `MaxConcurrency`, `GlobalConcurrency` | [Scaling out](#scaling-out) |
+| Cap what one run can cost | `MaxOutputTokensPerRun` (default 32,000) | [Scaling out](#scaling-out) |
 | Track tokens and cost | Subscribe to the metrics (step 3) | [Telemetry](#telemetry) |
 | Use a managed identity or other identities per service | `UseCredential`, or `Authentication` blocks | [Credentials](#credentials) |
 
@@ -60,7 +61,7 @@ dotnet add package Azure.Monitor.OpenTelemetry.AspNetCore   # token usage must b
 - One Entra ID service principal signs in to everything ([or one per service](#credentials)). Supply
   `Authentication:ClientSecret` from Key Vault, never appsettings.json.
 - Roles: **Azure AI User** (Foundry), **Search Index Data Reader** (Search), access to each MCP server's API,
-  and **Storage Blob Data Contributor** on the run-slot container if you use `GlobalConcurrency`.
+  and **Storage Blob Data Contributor** on the run-slot container if you use `GlobalConcurrency` ([details](#scaling-out)).
 - `Search` and `McpServers` are optional. Set prompt files to *Copy to output directory*.
 - Later snippets show only keys inside `"AiAgents"`.
 
@@ -145,9 +146,9 @@ instructions in the prompt. Evidence over `MaxEvidenceCharacters` (100,000) is c
 | `Name` | Its Foundry name; unique per app if the project is shared |
 | `SystemPromptType` | Its key under `PromptFiles:SystemPrompts` |
 | `IsManagedAgent` | `true` (default): kept and reused. `false`: created and deleted per run (two extra Foundry calls); only if its instructions or tools change every run |
-| `AllowedTools` | Tools it may use; none if empty |
+| `AllowedTools` | The only tools it may call; empty (default) means none |
 | `OutputSchema` | JSON schema for its answer; read with `result.ReadOutputAs<T>()` |
-| `Validate`, `RequireCitations` | [Answer checks](#check-every-answer) |
+| `Validate`, `RequireCitations` (default `true`) | [Answer checks](#check-every-answer) |
 
 A managed agent gets a new version only when its prompt, tools or schema change. For another model, subclass
 `ManagedAgentProviderBase` and add it with `agents.AddAgentProvider<T>()`.
@@ -228,15 +229,15 @@ newest version (dev only). `VersionPins` is for agents the app builds; an agent 
 
 ### Check every answer
 
-`Validate` returns why an answer is wrong, or null. `RequireCitations` makes the agent cite numbered evidence (e.g.
-search results) as `[Evidence n]`, and only evidence that exists. A failed check is sent back once in the same
-conversation; if it fails again, the run fails.
+By default (`RequireCitations`), an agent given numbered evidence (e.g. search results) must cite it as
+`[Evidence n]`, and only evidence that exists. Unnumbered evidence isn't checked. Set `RequireCitations = false` for an
+answer that can't carry citations, e.g. a schema with no text fields. `Validate` adds your own check: it returns why an
+answer is wrong, or null. A failed check is sent back once in the same conversation; if it fails again, the run fails.
 
 ```csharp
 public static readonly AgentDefinition Ofsted = new("ofsted-agent", "Ofsted")
 {
-    OutputSchema = AgentOutputSchema.For<OfstedFindings>("ofsted_findings"),
-    RequireCitations = true,
+    OutputSchema = AgentOutputSchema.For<OfstedFindings>("ofsted_findings"),   // Strengths carry the citations
     Validate = result => result.ReadOutputAs<OfstedFindings>().Rating is "Outstanding" or "Good" or "Requires improvement" or "Inadequate"
         ? null : "Rating must be an Ofsted grade.",
 };
@@ -244,7 +245,11 @@ public static readonly AgentDefinition Ofsted = new("ofsted-agent", "Ofsted")
 
 ### Score answers with a judge
 
-1. Register a judge: any model in your Foundry project. It scores groundedness and relevance.
+**Purpose:** checks can't tell a well-cited answer that's still wrong or off-topic. A judge model scores each answer
+1–5 for **groundedness** (supported by the evidence) and **relevance** (answers the prompt), so you can see quality
+drop after a prompt or model change.
+
+1. Register a judge: any model in your Foundry project.
 
    ```csharp
    agents.AddQualityEvaluation(judgeModel: "myconnection/gpt-5.1", sampleRate: 0.05);
@@ -254,6 +259,7 @@ public static readonly AgentDefinition Ofsted = new("ofsted-agent", "Ofsted")
    and metric. Use `sampleRate: 0` to score only release-gate tests.
 3. Release gate: the same judge scores each test case (next section).
 
+- Cost: one judge call per scored answer; the sample rate sets how many.
 - Reasoning models work: the judge sends only the model and messages.
 - A metric the judge couldn't score is logged with the reason.
 - For other metrics pass your own `IEvaluator` as `evaluator`, or your own judge through the
@@ -262,9 +268,12 @@ public static readonly AgentDefinition Ofsted = new("ofsted-agent", "Ofsted")
 
 ### Gate releases
 
+**Purpose:** stop a worse agent reaching production. Before a new version is published, CI runs fixed test cases
+against it and fails the build if facts are wrong, scores are too low, or scores fell since the last release.
+
 Keep test cases per agent as JSON (`prompt`, `evidence`, `mustMention`, `mustNotMention`) and run them in the
 provisioning job. They test an ephemeral copy, so a failed gate publishes nothing (`AgentTestTarget.Deployed` tests
-the running version).
+the running version). Save a passing report as the next `baseline.json`.
 
 ```csharp
 var cases = await AgentTestCase.LoadAsync("tests/ofsted-agent");
@@ -280,8 +289,9 @@ if (!report.Passed || report.BelowMinimum(3.5, "Groundedness", "Relevance").Any(
 
 ## Telemetry
 
-Startup fails unless the metrics are subscribed (step 3); set `"RequireTokenUsageTelemetry": false` only for tests
-and local dev.
+**Purpose:** know what each app and agent costs, how fast it is, how often it fails, and whether answers are getting
+worse. Token usage is billed, so it's always recorded: startup fails unless the metrics are subscribed (step 3). Set
+`"RequireTokenUsageTelemetry": false` only for tests and local dev.
 
 | Recorded | What |
 | --- | --- |
@@ -310,6 +320,17 @@ customMetrics
   "GlobalConcurrency": { "MaxConcurrentRuns": 20, "BlobContainerUri": "https://<account>.blob.core.windows.net/aiagents-run-slots" }
   ```
 
+  - **You supply** the storage account and the container URI. Use a container only for run slots.
+  - **Role:** the identity in `Authentication` (or `GlobalConcurrency:Authentication`) needs **Storage Blob Data
+    Contributor**: on the account if the library should create the container, or, for least privilege, on the
+    container only, once you've created it.
+  - **At startup** the library creates the container if it's missing (private, no public access), then checks it can
+    write and lease a blob. A missing role fails startup and names the role; an unreachable account only warns.
+  - **Secure access:** HTTPS and Entra ID only. A URI with `http` or a SAS token fails startup; no keys or connection
+    strings are used.
+
+- **Cost per run.** `MaxOutputTokensPerRun` (32,000) caps the output tokens one run may use, across tool rounds and
+  the retry; reasoning tokens count. Each response is capped at what's left, and a run that uses it all fails.
 - **Caching.** A resolved version is reused for `AgentCacheDuration` (30 seconds; `0` turns it off).
 - **Orphans.** Ephemeral agents left by a crash stay until deleted. Schedule
   `IAgentRuntime.DeleteOrphanedEphemeralAgentsAsync(ct)`, or add `agents.AddEphemeralAgentSweep()` (every 30 minutes).
@@ -324,7 +345,7 @@ customMetrics
 - [ ] Shared project: agents pinned in staging and production, and those pins in `ProtectedVersions`.
 - [ ] `KeepLatestVersions` wherever versions are created.
 - [ ] Both tool allow-lists; `ContentFields` and a school `filter` on every search.
-- [ ] `RunTimeout`, `MaxConcurrency` and `GlobalConcurrency` sized to your Foundry quota.
+- [ ] `RunTimeout`, `MaxOutputTokensPerRun`, `MaxConcurrency` and `GlobalConcurrency` sized to your Foundry quota.
 - [ ] A fixed model version, and a release gate for important agents.
 - [ ] Ephemeral agents only where the definition changes per run, with orphan clean-up scheduled.
 
@@ -342,6 +363,7 @@ All under `AiAgents`:
 | `AgentCacheDuration` | 30 s | Reuse of a resolved version; `0` = off |
 | `MaxEvidenceCharacters` | 100000 | Longer evidence is cut |
 | `MaxToolOutputCharacters` | 20000 | Longer tool output is cut |
+| `MaxOutputTokensPerRun` | 32000 | Output tokens one run may use (min 16); then it fails |
 | `FenceToolOutput` | `true` | Fences tool output as data |
 | `DeleteConversationsAfterRun` | `true` | Keeps prompts and evidence out of Foundry |
 | `RequireTokenUsageTelemetry` | `true` | Startup fails without token metrics |
@@ -397,7 +419,7 @@ falls back to it. Give each identity only its own service's role.
 - Substitute `IAgentService` or `IContextRetriever`.
 - Tests that start the host: `"RequireTokenUsageTelemetry": false`.
 - `ProductionScenarioTests` shows each pattern end to end.
-- Against real Azure, set `AIAGENTS_LIVE_FOUNDRY_ENDPOINT` and `AIAGENTS_LIVE_SLOT_CONTAINER` (an empty container)
+- Against real Azure, set `AIAGENTS_LIVE_FOUNDRY_ENDPOINT` and `AIAGENTS_LIVE_SLOT_CONTAINER` (a container for nothing else)
   and run the `Live*` tests before relying on a new environment.
 
 Not yet supported: human approval before a tool runs, streaming, built-in health checks.

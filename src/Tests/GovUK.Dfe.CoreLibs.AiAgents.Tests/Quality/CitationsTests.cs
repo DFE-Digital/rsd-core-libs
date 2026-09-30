@@ -27,9 +27,9 @@ public sealed class CitationsTests
     }
 
     [Fact]
-    public void ForRun_AsksForCitations_AndChecksThemBeforeTheAgentsOwnValidation()
+    public void ForRun_ByDefault_AsksForCitations_AndChecksThemBeforeTheAgentsOwnValidation()
     {
-        var definition = new AgentDefinition("ofsted-agent", "Ofsted") { RequireCitations = true, Validate = _ => "own check" };
+        var definition = new AgentDefinition("ofsted-agent", "Ofsted") { Validate = _ => "own check" };
 
         var (prompt, validate) = Citations.ForRun(definition, "Summarise.", NumberedEvidence);
 
@@ -43,9 +43,18 @@ public sealed class CitationsTests
     [InlineData("Another agent's unnumbered output.")]
     public void ForRun_ChangesNothing_WhenTheEvidenceIsntNumbered(string? evidence)
     {
-        var definition = new AgentDefinition("ofsted-agent", "Ofsted") { RequireCitations = true };
+        var (prompt, validate) = Citations.ForRun(new AgentDefinition("ofsted-agent", "Ofsted"), "Summarise.", evidence);
 
-        var (prompt, validate) = Citations.ForRun(definition, "Summarise.", evidence);
+        Assert.Equal("Summarise.", prompt);
+        Assert.Null(validate);
+    }
+
+    [Fact]
+    public void ForRun_ChangesNothing_WhenTheAgentTurnsCitationsOff()
+    {
+        var definition = new AgentDefinition("ofsted-agent", "Ofsted") { RequireCitations = false };
+
+        var (prompt, validate) = Citations.ForRun(definition, "Summarise.", NumberedEvidence);
 
         Assert.Equal("Summarise.", prompt);
         Assert.Null(validate);

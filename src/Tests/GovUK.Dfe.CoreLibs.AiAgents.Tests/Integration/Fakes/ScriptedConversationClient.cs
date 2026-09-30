@@ -6,7 +6,8 @@ using System.ClientModel.Primitives;
 namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Integration.Fakes;
 
 /// <summary>A response call as Foundry would have received it.</summary>
-internal sealed record RecordedResponseCall(string AgentName, string? AgentVersion, string ConversationId, string SerializedInput);
+internal sealed record RecordedResponseCall(string AgentName, string? AgentVersion, string ConversationId, string SerializedInput,
+    int? MaxOutputTokens = null);
 
 /// <summary>
 /// Plays back scripted Responses per agent name and records every call. Ephemeral agents are
@@ -83,12 +84,12 @@ internal sealed class ScriptedConversationClient : IFoundryConversationClient
     }
 
     public async Task<ResponseResult> CreateResponseAsync(string agentName, string conversationId, IReadOnlyList<ResponseItem> inputItems,
-        string? agentVersion = null, CancellationToken cancellationToken = default)
+        string? agentVersion = null, int? maxOutputTokens = null, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         var input = string.Join(' ', inputItems.Select(item => ModelReaderWriter.Write(item).ToString()));
-        _calls.Enqueue(new RecordedResponseCall(agentName, agentVersion, conversationId, input));
+        _calls.Enqueue(new RecordedResponseCall(agentName, agentVersion, conversationId, input, maxOutputTokens));
 
         var script = _scripts.FirstOrDefault(pair => Matches(pair.Key, agentName)).Value
             ?? throw new InvalidOperationException($"No scripted response for agent '{agentName}'.");

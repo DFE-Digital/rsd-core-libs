@@ -3,6 +3,9 @@ namespace GovUK.Dfe.CoreLibs.AiAgents;
 /// <summary>Settings for every agent run, read from the <c>AiAgents</c> section by <c>AddAiAgents</c>.</summary>
 public sealed record AgentRunOptions
 {
+    /// <summary>The smallest <c>max_output_tokens</c> the Responses API accepts.</summary>
+    internal const int MinOutputTokens = 16;
+
     /// <summary>Tags every span and metric. Defaults to the entry assembly's name.</summary>
     public string ApplicationName { get; init; } = Diagnostics.AgentTelemetry.DefaultApplicationName;
 
@@ -23,6 +26,12 @@ public sealed record AgentRunOptions
 
     /// <summary>Characters of evidence per run; the rest is cut with a note, keeping the start.</summary>
     public int MaxEvidenceCharacters { get; init; } = 100_000;
+
+    /// <summary>
+    /// Output tokens one run may use, across tool rounds and the retry (reasoning tokens count). Each response is capped
+    /// at what's left; a run that uses it all fails.
+    /// </summary>
+    public int MaxOutputTokensPerRun { get; init; } = 32_000;
 
     /// <summary>Longest a run waits for a slot before failing with <see cref="TimeoutException"/>.</summary>
     public TimeSpan MaxWaitForRunSlot { get; init; } = TimeSpan.FromMinutes(2);

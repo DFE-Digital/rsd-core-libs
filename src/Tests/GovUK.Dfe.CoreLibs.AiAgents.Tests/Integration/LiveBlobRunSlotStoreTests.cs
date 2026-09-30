@@ -5,7 +5,7 @@ using Xunit;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Integration;
 
-/// <summary>Runs only when <c>AIAGENTS_LIVE_SLOT_CONTAINER</c> is set to an existing, empty blob container URI.</summary>
+/// <summary>Runs only when <c>AIAGENTS_LIVE_SLOT_CONTAINER</c> is set to a blob container URI used for nothing else.</summary>
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class LiveBlobFactAttribute : FactAttribute
 {

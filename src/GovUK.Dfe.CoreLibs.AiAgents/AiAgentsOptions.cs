@@ -41,6 +41,9 @@ public sealed class AiAgentsOptions
     /// <summary>The most characters of evidence sent with one run; the rest is cut off with a note.</summary>
     public int MaxEvidenceCharacters { get; set; } = 100_000;
 
+    /// <summary>Output tokens one run may use, across tool rounds (reasoning included); a run that uses them all fails.</summary>
+    public int MaxOutputTokensPerRun { get; set; } = 32_000;
+
     public bool DeleteConversationsAfterRun { get; set; } = true;
 
     public bool RequireTokenUsageTelemetry { get; set; } = true;
@@ -152,6 +155,7 @@ public sealed class AiAgentsOptions
             (AgentCacheDuration < TimeSpan.Zero, "AgentCacheDuration (0 or more)"),
             (MaxWaitForRunSlot <= TimeSpan.Zero, "MaxWaitForRunSlot (must be positive)"),
             (MaxEvidenceCharacters < 1, "MaxEvidenceCharacters (must be at least 1)"),
+            (MaxOutputTokensPerRun < AgentRunOptions.MinOutputTokens, $"MaxOutputTokensPerRun (must be at least {AgentRunOptions.MinOutputTokens})"),
         ];
 
         return checks.Where(static check => check.Invalid).Select(static check => $"{SectionName}:{check.Problem}")
@@ -229,6 +233,7 @@ public sealed class AiAgentsOptions
         MaxToolOutputCharacters = MaxToolOutputCharacters,
         FenceToolOutput = FenceToolOutput,
         MaxEvidenceCharacters = MaxEvidenceCharacters,
+        MaxOutputTokensPerRun = MaxOutputTokensPerRun,
         MaxWaitForRunSlot = MaxWaitForRunSlot,
         DeleteConversationsAfterRun = DeleteConversationsAfterRun,
         RequireTokenUsageTelemetry = RequireTokenUsageTelemetry,
@@ -278,7 +283,10 @@ public sealed class AiAgentsOptions
         /// <summary>The most agent runs at once across all instances. Unset (default): no global limit.</summary>
         public int? MaxConcurrentRuns { get; set; }
 
-        /// <summary>An existing blob container used only for run slots. Its identity needs Storage Blob Data Contributor on it.</summary>
+        /// <summary>
+        /// A blob container used only for run slots, e.g. https://&lt;account&gt;.blob.core.windows.net/aiagents-run-slots.
+        /// HTTPS, with no SAS token: access is by Entra ID only. Created, private, if it's missing.
+        /// </summary>
         public string? BlobContainerUri { get; set; }
 
         /// <summary>Optional: a service principal for the run-slot container only. Unset: the default.</summary>
@@ -299,9 +307,13 @@ public sealed class AiAgentsOptions
                 problems.Add("MaxConcurrentRuns (must be at least 1)");
             }
 
-            if (!Uri.TryCreate(BlobContainerUri, UriKind.Absolute, out _))
+            if (!Uri.TryCreate(BlobContainerUri, UriKind.Absolute, out var uri))
             {
                 problems.Add("BlobContainerUri");
+            }
+            else if (uri.Scheme != Uri.UriSchemeHttps || uri.Query.Length > 0)
+            {
+                problems.Add("BlobContainerUri (must be https, with no SAS token)");
             }
 
             return problems;

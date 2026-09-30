@@ -6,7 +6,7 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 /// <param name="IsManagedAgent">True (default): kept and reused. False: created per run, then deleted.</param>
 public sealed record AgentDefinition(string Name, string SystemPromptType, bool IsManagedAgent = true)
 {
-    /// <summary>Tools it may use. None if empty.</summary>
+    /// <summary>The only tools it may call. Empty (default): no tools.</summary>
     public IReadOnlyList<string> AllowedTools { get; init; } = [];
 
     /// <summary>Optional JSON schema for its answer; read it back with <c>ReadOutputAs&lt;T&gt;()</c>.</summary>
@@ -19,8 +19,9 @@ public sealed record AgentDefinition(string Name, string SystemPromptType, bool 
     public Func<AgentResult, string?>? Validate { get; init; }
 
     /// <summary>
-    /// Requires the answer to cite numbered evidence (e.g. search results) as <c>[Evidence n]</c>, and only evidence
-    /// that exists. Checked like <see cref="Validate"/>. Has no effect when the evidence isn't numbered.
+    /// On by default: given numbered evidence (e.g. search results), the answer must cite it as <c>[Evidence n]</c>, and
+    /// only evidence that exists. No effect on unnumbered evidence. Turn off for an answer with nowhere to cite, e.g. a
+    /// schema with no text fields.
     /// </summary>
-    public bool RequireCitations { get; init; }
+    public bool RequireCitations { get; init; } = true;
 }

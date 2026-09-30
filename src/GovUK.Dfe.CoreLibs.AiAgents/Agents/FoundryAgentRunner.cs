@@ -141,9 +141,22 @@ public sealed class FoundryAgentRunner(IAgentFactory agentFactory, IFoundryConve
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var response = await conversationClient.CreateResponseAsync(agent.Name, conversationId, inputItems, agent.Version, cancellationToken)
+            // The run's output budget is shared by every response, so each is capped at what's left.
+            var outputTokensLeft = (int)Math.Max(0, _runOptions.MaxOutputTokensPerRun - usage.Total.OutputTokens);
+            if (outputTokensLeft < AgentRunOptions.MinOutputTokens)
+            {
+                throw OutputTokenLimitReached(agent.Name);
+            }
+
+            var response = await conversationClient.CreateResponseAsync(agent.Name, conversationId, inputItems, agent.Version,
+                    outputTokensLeft, cancellationToken)
                 .ConfigureAwait(false);
             usage.Add(response.Usage);
+
+            if (response.IncompleteStatusDetails?.Reason == ResponseIncompleteStatusReason.MaxOutputTokens)
+            {
+                throw OutputTokenLimitReached(agent.Name);
+            }
 
             var toolCalls = response.OutputItems.OfType<FunctionCallResponseItem>().ToList();
             if (toolCalls.Count == 0)
@@ -157,6 +170,9 @@ public sealed class FoundryAgentRunner(IAgentFactory agentFactory, IFoundryConve
 
         throw new InvalidOperationException(string.Format(ErrorMessages.ToolCallRoundLimitExceeded, agent.Name, MaxToolCallRounds));
     }
+
+    private InvalidOperationException OutputTokenLimitReached(string agentName)
+        => new(string.Format(ErrorMessages.OutputTokenLimitReached, agentName, _runOptions.MaxOutputTokensPerRun));
 
     private async Task DeleteConversationQuietlyAsync(string agentName, string conversationId)
     {

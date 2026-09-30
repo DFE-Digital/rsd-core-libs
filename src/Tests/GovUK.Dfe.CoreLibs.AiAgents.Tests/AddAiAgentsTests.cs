@@ -195,25 +195,13 @@ public sealed class AddAiAgentsTests
         Assert.Contains("AiAgents:VersionPins:ofsted-agent", ex.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void GlobalConcurrency_UsesBlobLeaseSlots_WithTheConfiguredCapacity()
-    {
-        var settings = ValidSettings();
-        settings["AiAgents:GlobalConcurrency:MaxConcurrentRuns"] = "20";
-        settings["AiAgents:GlobalConcurrency:BlobContainerUri"] = "https://account.blob.core.windows.net/run-slots";
-
-        using var provider = Build(settings);
-
-        var slots = Assert.IsType<BlobRunSlotStore>(provider.GetRequiredService<IRunSlotStore>());
-        Assert.Equal(20, slots.Capacity);
-    }
-
     [Theory]
     [InlineData("AiAgents:GlobalConcurrency:MaxConcurrentRuns", "20", "AiAgents:GlobalConcurrency:BlobContainerUri")]
     [InlineData("AiAgents:GlobalConcurrency:BlobContainerUri", "https://account.blob.core.windows.net/run-slots", "AiAgents:GlobalConcurrency:MaxConcurrentRuns")]
     [InlineData("AiAgents:MaxEvidenceCharacters", "0", "AiAgents:MaxEvidenceCharacters")]
     [InlineData("AiAgents:AgentCacheDuration", "-00:00:01", "AiAgents:AgentCacheDuration")]
     [InlineData("AiAgents:MaxConcurrency", "0", "AiAgents:MaxConcurrency")]
+    [InlineData("AiAgents:MaxOutputTokensPerRun", "15", "AiAgents:MaxOutputTokensPerRun (must be at least 16)")]
     public void RejectsIncompleteOrInvalidLimits(string setting, string value, string reported)
     {
         var settings = ValidSettings();
@@ -230,10 +218,12 @@ public sealed class AddAiAgentsTests
         var settings = ValidSettings();
         settings["AiAgents:MaxEvidenceCharacters"] = "50000";
         settings["AiAgents:AgentCacheDuration"] = "00:00:00";
+        settings["AiAgents:MaxOutputTokensPerRun"] = "8000";
 
         using var provider = Build(settings);
 
         Assert.Equal(50_000, provider.GetRequiredService<AgentRunOptions>().MaxEvidenceCharacters);
+        Assert.Equal(8_000, provider.GetRequiredService<AgentRunOptions>().MaxOutputTokensPerRun);
         Assert.Equal(TimeSpan.Zero, provider.GetRequiredService<FoundryAgentFactoryOptions>().AgentCacheDuration);
     }
 

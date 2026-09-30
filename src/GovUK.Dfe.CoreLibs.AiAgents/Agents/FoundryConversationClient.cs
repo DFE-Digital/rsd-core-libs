@@ -16,12 +16,13 @@ public sealed class FoundryConversationClient(ProjectOpenAIClient client) : IFou
     }
 
     public async Task<ResponseResult> CreateResponseAsync(string agentName, string conversationId,
-        IReadOnlyList<ResponseItem> inputItems, string? agentVersion = null, CancellationToken cancellationToken = default)
+        IReadOnlyList<ResponseItem> inputItems, string? agentVersion = null, int? maxOutputTokens = null,
+        CancellationToken cancellationToken = default)
     {
         var agentReference = new AgentReference(agentName, version: agentVersion ?? "");
         var responsesClient = client.GetProjectResponsesClientForAgent(agentReference, conversationId);
 
-        var options = new CreateResponseOptions();
+        var options = new CreateResponseOptions { MaxOutputTokenCount = maxOutputTokens };
         foreach (var item in inputItems)
         {
             options.InputItems.Add(item);

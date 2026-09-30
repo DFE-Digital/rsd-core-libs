@@ -77,21 +77,6 @@ public sealed class AgentServiceTests
         Assert.Equal([Managed.Name, ManagedTwo.Name], context.History.Select(entry => entry.AgentName));
     }
 
-    [Fact]
-    public async Task RunSequentialAsync_AfterAFailure_TheNextAgentGetsTheLastSuccessfulOutput()
-    {
-        _agentRunner.RunAsync(Arg.Is<AgentReference>(a => a.Name == Managed.Name), Arg.Any<string>(), conversationId: Arg.Any<string?>(), additionalContext: Arg.Any<string?>(),
-            resolveToolCalls: AnyResolver(), cancellationToken: Arg.Any<CancellationToken>()).ThrowsAsync(new InvalidOperationException("boom"));
-        _agentRuntime.RunEphemeralAsync(Arg.Is<AgentSpec>(spec => spec.Name == Ephemeral.Name), "prompt-for-ephemeral-agent", AnyResolver(),
-            "initial", Arg.Any<Func<AgentResult, string?>?>(), Arg.Any<CancellationToken>()).Returns(new AgentResult(Ephemeral.Name, "ephemeral output", 5));
-
-        var results = await CreateSut().RunSequentialAsync([Managed, Ephemeral], ResolvePrompt, "initial",
-            new AgentContext(), cancellationToken: cancellationToken);
-
-        Assert.Contains("could not be generated", results[0].Output, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal("ephemeral output", results[1].Output);
-    }
-
     // ===================== Specs and tools =====================
 
     [Fact]

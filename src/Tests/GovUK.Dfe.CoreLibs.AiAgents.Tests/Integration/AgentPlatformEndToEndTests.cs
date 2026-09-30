@@ -99,6 +99,14 @@ public sealed partial class AgentPlatformEndToEndTests : IDisposable
         => provider.GetRequiredService<IAgentService>()
             .RunParallelAsync(definitions, PromptFor, new AgentContext(), shouldSuppress, cancellationToken: cancellationToken);
 
+    private static Task<IReadOnlyList<AgentResult>> RunSequential(ServiceProvider provider, params AgentDefinition[] definitions)
+        => RunSequential(provider, shouldSuppress: null, definitions);
+
+    private static Task<IReadOnlyList<AgentResult>> RunSequential(ServiceProvider provider, Func<Exception, bool>? shouldSuppress,
+        params AgentDefinition[] definitions)
+        => provider.GetRequiredService<IAgentService>()
+            .RunSequentialAsync(definitions, PromptFor, "Brief on URN 100000.", new AgentContext(), shouldSuppress);
+
     /// <summary>What McpToolClient gives an agent for a server exposing one tool: a plain function definition.</summary>
     private static IReadOnlyList<ResponseTool> PerformanceFunctionTools()
         => McpToolClient.BuildFunctionTools("school-performance-mcp",
@@ -715,40 +723,83 @@ public sealed partial class AgentPlatformEndToEndTests : IDisposable
     }
 
     [Fact]
-    public async Task Sequential_ChainsOutputs_AcrossManagedAndEphemeralAgents()
+    public async Task Sequential_ChainsOutputs_AcrossManagedAndEphemeralAgents_AndRecordsEachStep()
     {
         WriteSystemPrompt("Draft", "You draft school briefings.");
         WriteSystemPrompt("Review", "You review briefings for accuracy.");
         _conversations.Reply("draft-agent", FoundryResponses.Completed("r1", "Draft: rated Good in 2024."));
         _conversations.Reply("review-agent", FoundryResponses.Completed("r2", "Reviewed: rated Good in March 2024."));
         using var provider = Build();
+        var context = new AgentContext();
 
         var results = await provider.GetRequiredService<IAgentService>().RunSequentialAsync(
             [new AgentDefinition("draft-agent", "Draft"), new AgentDefinition("review-agent", "Review", IsManagedAgent: false)],
             (definition, _) => Task.FromResult($"{definition.Name}: continue the briefing."),
-            initialInput: "Brief on URN 100000.", new AgentContext(), cancellationToken: cancellationToken);
+            initialInput: "Brief on URN 100000.", context, cancellationToken: cancellationToken);
 
         Assert.Equal(["draft-agent", "review-agent"], results.Select(r => r.AgentName));
+        Assert.Equal(["draft-agent", "review-agent"], context.History.Select(entry => entry.AgentName));
         Assert.Equal("Reviewed: rated Good in March 2024.", results[^1].Output);
         Assert.Contains("Brief on URN 100000.", Assert.Single(_conversations.CallsFor("draft-agent")).SerializedInput, StringComparison.Ordinal);
         Assert.Contains("Draft: rated Good in 2024.", Assert.Single(_conversations.CallsFor("review-agent")).SerializedInput, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task Sequential_RecordsEachSuccessfulStepInTheAgentContext()
+    public async Task Sequential_MixedManagedAndEphemeral_IsolatesAFailedStep_AndTheNextAgentGetsTheLastGoodOutput()
     {
         WriteSystemPrompt("Draft", "You draft school briefings.");
-        WriteSystemPrompt("Review", "You review briefings.");
-        _conversations.Reply("draft-agent", FoundryResponses.Completed("r1", "Draft."));
-        _conversations.Reply("review-agent", FoundryResponses.Completed("r2", "Reviewed."));
+        WriteSystemPrompt("FactCheck", "You check facts on the web.");
+        WriteSystemPrompt("Review", "You review briefings for accuracy.");
+        _conversations.Reply("draft-agent", FoundryResponses.Completed("r1", "Draft: rated Good in 2024.", totalTokens: 100));
+        _conversations.Fail("fact-check-agent", new InvalidOperationException("Rate limit exceeded."));
+        _conversations.Reply("review-agent", FoundryResponses.Completed("r3", "Reviewed.", totalTokens: 50));
         using var provider = Build();
-        var context = new AgentContext();
 
-        await provider.GetRequiredService<IAgentService>().RunSequentialAsync(
-            [new AgentDefinition("draft-agent", "Draft"), new AgentDefinition("review-agent", "Review")],
-            (definition, _) => Task.FromResult(definition.Name), "Start.", context, cancellationToken: cancellationToken);
+        var results = await RunSequential(provider,
+            new AgentDefinition("draft-agent", "Draft"),
+            new AgentDefinition("fact-check-agent", "FactCheck", IsManagedAgent: false),
+            new AgentDefinition("review-agent", "Review"));
 
-        Assert.Equal(["draft-agent", "review-agent"], context.History.Select(entry => entry.AgentName));
+        Assert.Equal(["draft-agent", "fact-check-agent", "review-agent"], results.Select(r => r.AgentName));
+        Assert.Equal(FallbackText, results[1].Output);
+        Assert.Equal("Reviewed.", results[2].Output);
+        Assert.Contains("Draft: rated Good in 2024.", Assert.Single(_conversations.CallsFor("review-agent")).SerializedInput, StringComparison.Ordinal);
+        Assert.Equal(150, results.Sum(r => r.TotalTokens));
+        Assert.Empty(_foundry.AgentNames.Where(name => name.StartsWith("fact-check-agent", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task Sequential_ShouldSuppressFalse_PropagatesTheFailure_AndStopsTheChain()
+    {
+        WriteSystemPrompt("Draft", "You draft school briefings.");
+        WriteSystemPrompt("Review", "You review briefings for accuracy.");
+        var failure = new InvalidOperationException("Draft failed.");
+        _conversations.Fail("draft-agent", failure);
+        using var provider = Build();
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => RunSequential(provider, _ => false,
+            new AgentDefinition("draft-agent", "Draft"), new AgentDefinition("review-agent", "Review")));
+
+        Assert.Contains("draft-agent", thrown.Message, StringComparison.Ordinal);
+        Assert.Same(failure, thrown.InnerException);
+        Assert.Empty(_conversations.CallsFor("review-agent"));
+    }
+
+    [Fact]
+    public async Task Sequential_RunTimeout_FailsOnlyTheSlowStep_AndTheChainCarriesOn()
+    {
+        WriteSystemPrompt("Draft", "You draft school briefings.");
+        WriteSystemPrompt("Review", "You review briefings for accuracy.");
+        _conversations.Hang("draft-agent");
+        _conversations.Reply("review-agent", FoundryResponses.Completed("r1", "Reviewed."));
+        using var provider = Build(settings: new() { ["RunTimeout"] = "00:00:00.200" });
+
+        var results = await RunSequential(provider, new AgentDefinition("draft-agent", "Draft"), new AgentDefinition("review-agent", "Review"));
+
+        Assert.Equal(FallbackText, results[0].Output);
+        Assert.Equal("Reviewed.", results[1].Output);
+        Assert.Contains("Brief on URN 100000.", Assert.Single(_conversations.CallsFor("review-agent")).SerializedInput, StringComparison.Ordinal);
+        Assert.Contains(_logs.AtLevel(LogLevel.Error), log => log.Exception is TimeoutException);
     }
 
     [Fact]
@@ -980,7 +1031,7 @@ public sealed partial class AgentPlatformEndToEndTests : IDisposable
     }
 
     [Fact]
-    public async Task RunTimeout_FailsOnlyTheSlowAgent_WithTheFallback()
+    public async Task Parallel_RunTimeout_FailsOnlyTheSlowAgent_WithTheFallback()
     {
         WriteSystemPrompt("Ofsted", "You analyse Ofsted inspection reports.");
         WriteSystemPrompt("Trust", "You analyse academy trusts.");
