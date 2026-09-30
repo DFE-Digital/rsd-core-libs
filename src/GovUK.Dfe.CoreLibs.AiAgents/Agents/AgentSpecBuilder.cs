@@ -42,7 +42,7 @@ internal sealed class AgentSpecBuilder(IPromptProvider promptProvider, IEnumerab
         return new AgentSpec
         {
             Name = definition.Name,
-            Instructions = promptProvider.GetSystemPrompt(definition.SystemPromptType),
+            Instructions = promptProvider.GetSystemPrompt(definition.SystemPromptKey),
             Tools = await AgentToolResolver.ResolveAsync(ToolProviders, definition, cancellationToken).ConfigureAwait(false),
             OutputSchema = definition.OutputSchema,
         };

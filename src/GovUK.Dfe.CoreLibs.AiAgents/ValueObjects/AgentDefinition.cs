@@ -2,9 +2,9 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 
 /// <summary>One agent your app runs.</summary>
 /// <param name="Name">Its stable Foundry name, e.g. "ofsted-agent". Unique to your app.</param>
-/// <param name="SystemPromptType">Its key under <c>PromptFiles:SystemPrompts</c>.</param>
+/// <param name="SystemPromptKey">Its key under <c>PromptFiles:SystemPrompts</c>.</param>
 /// <param name="IsManagedAgent">True (default): kept and reused. False: created per run, then deleted.</param>
-public sealed record AgentDefinition(string Name, string SystemPromptType, bool IsManagedAgent = true)
+public sealed record AgentDefinition(string Name, string SystemPromptKey, bool IsManagedAgent = true)
 {
     /// <summary>The only tools it may call. Empty (default): no tools.</summary>
     public IReadOnlyList<string> AllowedTools { get; init; } = [];

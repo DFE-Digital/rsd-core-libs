@@ -88,7 +88,7 @@ public sealed record OfstedFindings(string Rating, string? InspectionDate, IRead
 
 public static class BriefingAgents
 {
-    public static readonly AgentDefinition Ofsted = new("ofsted-agent", SystemPromptType: "Ofsted")
+    public static readonly AgentDefinition Ofsted = new("ofsted-agent", SystemPromptKey: "Ofsted")
     {
         AllowedTools = ["get_performance_data"],                                // tools it may use
         OutputSchema = AgentOutputSchema.For<OfstedFindings>("ofsted_findings"), // optional structured answer
@@ -144,7 +144,7 @@ instructions in the prompt. Evidence over `MaxEvidenceCharacters` (100,000) is c
 | `AgentDefinition` | |
 | --- | --- |
 | `Name` | Its Foundry name; unique per app if the project is shared |
-| `SystemPromptType` | Its key under `PromptFiles:SystemPrompts` |
+| `SystemPromptKey` | Its key under `PromptFiles:SystemPrompts` |
 | `IsManagedAgent` | `true` (default): kept and reused. `false`: created and deleted per run (two extra Foundry calls); only if its instructions or tools change every run |
 | `AllowedTools` | The only tools it may call; empty (default) means none |
 | `OutputSchema` | JSON schema for its answer; read with `result.ReadOutputAs<T>()` |
