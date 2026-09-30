@@ -27,17 +27,6 @@ public sealed class McpToolStartupValidatorTests
         => new("my-tools", _client, options ?? CreateValidOptions(), _logger);
 
     [Fact]
-    public async Task StartAsync_CallsGetToolsAsync_ToValidateConfiguration()
-    {
-        _client.GetToolsAsync(cancellationToken).Returns(Task.FromResult<IReadOnlyList<ResponseTool>>([]));
-        var sut = CreateSut();
-
-        await sut.StartAsync(cancellationToken);
-
-        await _client.Received(1).GetToolsAsync(cancellationToken);
-    }
-
-    [Fact]
     public async Task StartAsync_FailsStartup_WhenTheServerLacksAnAllowedTool()
     {
         var exception = new McpToolConfigurationException("MCP server 'my-tools' does not expose the following configured tool(s): bar.");

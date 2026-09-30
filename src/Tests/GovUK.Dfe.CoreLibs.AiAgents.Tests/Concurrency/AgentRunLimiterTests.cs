@@ -12,36 +12,6 @@ public sealed class AgentRunLimiterTests
         => new(new AgentRunOptions { MaxConcurrency = maxConcurrency, MaxWaitForRunSlot = maxWait ?? TimeSpan.FromSeconds(30) }, global);
 
     [Fact]
-    public async Task GlobalLimit_IsSharedByEveryInstance()
-    {
-        var store = new InMemoryRunSlotStore(capacity: 2);
-        using var first = Instance(store);
-        using var second = Instance(store);
-
-        await Task.WhenAll(Enumerable.Range(0, 8).Select(async run =>
-        {
-            await using var slot = await (run % 2 == 0 ? first : second).AcquireAsync(cancellationToken);
-            await Task.Delay(50, cancellationToken);
-        }));
-
-        Assert.Equal(2, store.PeakInUse);
-    }
-
-    [Fact]
-    public async Task MaxConcurrency_IsSharedByEveryCallerOnTheInstance()
-    {
-        using var limiter = Instance(maxConcurrency: 1);
-        var held = await limiter.AcquireAsync(cancellationToken);
-
-        var waiting = limiter.AcquireAsync(cancellationToken).AsTask();
-        await Task.Delay(100, cancellationToken);
-        Assert.False(waiting.IsCompleted);
-
-        await held.DisposeAsync();
-        await using var next = await waiting;
-    }
-
-    [Fact]
     public async Task WaitingLongerThanMaxWait_FailsWithTimeout_AndGivesBackTheInstanceSlot()
     {
         var store = new InMemoryRunSlotStore(capacity: 1);

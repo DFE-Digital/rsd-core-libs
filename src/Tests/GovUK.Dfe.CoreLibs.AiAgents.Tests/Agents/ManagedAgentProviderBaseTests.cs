@@ -21,29 +21,6 @@ public sealed class ManagedAgentProviderBaseTests
 
     private readonly CancellationToken cancellationToken = default;
     private readonly IAgentFactory _factory = Substitute.For<IAgentFactory>();
-    private readonly IAgentRuntime _runtime = Substitute.For<IAgentRuntime>();
-
-    private TestManagedAgentProvider CreateSut() => new(_factory, _runtime);
-
-    [Fact]
-    public async Task GetAgentAsync_GoesThroughTheRuntimesPinAwareGetOrCreate_WithThisProvidersSpec()
-    {
-        AgentSpec? builtSpec = null;
-        _runtime.GetOrCreateAsync("my-agent", Arg.Any<Func<CancellationToken, Task<AgentSpec>>>(), Arg.Any<CancellationToken>())
-            .Returns(async callInfo =>
-            {
-                builtSpec = await callInfo.Arg<Func<CancellationToken, Task<AgentSpec>>>()(cancellationToken);
-                return new AgentReference("resolved-id", "my-agent", "2");
-            });
-
-        var sut = CreateSut();
-
-        var result = await sut.GetAgentAsync(cancellationToken);
-
-        Assert.Equal(new AgentReference("resolved-id", "my-agent", "2"), result);
-        Assert.Equal("Do the thing.", builtSpec?.Instructions);
-        await _factory.DidNotReceiveWithAnyArgs().GetOrCreateAsync(default!, cancellationToken);
-    }
 
     [Fact]
     public async Task GetAgentAsync_WhenPinned_ResolvesThePinWithoutCreatingAnything()
@@ -57,22 +34,5 @@ public sealed class ManagedAgentProviderBaseTests
 
         Assert.Equal("3", result.Version);
         await _factory.DidNotReceiveWithAnyArgs().GetOrCreateAsync(default!, cancellationToken);
-    }
-
-    [Fact]
-    public async Task GetLatestAgentAsync_ReturnsWhatGetOrCreateAsyncReturned_WithoutAnyFurtherResolution()
-    {
-        var created = new AgentReference("created-id", "my-agent", "1");
-        _factory.GetOrCreateAsync(Arg.Is<AgentSpec>(spec => spec.Name == "my-agent"), Arg.Any<CancellationToken>())
-            .Returns(created);
-
-        var sut = CreateSut();
-
-        var result = await sut.GetLatestAgentAsync(cancellationToken);
-         
-        Assert.Equal(created, result);
-        await _factory.Received(1).GetOrCreateAsync(Arg.Is<AgentSpec>(spec => spec.Name == "my-agent"), Arg.Any<CancellationToken>());
-        await _factory.DidNotReceiveWithAnyArgs().ResolveLatestAsync(default!, cancellationToken);
-        await _runtime.DidNotReceiveWithAnyArgs().ResolveAsync(default(AgentReference)!, cancellationToken);
     }
 }

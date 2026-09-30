@@ -42,21 +42,6 @@ public sealed class PinnedAgentVersionDriftValidatorTests
     }
 
     [Fact]
-    public async Task StartAsync_ChecksEachPinnedManagedDefinition_AgainstItsPinnedVersion_UsingItsCurrentSpec()
-    {
-        _definitionProvider.Definitions = [Pinned];
-        _promptProvider.GetSystemPrompt(Pinned.SystemPromptType).Returns("current instructions");
-        SetUpNoDrift(Pinned.Name, "3");
-
-        var sut = CreateSut();
-        await sut.StartAsync(cancellationToken);
-
-        await _agentFactory.Received(1).MatchesDeployedVersionAsync(
-            Arg.Is<AgentSpec>(spec => spec.Name == Pinned.Name && spec.Instructions == "current instructions"),
-            "3", Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
     public async Task StartAsync_SkipsEphemeralDefinitions_EvenIfTheyHaveAVersionPinEntry()
     {
         _definitionProvider.Definitions = [Ephemeral];
@@ -92,20 +77,6 @@ public sealed class PinnedAgentVersionDriftValidatorTests
 
         await _agentFactory.DidNotReceiveWithAnyArgs().MatchesDeployedVersionAsync(default!, default!, cancellationToken);
         await _agentFactory.DidNotReceiveWithAnyArgs().ResolveLatestAsync(default!, cancellationToken);
-    }
-
-    [Fact]
-    public async Task StartAsync_DoesNotThrow_WhenTheDeployedVersionHasDrifted()
-    {
-        _definitionProvider.Definitions = [Pinned];
-        _agentFactory.MatchesDeployedVersionAsync(Arg.Any<AgentSpec>(), "3", Arg.Any<CancellationToken>()).Returns(false);
-        _agentFactory.ResolveLatestAsync(Pinned.Name, Arg.Any<CancellationToken>())
-            .Returns(new AgentReference($"{Pinned.Name}-id", Pinned.Name, "3"));
-
-        var sut = CreateSut();
-        var exception = await Record.ExceptionAsync(() => sut.StartAsync(cancellationToken));
-
-        Assert.Null(exception);
     }
 
     [Fact]

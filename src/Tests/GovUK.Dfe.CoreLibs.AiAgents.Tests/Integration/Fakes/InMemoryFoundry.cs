@@ -43,18 +43,27 @@ internal sealed class InMemoryFoundry
             .Returns(ci => DeleteVersion(ci.ArgAt<string>(0), ci.ArgAt<string>(1)));
     }
 
-    private Task<ClientResult> DeleteVersion(string name, string version)
+    /// <summary>Runs once, before the next version delete - e.g. another instance pruning first.</summary>
+    public Func<Task>? BeforeNextVersionDelete { get; set; }
+
+    private async Task<ClientResult> DeleteVersion(string name, string version)
     {
+        if (BeforeNextVersionDelete is { } before)
+        {
+            BeforeNextVersionDelete = null;
+            await before();
+        }
+
         lock (_lock)
         {
             // Like Foundry: deleting a version that doesn't exist is a 404.
             if (!_agents.TryGetValue(name, out var versions) || versions.RemoveAll(v => v.Version == version) == 0)
             {
-                return Task.FromException<ClientResult>(NotFound());
+                throw NotFound();
             }
         }
 
-        return Task.FromResult(ClientResult.FromResponse(FakeResponse()));
+        return ClientResult.FromResponse(FakeResponse());
     }
 
     private List<ProjectsAgentRecord> ListAgents()

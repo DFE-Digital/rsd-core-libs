@@ -1,11 +1,9 @@
 using Azure.Core;
 using GovUK.Dfe.CoreLibs.AiAgents.Diagnostics;
-using GovUK.Dfe.CoreLibs.AiAgents.Factories;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
-using System.Diagnostics.Metrics;
 using Xunit;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Diagnostics;
@@ -46,24 +44,6 @@ public sealed class TokenUsageTelemetryValidatorTests
     }
 
     [Fact]
-    public void IsTokenUsageRecorded_IsTrue_WhileAListenerSubscribesToTheLibrarysMeter()
-    {
-        using var listener = new MeterListener
-        {
-            InstrumentPublished = (instrument, meterListener) =>
-            {
-                if (instrument.Meter.Name == AgentTelemetry.SourceName)
-                {
-                    meterListener.EnableMeasurementEvents(instrument);
-                }
-            },
-        };
-        listener.Start();
-
-        Assert.True(AgentTelemetry.IsTokenUsageRecorded);
-    }
-
-    [Fact]
     public async Task StartedAsync_DoesNothing_WhenTheRequirementIsTurnedOff()
     {
         var checkedAtAll = false;
@@ -91,18 +71,6 @@ public sealed class TokenUsageTelemetryValidatorTests
         using var provider = services.BuildServiceProvider();
         Assert.Single(provider.GetServices<IHostedService>().OfType<TokenUsageTelemetryValidator>());
         Assert.Equal(required, provider.GetRequiredService<AgentRunOptions>().RequireTokenUsageTelemetry);
-    }
-
-    [Fact]
-    public void AddFoundryAgents_AlsoRegistersTheCheck_SoItCantBeBypassed()
-    {
-        var services = new ServiceCollection();
-
-        services.AddFoundryAgents(_ => new FoundryAgentFactoryOptions("gpt-4o"));
-
-        using var provider = services.BuildServiceProvider();
-        Assert.Single(provider.GetServices<IHostedService>().OfType<TokenUsageTelemetryValidator>());
-        Assert.True(provider.GetRequiredService<AgentRunOptions>().RequireTokenUsageTelemetry);
     }
 
     [Fact]

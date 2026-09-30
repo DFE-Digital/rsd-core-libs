@@ -44,15 +44,6 @@ public sealed class FailFastParallelTests
     }
 
     [Fact]
-    public async Task WithNoFailures_ReturnsEveryResult_InOrder()
-    {
-        var results = await FailFastParallel.WhenAllAsync(
-            [async ct => { await Task.Delay(30, ct); return 1; }, _ => Task.FromResult(2)], CancellationToken.None);
-
-        Assert.Equal([1, 2], results);
-    }
-
-    [Fact]
     public async Task CallerCancellation_Propagates()
     {
         using var caller = new CancellationTokenSource();

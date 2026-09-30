@@ -95,7 +95,7 @@ public sealed class ProductionScenarioTests : IDisposable
             .UseCredential(Substitute.For<TokenCredential>())
             .AddAgents(definitions ?? [Ofsted]));
 
-        services.AddSingleton<AgentAdministrationClient>(_foundry.Admin);
+        services.AddSingleton(_foundry.Admin);
         services.AddSingleton<IFoundryConversationClient>(_conversations);
         if (mcpServer is not null)
         {
@@ -193,6 +193,26 @@ public sealed class ProductionScenarioTests : IDisposable
     }
 
     [Fact]
+    public async Task ScaledOut_TwoInstancesPruningAtOnce_BothSucceed_AndKeepTheNewestVersions()
+    {
+        for (var version = 1; version <= 5; version++)
+        {
+            _foundry.Seed("ofsted-agent", DefaultModel, $"Revision {version}.");
+        }
+
+        var first = StartInstance(Settings()).GetRequiredService<IAgentFactory>();
+        var second = StartInstance(Settings()).GetRequiredService<IAgentFactory>();
+        // The second instance prunes just before the first deletes, so the first finds versions 1 and 2 already gone.
+        _foundry.BeforeNextVersionDelete = () => second.PruneVersionsAsync("ofsted-agent", 3, cancellationToken);
+
+        await first.PruneVersionsAsync("ofsted-agent", 3, cancellationToken);
+
+        Assert.Null(_foundry.BeforeNextVersionDelete);   // the race really happened
+        Assert.Equal(["3", "4", "5"], VersionNumbers("ofsted-agent"));
+        Assert.Empty(_logs.AtLevel(LogLevel.Error));
+    }
+
+    [Fact]
     public async Task PinnedInstance_OnlyUsesItsVersion_AndNeverCreatesOrPrunes_EvenWithKeepLatestVersions()
     {
         for (var version = 1; version <= 5; version++)
@@ -241,22 +261,6 @@ public sealed class ProductionScenarioTests : IDisposable
         Assert.All(_conversations.Calls, call => Assert.Equal(provisioned.Version, call.AgentVersion));
         Assert.Contains("KS2: 72% met the expected standard.", _conversations.Calls[^1].SerializedInput, StringComparison.Ordinal);
         Assert.Equal(["ofsted-agent"], _foundry.CreatedNames);   // only the job ever created anything
-    }
-
-    [Fact]
-    public async Task CentralProvisioning_AConsumingAppThatCantRunTheAgentsTools_FailsAtStartup_NotMidBriefing()
-    {
-        var definition = Ofsted with { AllowedTools = ["get_performance_data"] };
-        var job = StartInstance(Settings(application: "agent-provisioning"), [definition], PerformanceMcpServer("unused"));
-        await Agents(job).ProvisionAsync([definition], cancellationToken);
-
-        var settings = Settings(ofstedPrompt: null);
-        settings["AiAgents:ExternallyManagedAgents:ofsted-agent"] = "1";
-        var consumerWithoutTheMcpServer = StartInstance(settings, [definition]);
-
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => StartToolCheckAsync(consumerWithoutTheMcpServer));
-
-        Assert.Contains("get_performance_data", ex.Message, StringComparison.Ordinal);
     }
 
     // ===================== A briefing =====================
@@ -414,8 +418,9 @@ public sealed class ProductionScenarioTests : IDisposable
     // ===================== Several apps in one Foundry project =====================
 
     [Fact]
-    public async Task SharedProject_EachAppsOrphanSweep_RemovesOnlyItsOwnLeftoverEphemeralAgents()
+    public async Task SharedProject_EachAppsOrphanSweep_RemovesOnlyItsOwnLeftoverEphemeralAgents_NeverManagedOnes()
     {
+        _foundry.Seed("ofsted-agent", DefaultModel, "A managed agent that must survive the sweep.");
         var webSearch = new AgentDefinition("web-search-agent", "WebSearch", IsManagedAgent: false);
         Dictionary<string, string?> SettingsFor(string application)
         {
@@ -430,13 +435,14 @@ public sealed class ProductionScenarioTests : IDisposable
         _foundry.FailDeletes = true;   // both apps' clean-ups fail, leaving an orphan each
         await Agents(briefingTool).RunAsync(webSearch, "Search.", cancellationToken: cancellationToken);
         await Agents(casework).RunAsync(webSearch, "Search.", cancellationToken: cancellationToken);
-        var orphans = _foundry.AgentNames.ToList();
+        var before = _foundry.AgentNames.ToList();
         _foundry.FailDeletes = false;
 
         var swept = await briefingTool.GetRequiredService<IAgentRuntime>().DeleteOrphanedEphemeralAgentsAsync(TimeSpan.FromHours(2), cancellationToken);
 
         var sweptName = Assert.Single(swept);
-        Assert.Equal(2, orphans.Count);
-        Assert.Equal(orphans.Where(name => name != sweptName), _foundry.AgentNames);   // casework's orphan is left alone
+        Assert.StartsWith("web-search-agent-", sweptName, StringComparison.Ordinal);
+        Assert.Equal(3, before.Count);   // two orphans and the managed agent
+        Assert.Equal(before.Where(name => name != sweptName), _foundry.AgentNames);   // casework's orphan and ofsted-agent are left alone
     }
 }

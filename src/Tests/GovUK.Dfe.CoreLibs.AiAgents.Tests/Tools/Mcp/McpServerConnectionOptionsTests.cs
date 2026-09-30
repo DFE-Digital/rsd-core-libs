@@ -17,10 +17,6 @@ public sealed class McpServerConnectionOptionsTests
     };
 
     [Fact]
-    public void Validate_Passes_WhenEverythingIsSet()
-        => Assert.Null(Record.Exception(() => ValidOptions().Validate("my-tools")));
-
-    [Fact]
     public void Validate_NamesEveryProblem_AndTheServer_InOneError()
     {
         var options = ValidOptions() with

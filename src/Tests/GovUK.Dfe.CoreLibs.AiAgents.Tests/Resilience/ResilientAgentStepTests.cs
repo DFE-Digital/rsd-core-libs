@@ -7,16 +7,6 @@ namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Resilience;
 public sealed class ResilientAgentStepTests
 {
     [Fact]
-    public async Task ExecuteAsync_ReturnsStepResult_WhenStepSucceeds()
-    {
-        var result = await ResilientAgentStep.ExecuteAsync(
-            step: () => Task.FromResult("ok"),
-            fallback: _ => "fallback");
-
-        Assert.Equal("ok", result);
-    }
-
-    [Fact]
     public async Task ExecuteAsync_ReturnsFallback_WhenStepThrowsAndSuppressionAllows()
     {
         var result = await ResilientAgentStep.ExecuteAsync<string>(

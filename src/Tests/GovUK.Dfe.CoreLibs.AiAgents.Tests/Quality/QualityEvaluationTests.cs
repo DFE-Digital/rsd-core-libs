@@ -1,20 +1,26 @@
+using Azure.AI.Extensions.OpenAI;
 using GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Diagnostics;
 using GovUK.Dfe.CoreLibs.AiAgents.Quality;
+using GovUK.Dfe.CoreLibs.AiAgents.Tests.Integration.Fakes;
 using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.Quality;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using OpenAI.Responses;
+using System.ClientModel;
+using System.ClientModel.Primitives;
 using System.Diagnostics.Metrics;
 using System.Text.Json;
 using Xunit;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Quality;
 
-/// <summary>Live-run scoring, the Microsoft.Extensions.AI.Evaluation adapter, and the test-case release gate.</summary>
+/// <summary>Live-run scoring, the Foundry judge, the Microsoft.Extensions.AI.Evaluation adapter, and the release gate.</summary>
 public sealed class QualityEvaluationTests
 {
     private static readonly AgentDefinition Ofsted = new("ofsted-agent", "Ofsted");
@@ -71,6 +77,36 @@ public sealed class QualityEvaluationTests
         Assert.Null(await Record.ExceptionAsync(() => monitor.ScoreAsync(Sample, CancellationToken.None)));
     }
 
+    // ===================== The Foundry judge =====================
+
+    private static (FoundryJudgeChatClient Judge, Func<CreateResponseOptions?> Sent) Judge(ResponseResult reply)
+    {
+        CreateResponseOptions? sent = null;
+        var responses = Substitute.For<ProjectResponsesClient>();
+        responses.CreateResponseAsync(Arg.Do<CreateResponseOptions>(options => sent = options), Arg.Any<CancellationToken>())
+            .Returns(ClientResult.FromValue(reply, Substitute.For<PipelineResponse>()));
+        var project = Substitute.For<ProjectOpenAIClient>();
+        project.GetProjectResponsesClient().Returns(responses);
+        return (new FoundryJudgeChatClient(project, "myconnection/gpt-5.1"), () => sent);
+    }
+
+    [Fact]
+    public async Task Judge_CallsTheModelThroughFoundry_SendingOnlyTheModelAndMessages_SoReasoningModelsAcceptIt()
+    {
+        var (judge, sent) = Judge(FoundryResponses.Completed("r1", "{\"score\": 4}", totalTokens: 50));
+
+        var response = await judge.GetResponseAsync([new(ChatRole.System, "You grade answers."), new(ChatRole.User, "Grade this.")],
+            new ChatOptions { Temperature = 0, TopP = 1, MaxOutputTokens = 800 });
+
+        Assert.Equal("{\"score\": 4}", response.Text);
+        Assert.Equal(50, response.Usage!.TotalTokenCount);
+        Assert.Equal("myconnection/gpt-5.1", sent()!.Model);
+        Assert.Equal(2, sent()!.InputItems.Count);
+        Assert.Null(sent()!.Temperature);
+        Assert.Null(sent()!.TopP);
+        Assert.Null(sent()!.MaxOutputTokenCount);
+    }
+
     // ===================== Microsoft.Extensions.AI.Evaluation =====================
 
     [Fact]
@@ -86,6 +122,52 @@ public sealed class QualityEvaluationTests
 
         Assert.Equal(new Dictionary<string, double> { ["Groundedness"] = 4, ["Relevance"] = 5 }, scores);
         Assert.IsType<GroundednessEvaluatorContext>(Assert.Single(context!));
+    }
+
+    [Fact]
+    public async Task AnUnreadableJudgeReply_IsLoggedWithItsReason_WithoutTheStackTrace()
+    {
+        var metric = new NumericMetric("Groundedness");
+        metric.AddDiagnostics(EvaluationDiagnostic.Error("Judge call failed: 400 Unsupported parameter 'temperature'.\n   at Some.Stack.Frame()"));
+        var evaluator = Substitute.For<IEvaluator>();
+        evaluator.EvaluateAsync(Arg.Any<IEnumerable<ChatMessage>>(), Arg.Any<ChatResponse>(), Arg.Any<ChatConfiguration?>(),
+                Arg.Any<IEnumerable<EvaluationContext>?>(), Arg.Any<CancellationToken>())
+            .Returns(new EvaluationResult(metric, new NumericMetric("Relevance", 5)));
+        var logs = new CollectingLoggerProvider();
+        using var loggers = LoggerFactory.Create(builder => builder.AddProvider(logs));
+
+        var scores = await new ExtensionsAiEvaluator(evaluator, new ChatConfiguration(Substitute.For<IChatClient>()),
+            loggers.CreateLogger<ExtensionsAiEvaluator>()).EvaluateAsync(Sample);
+
+        Assert.Equal(new Dictionary<string, double> { ["Relevance"] = 5 }, scores);
+        var warning = Assert.Single(logs.AtLevel(LogLevel.Warning));
+        Assert.Contains("No Groundedness score for ofsted-agent: Judge call failed: 400 Unsupported parameter 'temperature'.",
+            warning.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Some.Stack.Frame", warning.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AFailedJudgeCall_IsLoggedForEachMetric_WithoutTheStackTrace()
+    {
+        var judge = Substitute.For<IChatClient>();
+        judge.GetResponseAsync(Arg.Any<IEnumerable<ChatMessage>>(), Arg.Any<ChatOptions?>(), Arg.Any<CancellationToken>())
+            .Returns<Task<ChatResponse>>(_ => throw new InvalidOperationException("Status: 404 (Not Found) The model 'x' does not exist."));
+        var logs = new CollectingLoggerProvider();
+        using var loggers = LoggerFactory.Create(builder => builder.AddProvider(logs));
+
+        var scores = await new ExtensionsAiEvaluator(new CompositeEvaluator(new GroundednessEvaluator(), new RelevanceEvaluator()),
+            new ChatConfiguration(judge), loggers.CreateLogger<ExtensionsAiEvaluator>()).EvaluateAsync(Sample);
+
+        Assert.Empty(scores);
+        var warnings = logs.AtLevel(LogLevel.Warning).ToList();
+        Assert.Equal(2, warnings.Count);
+        Assert.Contains(warnings, warning => warning.Message.StartsWith("No Groundedness score", StringComparison.Ordinal));
+        Assert.Contains(warnings, warning => warning.Message.StartsWith("No Relevance score", StringComparison.Ordinal));
+        Assert.All(warnings, warning =>
+        {
+            Assert.Contains("does not exist", warning.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("   at ", warning.Message, StringComparison.Ordinal);
+        });
     }
 
     // ===================== Release gate =====================
@@ -111,6 +193,16 @@ public sealed class QualityEvaluationTests
 
         Assert.True(report.Passed);
         Assert.Equal(4, report.AverageScores["Groundedness"]);
+    }
+
+    [Fact]
+    public async Task TestRunner_CanTestTheDeployedVersion()
+    {
+        var agents = Answers("Rated Good in 2024.");
+
+        await new AgentTestRunner(agents).RunAsync(Ofsted, [GoodSchool], AgentTestTarget.Deployed);
+
+        await agents.Received(1).RunAsync(Ofsted, GoodSchool.Prompt, Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

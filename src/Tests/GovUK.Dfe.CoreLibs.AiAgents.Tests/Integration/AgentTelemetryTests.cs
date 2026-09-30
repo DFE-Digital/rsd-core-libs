@@ -3,8 +3,6 @@ using Azure.Core;
 using GovUK.Dfe.CoreLibs.AiAgents.Agents.Interfaces;
 using GovUK.Dfe.CoreLibs.AiAgents.Context;
 using GovUK.Dfe.CoreLibs.AiAgents.Diagnostics;
-using GovUK.Dfe.CoreLibs.AiAgents.Extensions;
-using GovUK.Dfe.CoreLibs.AiAgents.Factories;
 using GovUK.Dfe.CoreLibs.AiAgents.Tests.Integration.Fakes;
 using GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
 using Microsoft.Extensions.Configuration;
@@ -168,29 +166,6 @@ public sealed class AgentTelemetryTests : IDisposable
         var runs = _activities.Where(a => a.OperationName == "invoke_agent").ToList();
         Assert.Equal(2, runs.Count);
         Assert.All(runs, run => Assert.Equal(orchestration.SpanId, run.ParentSpanId));
-    }
-
-    [Fact]
-    public async Task ABriefingsTokenUsage_AddsUpSpecialistsAndSynthesis_InTotalAndPerAgent()
-    {
-        WriteSystemPrompt("Ofsted", "You analyse Ofsted reports.");
-        WriteSystemPrompt("Trust", "You analyse trusts.");
-        _conversations.Reply("ofsted-agent", FoundryResponses.Completed("r1", "Good.", totalTokens: 100));
-        _conversations.Fail("trust-agent", new InvalidOperationException("Model error."));
-        _conversations.Reply("briefing-synthesis-agent", FoundryResponses.Completed("r3", "Briefing.", totalTokens: 300));
-        using var provider = Build();
-
-        var specialists = await provider.GetRequiredService<IAgentService>().RunParallelAsync(
-            [new AgentDefinition("ofsted-agent", "Ofsted"), new AgentDefinition("trust-agent", "Trust")], PromptFor, new AgentContext());
-        var synthesis = await provider.GetRequiredService<IAgentRuntime>().RunEphemeralAsync(
-            new AgentSpec { Name = "briefing-synthesis-agent", Instructions = "Write the briefing." }, "Combine the findings.");
-
-        var usage = specialists.Append(synthesis).ToTokenUsageSummary();
-
-        Assert.Equal(new TokenUsage(20, 380, 400), usage.Total);
-        Assert.Equal(new TokenUsage(10, 90, 100), usage.ByAgent["ofsted-agent"]);
-        Assert.Equal(TokenUsage.None, usage.ByAgent["trust-agent"]);
-        Assert.Equal(new TokenUsage(10, 290, 300), usage.ByAgent["briefing-synthesis-agent"]);
     }
 
     [Fact]

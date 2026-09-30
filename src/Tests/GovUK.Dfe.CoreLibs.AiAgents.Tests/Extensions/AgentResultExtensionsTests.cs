@@ -1,7 +1,7 @@
 using GovUK.Dfe.CoreLibs.AiAgents.Extensions;
 using Xunit;
 
-namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Extenions;
+namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Extensions;
 
 public sealed class AgentResultExtensionsTests
 {

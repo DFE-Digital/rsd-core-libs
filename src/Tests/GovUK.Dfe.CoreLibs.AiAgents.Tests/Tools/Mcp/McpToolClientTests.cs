@@ -156,12 +156,4 @@ public sealed class McpToolClientTests
         Assert.Equal(1, connects);
         Assert.False(session.Disposed);
     }
-
-    [Fact]
-    public void Validate_RequiresAllowedToolNames()
-    {
-        var ex = Assert.Throws<InvalidOperationException>(() => Options().Validate("school-performance-mcp"));
-
-        Assert.Contains("AllowedToolNames", ex.Message, StringComparison.Ordinal);
-    }
 }

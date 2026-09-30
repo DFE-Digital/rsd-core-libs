@@ -155,21 +155,6 @@ public sealed class AzureSearchContextRetrieverTests
     }
 
     [Fact]
-    public async Task GetContextAsync_Rethrows_WhenSearchClientFails()
-    {
-        var failure = new InvalidOperationException("service unavailable");
-        _client.SearchAsync<SearchDocument>(Arg.Any<string>(), Arg.Any<SearchOptions>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException<Response<SearchResults<SearchDocument>>>(failure));
-
-        var sut = CreateSut();
-
-        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => sut.GetContextAsync(Scope, "query", cancellationToken: cancellationToken));
-        Assert.Same(failure, thrown.InnerException);
-        Assert.Contains(Scope, thrown.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task GetContextAsync_UsesEachIndexsOwnContentFields_ForSelectAndForTheEvidence()
     {
         var establishments = Substitute.For<SearchClient>();

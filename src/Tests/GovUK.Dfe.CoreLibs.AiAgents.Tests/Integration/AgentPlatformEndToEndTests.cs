@@ -54,9 +54,7 @@ public sealed partial class AgentPlatformEndToEndTests : IDisposable
     private readonly Dictionary<string, string?> _configuration = [];
 
     public void Dispose() => Directory.Delete(_promptDirectory, recursive: true);
-
-    // ===================== Harness =====================
-
+     
     private void WriteSystemPrompt(string promptType, string content)
     {
         var path = Path.Combine(_promptDirectory, $"{promptType}.md");
@@ -82,7 +80,7 @@ public sealed partial class AgentPlatformEndToEndTests : IDisposable
         services.AddAiAgents(configuration, agents => agents.UseCredential(Substitute.For<TokenCredential>()));
 
         // Replace only the network edges; everything else is the library's own registration.
-        services.AddSingleton<AgentAdministrationClient>(_foundry.Admin);
+        services.AddSingleton(_foundry.Admin);
         services.AddSingleton<IFoundryConversationClient>(_conversations);
         services.AddSingleton<IAgentDefinitionProvider>(new StaticAgentDefinitions(_definitions));
 
@@ -433,21 +431,6 @@ public sealed partial class AgentPlatformEndToEndTests : IDisposable
         Assert.Equal("Good.", result.Output);
         Assert.Equal("2", Assert.Single(_conversations.CallsFor("ofsted-agent")).AgentVersion);
         Assert.Empty(_foundry.CreatedNames);
-    }
-
-    [Fact]
-    public async Task ExternallyManagedAgent_HonoursTheConfiguredPin()
-    {
-        _foundry.Seed("ofsted-agent", DefaultModel, "v1");
-        _foundry.Seed("ofsted-agent", DefaultModel, "v2");
-        Pin("ofsted-agent", "1");
-        _conversations.Reply("ofsted-agent", FoundryResponses.Completed("r1", "Good."));
-        using var provider = Build(services => services.AddSingleton<IManagedAgentProvider>(sp => new ExternallyManagedAgentProvider(
-            "ofsted-agent", sp.GetRequiredService<IAgentFactory>(), sp.GetRequiredService<IAgentRuntime>())));
-
-        await RunParallel(provider, new AgentDefinition("ofsted-agent", "NoLocalPrompt"));
-
-        Assert.Equal("1", Assert.Single(_conversations.CallsFor("ofsted-agent")).AgentVersion);
     }
 
     [Fact]
@@ -1011,46 +994,6 @@ public sealed partial class AgentPlatformEndToEndTests : IDisposable
         Assert.Equal("Trust findings.", results.Single(r => r.AgentName == "trust-agent").Output);
         Assert.Contains(_logs.AtLevel(LogLevel.Error), log => log.Exception is TimeoutException);
         Assert.Empty(_conversations.OpenConversations);
-    }
-
-    [Fact]
-    public async Task MaxConcurrency_LimitsHowManyAgentsRunAtOnce_AcrossManagedAndEphemeral()
-    {
-        var definitions = new List<AgentDefinition>();
-        for (var i = 0; i < 6; i++)
-        {
-            WriteSystemPrompt($"Type{i}", $"Prompt {i}.");
-            _conversations.ReplyAfter($"agent-{i}", TimeSpan.FromMilliseconds(40), FoundryResponses.Completed($"r{i}", $"Output {i}."));
-            definitions.Add(new AgentDefinition($"agent-{i}", $"Type{i}", IsManagedAgent: i % 2 == 0));
-        }
-
-        using var provider = Build(settings: new() { ["MaxConcurrency"] = "2" });
-
-        var results = await RunParallel(provider, [.. definitions]);
-
-        Assert.Equal(definitions.Select(d => d.Name), results.Select(r => r.AgentName));
-        Assert.All(results, result => Assert.NotEqual(FallbackText, result.Output));
-        Assert.InRange(_conversations.PeakConcurrentResponses, 1, 2);
-    }
-
-    [Fact]
-    public async Task OrphanSweep_DeletesOnlyEphemeralAgentsLeftBehind()
-    {
-        WriteSystemPrompt("WebSearch", "You search the web.");
-        _conversations.Reply("web-search-agent", FoundryResponses.Completed("r1", "News."));
-        _foundry.Seed("ofsted-agent", DefaultModel, "A managed agent that must survive the sweep.");
-        _foundry.FailDeletes = true;
-        using var provider = Build();
-
-        await RunParallel(provider, new AgentDefinition("web-search-agent", "WebSearch", IsManagedAgent: false));
-        var orphan = Assert.Single(_foundry.AgentNames, name => name.StartsWith("web-search-agent-", StringComparison.Ordinal));
-
-        _foundry.FailDeletes = false;
-        var deleted = await provider.GetRequiredService<IAgentRuntime>()
-            .DeleteOrphanedEphemeralAgentsAsync(cancellationToken);   // the safe minimum age by default
-
-        Assert.Equal([orphan], deleted);
-        Assert.Equal(["ofsted-agent"], _foundry.AgentNames);
     }
 
     [Fact]

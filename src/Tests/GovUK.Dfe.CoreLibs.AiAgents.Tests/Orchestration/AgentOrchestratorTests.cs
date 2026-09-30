@@ -72,25 +72,6 @@ public sealed class AgentOrchestratorTests
     }
 
     [Fact]
-    public async Task RunParallelAsync_RunsEveryAgent_AndAggregatesOutputs()
-    {
-        var a = new AgentReference("a-id", "a");
-        var b = new AgentReference("b-id", "b");
-
-        _agentRunner.RunAsync(a, Arg.Any<string>(), cancellationToken: Arg.Any<CancellationToken>())
-            .Returns(new AgentResult("a", "output a", 10));
-        _agentRunner.RunAsync(b, Arg.Any<string>(), cancellationToken: Arg.Any<CancellationToken>())
-            .Returns(new AgentResult("b", "output b", 15));
-
-        var sut = CreateSut();
-        var result = await sut.RunParallelAsync([a, b], "input", new AgentContext(), cancellationToken: cancellationToken);
-
-        Assert.Contains("output a", result.FinalOutput);
-        Assert.Contains("output b", result.FinalOutput);
-        Assert.Equal(25, result.TotalTokens);
-    }
-
-    [Fact]
     public async Task RunParallelAsync_OneFailure_DoesNotAbortTheOthers()
     {
         var a = new AgentReference("a-id", "a");

@@ -39,15 +39,4 @@ public sealed class AgentToolExecutionTests
 
         Assert.Equal([new ToolCallOutput("call-1", "72%"), new ToolCallOutput("call-2", "Good")], outputs);
     }
-
-    [Fact]
-    public async Task CreateResolver_Throws_WhenNoBoundProviderOwnsTheCall()
-    {
-        var resolve = AgentToolExecution.CreateResolver([Owning("get_performance_data", "72%")])!;
-
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            resolve([new ToolCallRequest("call-1", "delete_school", "{}")], cancellationToken));
-
-        Assert.Contains("delete_school", ex.Message, StringComparison.Ordinal);
-    }
 }

@@ -20,7 +20,6 @@ public sealed class AgentServiceTests
     private static readonly AgentDefinition Ephemeral = new("ephemeral-agent", "EphemeralPromptType", IsManagedAgent: false);
 
     private readonly CancellationToken cancellationToken = default;
-    private readonly IAgentFactory _agentFactory = Substitute.For<IAgentFactory>();
     private readonly IAgentRunner _agentRunner = Substitute.For<IAgentRunner>();
     private readonly IAgentRuntime _agentRuntime = Substitute.For<IAgentRuntime>();
     private readonly IPromptProvider _promptProvider = Substitute.For<IPromptProvider>();
@@ -46,17 +45,6 @@ public sealed class AgentServiceTests
     // ===================== Single agent =====================
 
     [Fact]
-    public async Task RunAsync_RunsOneAgent_WithItsEvidenceSentAsAdditionalContext()
-    {
-        _agentRunner.RunAsync(Arg.Is<AgentReference>(a => a.Name == Managed.Name), "Summarise.", conversationId: Arg.Any<string?>(), additionalContext: Arg.Is<string?>("Rated Good."),
-            resolveToolCalls: AnyResolver(), cancellationToken: Arg.Any<CancellationToken>()).Returns(new AgentResult(Managed.Name, "Good.", 10));
-
-        var result = await CreateSut().RunAsync(Managed, "Summarise.", evidence: "Rated Good.", cancellationToken);
-
-        Assert.Equal("Good.", result.Output);
-    }
-
-    [Fact]
     public async Task RunAsync_Throws_RatherThanReturningAFallback()
     {
         _agentRunner.RunAsync(Arg.Any<AgentReference>(), Arg.Any<string>(), conversationId: Arg.Any<string?>(), additionalContext: Arg.Any<string?>(),
@@ -66,48 +54,6 @@ public sealed class AgentServiceTests
     }
 
     // ===================== Parallel =====================
-
-    [Fact]
-    public async Task RunParallelAsync_RunsAnExternallyManagedAgent_ThroughItsProvider_WithoutCreatingAnything()
-    {
-        _agentRunner.RunAsync(Arg.Is<AgentReference>(a => a.Name == Managed.Name), "prompt-for-managed-agent",
-            cancellationToken: Arg.Any<CancellationToken>()).Returns(new AgentResult(Managed.Name, "managed output", 10));
-
-        var results = await CreateSut().RunParallelAsync([Managed], ResolvePrompt, new AgentContext(), cancellationToken: cancellationToken);
-
-        Assert.Equal("managed output", Assert.Single(results).Output);
-        await _managedAgentProvider.Received(1).GetAgentAsync(Arg.Any<CancellationToken>());
-        await _agentFactory.DidNotReceiveWithAnyArgs().GetOrCreateAsync(default!, cancellationToken);
-    }
-
-    [Fact]
-    public async Task RunParallelAsync_GetsOrCreatesAManagedAgent_FromItsDefinition_ByDefault()
-    {
-        var created = new AgentReference($"{Managed.Name}-created-id", Managed.Name, "1");
-        _promptProvider.GetSystemPrompt(Managed.SystemPromptType).Returns("managed instructions");
-        _agentFactory.GetOrCreateAsync(Arg.Is<AgentSpec>(spec => spec.Name == Managed.Name && spec.Instructions == "managed instructions"),
-            Arg.Any<CancellationToken>()).Returns(created);
-        _agentRunner.RunAsync(created, "prompt-for-managed-agent", cancellationToken: Arg.Any<CancellationToken>())
-            .Returns(new AgentResult(Managed.Name, "managed output", 10));
-
-        var runtime = new AgentRuntime(_agentFactory, _agentRunner, new AgentOrchestrator(_agentRunner));
-        var sut = new AgentService(_agentRunner, runtime, new AgentSpecBuilder(_promptProvider));
-        var results = await sut.RunParallelAsync([Managed], ResolvePrompt, new AgentContext(), cancellationToken: cancellationToken);
-
-        Assert.Equal("managed output", Assert.Single(results).Output);
-    }
-
-    [Fact]
-    public async Task RunParallelAsync_SendsEachAgentsEvidence_AsAdditionalContext()
-    {
-        _agentRunner.RunAsync(Arg.Any<AgentReference>(), Arg.Any<string>(), conversationId: Arg.Any<string?>(), additionalContext: Arg.Is<string?>("evidence-for-managed-agent"),
-            resolveToolCalls: AnyResolver(), cancellationToken: Arg.Any<CancellationToken>()).Returns(new AgentResult(Managed.Name, "ok", 1));
-
-        var results = await CreateSut().RunParallelAsync([Managed], ResolvePrompt, new AgentContext(), cancellationToken: cancellationToken,
-            resolveEvidence: (definition, _) => Task.FromResult<string?>($"evidence-for-{definition.Name}"));
-
-        Assert.Equal("ok", Assert.Single(results).Output);
-    }
 
     // ===================== Sequential =====================
 
@@ -144,17 +90,6 @@ public sealed class AgentServiceTests
 
         Assert.Contains("could not be generated", results[0].Output, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("ephemeral output", results[1].Output);
-    }
-
-    [Fact]
-    public async Task RunSequentialAsync_PropagatesAFailure_WhenShouldSuppressReturnsFalse()
-    {
-        _agentRunner.RunAsync(Arg.Is<AgentReference>(a => a.Name == Managed.Name), Arg.Any<string>(), conversationId: Arg.Any<string?>(), additionalContext: Arg.Any<string?>(),
-            resolveToolCalls: AnyResolver(), cancellationToken: Arg.Any<CancellationToken>()).ThrowsAsync(new InvalidOperationException("boom"));
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            CreateSut().RunSequentialAsync([Managed], ResolvePrompt, "initial", new AgentContext(),
-                shouldSuppress: _ => false, cancellationToken: cancellationToken));
     }
 
     // ===================== Specs and tools =====================

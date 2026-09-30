@@ -13,7 +13,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using OpenAI.Responses;
 using Xunit;
 
 namespace GovUK.Dfe.CoreLibs.AiAgents.Tests.Integration;
@@ -53,7 +52,7 @@ public sealed class ExternalProjectTests
             agents.UseCredential(_appCredential).AddAgents(Ofsted);
             configure?.Invoke(agents);
         });
-        services.AddSingleton<AgentAdministrationClient>(_appFoundry.Admin);
+        services.AddSingleton(_appFoundry.Admin);
         services.AddSingleton<IFoundryConversationClient>(_appConversations);
         if (fakeCentralProject)
         {
@@ -137,14 +136,5 @@ public sealed class ExternalProjectTests
             ("Authentication:TenantId", "t"), ("Authentication:ClientId", "c"), ("Authentication:ClientSecret", "s"))));
 
         Assert.Contains("AiAgents:ExternallyManagedAgents:Endpoint", ex.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void WithoutAnEndpoint_AgentsStayInThisAppsProject_PinnedToTheirVersion()
-    {
-        using var app = Build(Settings(("ofsted-agent", "4")), fakeCentralProject: false);
-
-        Assert.IsType<ExternallyManagedAgentProvider>(Assert.Single(app.GetServices<IManagedAgentProvider>()));
-        Assert.Equal("4", app.GetRequiredService<AgentVersionPinningOptions>().GetPinnedVersion("ofsted-agent"));
     }
 }

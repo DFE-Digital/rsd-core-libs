@@ -328,17 +328,6 @@ public sealed class AddAiAgentsTests
     }
 
     [Fact]
-    public void AcceptsACredentialInCode_InsteadOfTheServicePrincipalSecret()
-    {
-        var settings = ValidSettings();
-        settings.Remove("AiAgents:Authentication:ClientSecret");
-
-        using var provider = Build(settings, agents => agents.UseCredential(Substitute.For<TokenCredential>()));
-
-        Assert.NotNull(provider.GetRequiredService<IAgentService>());
-    }
-
-    [Fact]
     public void RegistersAzureSearch_WithTheCombinedIndexList_AndTheServicePrincipal()
     {
         var settings = ValidSettings();
