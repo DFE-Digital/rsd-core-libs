@@ -29,6 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\GovUK.Dfe.CoreLibs.Messaging.Contracts\GovUK.Dfe.CoreLibs.Messaging.Contracts.csproj" />
     <ProjectReference Include="..\..\GovUK.Dfe.CoreLibs.Messaging.MassTransit\GovUK.Dfe.CoreLibs.Messaging.MassTransit.csproj" />
     <ProjectReference Include="..\..\GovUK.Dfe.CoreLibs.Testing\GovUK.Dfe.CoreLibs.Testing.csproj" />
   </ItemGroup>
