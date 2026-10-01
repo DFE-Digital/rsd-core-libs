@@ -8,5 +8,8 @@
 
         // Transfers - Prepare
         public const string TransferApplicationSubmitted = "transfer-application-submitted";
+
+        // FlexForms - Prism analytics projection
+        public const string FlexFormsPrism = "flexforms-prism";
     }
 }
