@@ -5,7 +5,8 @@ namespace GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Identifiers;
 
 /// <summary>
 /// Identifiers shared by the FlexForms publisher and the Prism projector for
-/// <see cref="Events.ApplicationProjectionRequestedEvent"/>. Both sides must derive them the same way.
+/// <see cref="Events.ApplicationProjectionRequestedEvent"/> and <see cref="Events.TemplateVersionPublishedEvent"/>.
+/// Both sides must derive them the same way.
 /// </summary>
 public static class ApplicationProjectionIdentifiers
 {
@@ -41,6 +42,19 @@ public static class ApplicationProjectionIdentifiers
 
         return DeterministicGuid.Create(Namespace, name);
     }
+
+    /// <summary>
+    /// Service Bus session id for <see cref="Events.TemplateVersionPublishedEvent"/>: the versions of one template are
+    /// processed in order. Cannot collide with <see cref="SessionId"/>, whose second part is a bare GUID.
+    /// </summary>
+    public static string TemplateSessionId(Guid tenantId, Guid templateId)
+        => $"{tenantId:D}:template:{templateId:D}";
+
+    /// <summary>Deterministic message id for <see cref="Events.TemplateVersionPublishedEvent"/>, used for duplicate detection.</summary>
+    public static Guid TemplateVersionMessageId(Guid tenantId, Guid templateVersionId)
+        => DeterministicGuid.Create(
+            Namespace,
+            string.Create(CultureInfo.InvariantCulture, $"prism-template-version:{tenantId:D}:{templateVersionId:D}"));
 
     /// <summary>Submission id for the single submission of an application, made at <paramref name="submittedRevision"/>.</summary>
     public static Guid SubmissionId(Guid applicationId, long submittedRevision)

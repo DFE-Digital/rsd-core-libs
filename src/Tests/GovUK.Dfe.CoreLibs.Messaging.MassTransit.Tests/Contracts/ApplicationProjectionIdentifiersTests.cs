@@ -63,6 +63,25 @@ public class ApplicationProjectionIdentifiersTests
     }
 
     [Fact]
+    public void TemplateSessionId_is_distinct_from_application_session_ids()
+    {
+        ApplicationProjectionIdentifiers.TemplateSessionId(TenantId, ApplicationId)
+            .Should().Be("11111111-1111-1111-1111-111111111111:template:22222222-2222-2222-2222-222222222222")
+            .And.NotBe(ApplicationProjectionIdentifiers.SessionId(TenantId, ApplicationId));
+    }
+
+    [Fact]
+    public void TemplateVersionMessageId_is_stable_and_version_specific()
+    {
+        var versionId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        ApplicationProjectionIdentifiers.TemplateVersionMessageId(TenantId, versionId)
+            .Should().Be(ApplicationProjectionIdentifiers.TemplateVersionMessageId(TenantId, versionId))
+            .And.NotBe(ApplicationProjectionIdentifiers.TemplateVersionMessageId(TenantId, Guid.NewGuid()))
+            .And.NotBe(ApplicationProjectionIdentifiers.MessageId(TenantId, versionId, 0, ProjectionReason.Saved));
+    }
+
+    [Fact]
     public void SubmissionId_is_deterministic_and_revision_specific()
     {
         ApplicationProjectionIdentifiers.SubmissionId(ApplicationId, 5)
