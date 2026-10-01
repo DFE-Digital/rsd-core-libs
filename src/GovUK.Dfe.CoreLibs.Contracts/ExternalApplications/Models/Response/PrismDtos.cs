@@ -61,7 +61,11 @@ public sealed record PrismApplicationSummaryDto(
     bool IsDeleted,
     DateTime LastChangedOn);
 
-/// <summary>A keyset page of applications. Pass <see cref="NextCursor"/> back as <c>after</c>; null means no more pages.</summary>
+/// <summary>
+/// A page of applications ordered by creation time (oldest first), so new applications only ever append.
+/// </summary>
 public sealed record PrismApplicationPageDto(
     IReadOnlyList<PrismApplicationSummaryDto> Items,
-    Guid? NextCursor);
+    int Page,
+    int PageSize,
+    bool HasMore);
