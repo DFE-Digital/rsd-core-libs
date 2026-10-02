@@ -12,9 +12,9 @@ on:
         type: string
         description: "Relative path to the project .csproj"
     secrets:
-      NUGET_API_KEY:
+      NUGET_USER:
         required: true
-        description: "NuGet.org API key"
+        description: "nuget.org profile name (not email) that owns the Trusted Publishing policy"
 
 jobs:
   pack:
@@ -22,6 +22,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write
 
     steps:
       - name: Checkout code
@@ -82,7 +83,7 @@ jobs:
             --name nuget \
             https://api.nuget.org/v3/index.json || true
 
-      - name: Build, pack and push
+      - name: Build and pack
         run: |
           dotnet build ${{ inputs.project_path }} -c Release
           dotnet pack ${{ inputs.project_path }} \
@@ -90,8 +91,18 @@ jobs:
             -p:PackageVersion=${{ env.VERSION }} \
             --no-build \
             --output ./artifacts
+
+      # The temporary API key is only valid for 1 hour, so request it right before pushing.
+      - name: NuGet login (OIDC Trusted Publishing)
+        uses: NuGet/login@v1
+        id: nuget_login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to NuGet.org
+        run: |
           dotnet nuget push ./artifacts/*.nupkg \
-            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
 
