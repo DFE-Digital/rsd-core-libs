@@ -25,9 +25,10 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write
     uses: ./.github/workflows/pack-template.yml
     with:
       project_name: GovUK.Dfe.CoreLibs.Caching
       project_path: src/GovUK.Dfe.CoreLibs.Caching/GovUK.Dfe.CoreLibs.Caching.csproj
     secrets:
-      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      NUGET_USER: ${{ secrets.NUGET_USER }}

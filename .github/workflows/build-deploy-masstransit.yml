@@ -26,9 +26,10 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write
     uses: ./.github/workflows/pack-template.yml
     with:
       project_name: GovUK.Dfe.CoreLibs.Messaging.MassTransit
       project_path: src/GovUK.Dfe.CoreLibs.Messaging.MassTransit/GovUK.Dfe.CoreLibs.Messaging.MassTransit.csproj
     secrets:
-      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      NUGET_USER: ${{ secrets.NUGET_USER }}
