@@ -33,16 +33,8 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
         public async Task SetRawAsync(string cacheKey, byte[] value, TimeSpan expiry)
         {
             var fullKey = GetFullKey(cacheKey);
-            try
-            {
-                await _database.StringSetAsync(fullKey, value, expiry);
-                logger.LogDebug("Redis raw data set for key: {CacheKey} with expiry: {Expiry}", fullKey, expiry);
-            }
-            catch (RedisException ex)
-            {
-                logger.LogError(ex, "Redis error occurred while setting raw data for key: {CacheKey}", fullKey);
-                throw;
-            }
+            await _database.StringSetAsync(fullKey, value, expiry);
+            logger.LogDebug("Redis raw data set for key: {CacheKey} with expiry: {Expiry}", fullKey, expiry);
         }
 
         /// <summary>
@@ -51,23 +43,17 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
         public async Task<byte[]?> GetRawAsync(string cacheKey)
         {
             var fullKey = GetFullKey(cacheKey);
-            try
-            {
-                var value = await _database.StringGetAsync(fullKey);
-                if (value.HasValue)
-                {
-                    logger.LogDebug("Redis raw data retrieved for key: {CacheKey}", fullKey);
-                    return (byte[])value!;
-                }
 
-                logger.LogDebug("Redis cache miss for raw key: {CacheKey}", fullKey);
-                return null;
-            }
-            catch (RedisException ex)
+            // Redis errors propagate so callers can tell a failed read from a cache miss (see SessionDistributedCacheAdapter).
+            var value = await _database.StringGetAsync(fullKey);
+            if (value.HasValue)
             {
-                logger.LogError(ex, "Redis error occurred while getting raw data for key: {CacheKey}", fullKey);
-                return null;
+                logger.LogDebug("Redis raw data retrieved for key: {CacheKey}", fullKey);
+                return (byte[])value!;
             }
+
+            logger.LogDebug("Redis cache miss for raw key: {CacheKey}", fullKey);
+            return null;
         }
 
         // Note: You already have RemoveByPatternAsync in your code, so just ensure it exists
@@ -79,23 +65,15 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
         public async Task RemoveByPatternAsync(string pattern)
         {
             var fullPattern = GetFullKey(pattern);
-            try
-            {
-                var server = connectionMultiplexer.GetServer(connectionMultiplexer.GetEndPoints()[0]);
-                var keys = server.Keys(database: _cacheSettings.Database, pattern: fullPattern);
+            var server = connectionMultiplexer.GetServer(connectionMultiplexer.GetEndPoints()[0]);
+            var keys = server.Keys(database: _cacheSettings.Database, pattern: fullPattern);
 
-                foreach (var key in keys)
-                {
-                    await _database.KeyDeleteAsync(key);
-                }
-
-                logger.LogInformation("Redis cache entries removed for pattern: {Pattern}", fullPattern);
-            }
-            catch (RedisException ex)
+            foreach (var key in keys)
             {
-                logger.LogError(ex, "Redis error occurred while removing keys by pattern: {Pattern}", fullPattern);
-                throw;
+                await _database.KeyDeleteAsync(key);
             }
+
+            logger.LogInformation("Redis cache entries removed for pattern: {Pattern}", fullPattern);
         }
 
         public async Task<T> GetOrAddAsync<T>(string cacheKey, Func<Task<T>> fetchFunction, string methodName, CancellationToken cancellationToken = default)
@@ -289,11 +267,6 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
                 }
 
                 return acquired;
-            }
-            catch (OperationCanceledException)
-            {
-                logger.LogInformation("Lock acquisition cancelled for key: {LockKey}", lockKey);
-                throw;
             }
             catch (RedisException ex)
             {

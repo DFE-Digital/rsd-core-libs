@@ -92,6 +92,9 @@ namespace Microsoft.Extensions.DependencyInjection
             // ASP.NET Core distributed cache for session support (automatic)
             services.AddSingleton<IDistributedCache, DistributedCacheAdapter>();
 
+            // Session-safe adapter: read errors propagate instead of looking like an empty session
+            services.AddSingleton<SessionDistributedCacheAdapter>();
+
             return services;
         }
     }
