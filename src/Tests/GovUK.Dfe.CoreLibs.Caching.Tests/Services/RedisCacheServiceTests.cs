@@ -352,7 +352,7 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
 
         [Theory]
         [CustomAutoData()]
-        public async Task GetAsync_ShouldReturnCachedValue_WhenCacheKeyExists(string cacheKey, string methodName, string expectedValue)
+        public async Task GetAsync_ShouldReturnCachedValue_WhenCacheKeyExists(string cacheKey, string expectedValue)
         {
             // Arrange
             var fullKey = $"{_redisCacheSettings.KeyPrefix}{cacheKey}";
@@ -375,7 +375,7 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
 
         [Theory]
         [CustomAutoData()]
-        public async Task GetAsync_ShouldReturnDefault_WhenCacheKeyDoesNotExist(string cacheKey, string methodName)
+        public async Task GetAsync_ShouldReturnDefault_WhenCacheKeyDoesNotExist(string cacheKey)
         {
             // Arrange
             var fullKey = $"{_redisCacheSettings.KeyPrefix}{cacheKey}";
@@ -397,7 +397,7 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
 
         [Theory]
         [CustomAutoData()]
-        public async Task GetAsync_ShouldReturnDefault_WhenRedisExceptionOccurs(string cacheKey, string methodName)
+        public async Task GetAsync_ShouldReturnDefault_WhenRedisExceptionOccurs(string cacheKey)
         {
             // Arrange
             var fullKey = $"{_redisCacheSettings.KeyPrefix}{cacheKey}";
@@ -419,7 +419,7 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
 
         [Theory]
         [CustomAutoData()]
-        public async Task GetAsync_ShouldReturnDefault_WhenJsonExceptionOccurs(string cacheKey, string methodName)
+        public async Task GetAsync_ShouldReturnDefault_WhenJsonExceptionOccurs(string cacheKey)
         {
             // Arrange
             var fullKey = $"{_redisCacheSettings.KeyPrefix}{cacheKey}";
@@ -828,10 +828,10 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
             await Assert.ThrowsAsync<RedisException>(async () => 
                 await _cacheService.SetRawAsync(cacheKey, rawData, expiry));
 
-            _logger.Received(1).Log(
+            _logger.DidNotReceive().Log(
                 LogLevel.Error,
                 Arg.Any<EventId>(),
-                Arg.Is<object>(v => v.ToString()!.Contains($"Redis error occurred while setting raw data for key: {fullKey}")),
+                Arg.Any<object>(),
                 Arg.Any<Exception>(),
                 Arg.Any<Func<object, Exception, string>>()!);
         }
@@ -883,21 +883,18 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
 
         [Theory]
         [CustomAutoData()]
-        public async Task GetRawAsync_ShouldReturnNull_WhenRedisExceptionOccurs(string cacheKey)
+        public async Task GetRawAsync_ShouldPropagateRedisException_WhenRedisFailsToGet(string cacheKey)
         {
             // Arrange
             var fullKey = $"{_redisCacheSettings.KeyPrefix}{cacheKey}";
             _database.StringGetAsync(fullKey).Returns(Task.FromException<RedisValue>(new RedisException("Redis connection failed")));
 
-            // Act
-            var result = await _cacheService.GetRawAsync(cacheKey);
-
-            // Assert
-            Assert.Null(result);
-            _logger.Received(1).Log(
+            // Act & Assert
+            await Assert.ThrowsAsync<RedisException>(() => _cacheService.GetRawAsync(cacheKey));
+            _logger.DidNotReceive().Log(
                 LogLevel.Error,
                 Arg.Any<EventId>(),
-                Arg.Is<object>(v => v.ToString()!.Contains($"Redis error occurred while getting raw data for key: {fullKey}")),
+                Arg.Any<object>(),
                 Arg.Any<Exception>(),
                 Arg.Any<Func<object, Exception, string>>()!);
         }
