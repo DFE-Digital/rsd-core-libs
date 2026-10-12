@@ -18,6 +18,7 @@ public sealed record PrismTenantDto(
 /// <param name="SubmittedRevision">SourceRevision of the submit transition, when submitted.</param>
 /// <param name="SubmissionId">Deterministic submission id, when submitted.</param>
 /// <param name="SubmittedResponseId">The response that was current at submission, when submitted.</param>
+/// <param name="CreatedBy">The user who created the application (the lead applicant). Null from API versions that predate it.</param>
 public sealed record PrismApplicationStateDto(
     Guid ApplicationId,
     string ApplicationReference,
@@ -34,7 +35,8 @@ public sealed record PrismApplicationStateDto(
     string? ResponseBody,
     long? SubmittedRevision,
     Guid? SubmissionId,
-    Guid? SubmittedResponseId);
+    Guid? SubmittedResponseId,
+    Guid? CreatedBy = null);
 
 /// <summary>A single, immutable response version.</summary>
 public sealed record PrismResponseDto(
