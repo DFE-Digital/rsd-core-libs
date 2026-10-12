@@ -382,6 +382,28 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Extensions
         }
 
         [Fact]
+        public void AddHybridCaching_ShouldRegisterSessionDistributedCacheAdapter()
+        {
+            // Arrange
+            var services = new ServiceCollection();
+            services.AddLogging();
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:Redis"] = "localhost:6379"
+                })
+                .Build();
+
+            // Act
+            services.AddHybridCaching(configuration);
+
+            // Assert
+            var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(SessionDistributedCacheAdapter));
+            Assert.NotNull(descriptor);
+            Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+        }
+
+        [Fact]
         public void AddHybridCaching_ShouldRegisterRedisCacheServiceOnce()
         {
             // Arrange

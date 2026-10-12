@@ -883,17 +883,14 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
 
         [Theory]
         [CustomAutoData()]
-        public async Task GetRawAsync_ShouldReturnNull_WhenRedisExceptionOccurs(string cacheKey)
+        public async Task GetRawAsync_ShouldLogAndRethrow_WhenRedisExceptionOccurs(string cacheKey)
         {
             // Arrange
             var fullKey = $"{_redisCacheSettings.KeyPrefix}{cacheKey}";
             _database.StringGetAsync(fullKey).Returns(Task.FromException<RedisValue>(new RedisException("Redis connection failed")));
 
-            // Act
-            var result = await _cacheService.GetRawAsync(cacheKey);
-
-            // Assert
-            Assert.Null(result);
+            // Act & Assert
+            await Assert.ThrowsAsync<RedisException>(() => _cacheService.GetRawAsync(cacheKey));
             _logger.Received(1).Log(
                 LogLevel.Error,
                 Arg.Any<EventId>(),

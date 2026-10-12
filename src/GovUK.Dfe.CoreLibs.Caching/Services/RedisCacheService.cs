@@ -65,8 +65,9 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
             }
             catch (RedisException ex)
             {
+                // Callers must be able to tell a failed read from a cache miss (see SessionDistributedCacheAdapter).
                 logger.LogError(ex, "Redis error occurred while getting raw data for key: {CacheKey}", fullKey);
-                return null;
+                throw;
             }
         }
 

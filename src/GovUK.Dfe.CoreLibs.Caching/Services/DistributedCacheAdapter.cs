@@ -14,6 +14,12 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
         ILogger<DistributedCacheAdapter> logger)
         : IDistributedCache
     {
+        /// <summary>
+        /// When false (default), read errors are logged and reported as a cache miss (null).
+        /// When true, read errors are rethrown so callers can distinguish them from a miss.
+        /// </summary>
+        protected virtual bool PropagateReadErrors => false;
+
         public byte[]? Get(string key)
         {
             return GetAsync(key).GetAwaiter().GetResult();
@@ -28,6 +34,9 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error getting distributed cache value for key: {Key}", key);
+                if (PropagateReadErrors)
+                    throw;
+
                 return null;
             }
         }
