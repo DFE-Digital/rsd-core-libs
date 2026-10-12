@@ -48,16 +48,16 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
 
         [Theory]
         [CustomAutoData()]
-        public async Task GetAsync_ShouldLogAndRethrow_WhenReadFails(string key)
+        public async Task GetAsync_ShouldPropagate_WhenReadFails(string key)
         {
             _cacheService.GetRawAsync(key).Returns(Task.FromException<byte[]?>(new RedisException("Redis connection failed")));
 
             await Assert.ThrowsAsync<RedisException>(() => _adapter.GetAsync(key));
 
-            _logger.Received(1).Log(
+            _logger.DidNotReceive().Log(
                 LogLevel.Error,
                 Arg.Any<EventId>(),
-                Arg.Is<object>(v => v.ToString()!.Contains($"Error getting distributed cache value for key: {key}")),
+                Arg.Any<object>(),
                 Arg.Any<Exception>(),
                 Arg.Any<Func<object, Exception, string>>()!);
         }

@@ -177,10 +177,10 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
             await Assert.ThrowsAsync<InvalidOperationException>(async () => 
                 await _adapter.SetAsync(key, data, options));
 
-            _logger.Received(1).Log(
+            _logger.DidNotReceive().Log(
                 LogLevel.Error,
                 Arg.Any<EventId>(),
-                Arg.Is<object>(v => v.ToString()!.Contains($"Error setting distributed cache value for key: {key}")),
+                Arg.Any<object>(),
                 Arg.Any<Exception>(),
                 Arg.Any<Func<object, Exception, string>>()!);
         }

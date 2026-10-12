@@ -16,7 +16,8 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
     {
         /// <summary>
         /// When false (default), read errors are logged and reported as a cache miss (null).
-        /// When true, read errors are rethrown so callers can distinguish them from a miss.
+        /// When true, read errors propagate to the caller (which is responsible for logging them)
+        /// so they can be distinguished from a miss.
         /// </summary>
         protected virtual bool PropagateReadErrors => false;
 
@@ -31,12 +32,9 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
             {
                 return await cacheService.GetRawAsync(key);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!PropagateReadErrors)
             {
                 logger.LogError(ex, "Error getting distributed cache value for key: {Key}", key);
-                if (PropagateReadErrors)
-                    throw;
-
                 return null;
             }
         }
@@ -48,19 +46,11 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
 
         public async Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options, CancellationToken token = default)
         {
-            try
-            {
-                var expiry = options.AbsoluteExpirationRelativeToNow
-                    ?? options.SlidingExpiration
-                    ?? TimeSpan.FromMinutes(20);
+            var expiry = options.AbsoluteExpirationRelativeToNow
+                ?? options.SlidingExpiration
+                ?? TimeSpan.FromMinutes(20);
 
-                await cacheService.SetRawAsync(key, value, expiry);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error setting distributed cache value for key: {Key}", key);
-                throw;
-            }
+            await cacheService.SetRawAsync(key, value, expiry);
         }
 
         public void Refresh(string key)
