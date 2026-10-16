@@ -51,12 +51,14 @@ public sealed record PrismResponseDto(
     string ResponseBody);
 
 /// <summary>An immutable template version and its JSON schema.</summary>
+/// <param name="TemplateName">The template's display name from <c>ea.Templates.Name</c>, not the JSON <c>templateName</c>.</param>
 public sealed record PrismTemplateVersionDto(
     Guid TemplateVersionId,
     Guid TemplateId,
     string VersionNumber,
     string JsonSchema,
-    DateTime CreatedOn);
+    DateTime CreatedOn,
+    string? TemplateName = null);
 
 /// <summary>Lightweight application row used by backfill and reconciliation.</summary>
 /// <param name="LastChangedOn">LastModifiedOn, or CreatedOn when the application was never modified.</param>
