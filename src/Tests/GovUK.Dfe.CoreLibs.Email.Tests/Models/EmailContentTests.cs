@@ -1,5 +1,3 @@
-using GovUK.Dfe.CoreLibs.Email.Models;
-
 namespace GovUK.Dfe.CoreLibs.Email.Tests.Models;
 
 public class EmailContentTests
