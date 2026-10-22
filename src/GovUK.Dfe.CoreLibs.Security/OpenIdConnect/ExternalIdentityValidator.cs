@@ -134,19 +134,19 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 throw new ArgumentException("At least one OIDC provider is required.", nameof(providers));
             }
 
-            var next = BuildProviderConfigurations(providers, _httpClientFactory);
             IReadOnlyList<ProviderConfiguration> previous;
+            IReadOnlyList<ProviderConfiguration> next;
 
             lock (_providersGate)
             {
                 previous = _providers;
+                // Reusing managers for unchanged discovery endpoints keeps their cached metadata
+                // and JWKS; rebuilding them would force a fresh download on the next validation.
+                next = BuildProviderConfigurations(providers, _httpClientFactory, previous);
                 _providers = next;
             }
 
-            foreach (var provider in previous)
-            {
-                provider.Dispose();
-            }
+            DisposeConfigManagers(previous, keep: next);
 
             _logger?.LogInformation(
                 "ExternalIdentityValidator reloaded multi-provider list with {Count} providers",
@@ -155,8 +155,25 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
 
         private static IReadOnlyList<ProviderConfiguration> BuildProviderConfigurations(
             IEnumerable<OpenIdConnectOptions> providers,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            IReadOnlyList<ProviderConfiguration>? existing = null)
         {
+            // One manager per discovery endpoint: tenants sharing an IdP share its metadata cache.
+            var managersByEndpoint = new Dictionary<string, ConfigurationManager<OpenIdConnectConfiguration>>(
+                StringComparer.OrdinalIgnoreCase);
+
+            if (existing is not null)
+            {
+                foreach (var provider in existing)
+                {
+                    var address = provider.ConfigManager.MetadataAddress;
+                    if (!string.IsNullOrEmpty(address))
+                    {
+                        managersByEndpoint.TryAdd(address, provider.ConfigManager);
+                    }
+                }
+            }
+
             var list = new List<ProviderConfiguration>();
             foreach (var providerOpts in providers)
             {
@@ -168,12 +185,38 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                         $"Provider with Issuer '{providerOpts.Issuer}' is missing DiscoveryEndpoint.");
                 }
 
-                list.Add(new ProviderConfiguration(
-                    providerOpts,
-                    CreateConfigManager(endpoint, httpClientFactory)));
+                if (!managersByEndpoint.TryGetValue(endpoint, out var configManager))
+                {
+                    configManager = CreateConfigManager(endpoint, httpClientFactory);
+                    managersByEndpoint[endpoint] = configManager;
+                }
+
+                list.Add(new ProviderConfiguration(providerOpts, configManager));
             }
 
             return list;
+        }
+
+        private static void DisposeConfigManagers(
+            IReadOnlyList<ProviderConfiguration> providers,
+            IReadOnlyList<ProviderConfiguration>? keep = null)
+        {
+            var retained = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            if (keep is not null)
+            {
+                foreach (var provider in keep)
+                {
+                    retained.Add(provider.ConfigManager);
+                }
+            }
+
+            foreach (var provider in providers)
+            {
+                if (retained.Add(provider.ConfigManager))
+                {
+                    provider.Dispose();
+                }
+            }
         }
 
         private static ConfigurationManager<OpenIdConnectConfiguration> CreateConfigManager(
@@ -267,6 +310,12 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// <summary>
         /// Multi-provider mode: Try each provider until one fully validates.
         /// Token must match the provider's issuer AND audience.
+        /// <para>
+        /// Providers whose issuers cannot match the token's (unvalidated) <c>iss</c> claim are
+        /// skipped, as are providers whose validation settings are identical to one already
+        /// tried. Validating against a provider that can never succeed costs a metadata/JWKS
+        /// fetch and makes Microsoft.IdentityModel log IDX10634/IDX10205 errors for every key.
+        /// </para>
         /// </summary>
         private async Task<ClaimsPrincipal> ValidateWithMultiProviderModeAsync(
             string idToken,
@@ -275,16 +324,32 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
             var handler = new JwtSecurityTokenHandler();
             var errors = new List<string>();
             var providers = SnapshotProviders();
+            var tokenIssuer = TryReadUnvalidatedIssuer(handler, idToken);
+            var attemptedValidationKeys = new HashSet<string>(StringComparer.Ordinal);
+            var attempted = 0;
 
             foreach (var provider in providers)
             {
+                var validIssuers = GetValidIssuersForProvider(provider.Options);
+
+                if (!CanProviderAcceptIssuer(provider.Options, validIssuers, tokenIssuer))
+                {
+                    continue;
+                }
+
+                var validAudiences = GetValidAudiencesForProvider(provider.Options);
+
+                if (!attemptedValidationKeys.Add(
+                        BuildValidationKey(provider.Options, validIssuers, validAudiences)))
+                {
+                    continue;
+                }
+
+                attempted++;
+
                 try
                 {
                     var metadata = await provider.ConfigManager.GetConfigurationAsync(cancellationToken);
-
-                    // Build validation parameters for THIS specific provider
-                    var validIssuers = GetValidIssuersForProvider(provider.Options);
-                    var validAudiences = GetValidAudiencesForProvider(provider.Options);
 
                     var validationParameters = new TokenValidationParameters
                     {
@@ -318,11 +383,97 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 }
             }
 
+            if (attempted == 0)
+            {
+                var noMatchMessage = $"Token issuer '{tokenIssuer}' does not match any of the " +
+                                     $"{providers.Count} configured OIDC provider(s).";
+                _logger?.LogWarning(noMatchMessage);
+                throw new SecurityTokenInvalidIssuerException(noMatchMessage) { InvalidIssuer = tokenIssuer };
+            }
+
             // None of the providers could validate the token
             var errorMessage = $"Token did not match any configured OIDC provider. " +
-                             $"Tried {providers.Count} provider(s). Errors: {string.Join("; ", errors)}";
+                             $"Tried {attempted} of {providers.Count} provider(s). Errors: {string.Join("; ", errors)}";
             _logger?.LogWarning(errorMessage);
             throw new SecurityTokenValidationException(errorMessage);
+        }
+
+        /// <summary>
+        /// Reads the <c>iss</c> claim without validating the token. Returns <c>null</c> when the
+        /// token cannot be parsed, in which case every provider is tried as before.
+        /// </summary>
+        private static string? TryReadUnvalidatedIssuer(JwtSecurityTokenHandler handler, string idToken)
+        {
+            if (!handler.CanReadToken(idToken))
+            {
+                return null;
+            }
+
+            try
+            {
+                var issuer = handler.ReadJwtToken(idToken).Issuer;
+                return string.IsNullOrEmpty(issuer) ? null : issuer;
+            }
+            catch (ArgumentException)
+            {
+                return null;
+            }
+            catch (SecurityTokenException)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Cheap pre-filter: deliberately more lenient than <see cref="JwtSecurityTokenHandler"/>
+        /// (case and trailing slash are ignored) so it never excludes a provider that would
+        /// have validated the token. Strict issuer validation still runs afterwards.
+        /// </summary>
+        private static bool CanProviderAcceptIssuer(
+            OpenIdConnectOptions opts,
+            IReadOnlyCollection<string> validIssuers,
+            string? tokenIssuer)
+        {
+            if (!opts.ValidateIssuer || tokenIssuer is null)
+            {
+                return true;
+            }
+
+            var normalisedTokenIssuer = NormaliseIssuer(tokenIssuer);
+            return validIssuers.Any(i => string.Equals(
+                NormaliseIssuer(i), normalisedTokenIssuer, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string NormaliseIssuer(string issuer) => issuer.Trim().TrimEnd('/');
+
+        /// <summary>
+        /// Two providers with the same key would produce the same validation outcome for any
+        /// token (same keys, issuers, audiences and flags), so only the first needs trying.
+        /// </summary>
+        private static string BuildValidationKey(
+            OpenIdConnectOptions opts,
+            IEnumerable<string> validIssuers,
+            IEnumerable<string> validAudiences)
+        {
+            var sb = new StringBuilder();
+            sb.Append(opts.DiscoveryEndpoint?.ToUpperInvariant()).Append('\n')
+              .Append(opts.ValidateIssuer).Append('|')
+              .Append(opts.ValidateAudience).Append('|')
+              .Append(opts.ValidateLifetime).Append('\n');
+
+            foreach (var issuer in validIssuers.Order(StringComparer.Ordinal))
+            {
+                sb.Append(issuer).Append('\n');
+            }
+
+            sb.Append('\n');
+
+            foreach (var audience in validAudiences.Order(StringComparer.Ordinal))
+            {
+                sb.Append(audience).Append('\n');
+            }
+
+            return sb.ToString();
         }
 
         /// <summary>
@@ -577,10 +728,7 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 _providers = Array.Empty<ProviderConfiguration>();
             }
 
-            foreach (var provider in providers)
-            {
-                provider.Dispose();
-            }
+            DisposeConfigManagers(providers);
         }
     }
 }

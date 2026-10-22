@@ -183,9 +183,12 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
                 _config = config;
             }
 
+            public int GetConfigurationCalls { get; private set; }
+
             public override Task<OpenIdConnectConfiguration> GetConfigurationAsync(
                 CancellationToken cancellationToken)
             {
+                GetConfigurationCalls++;
                 return Task.FromResult(_config);
             }
         }
@@ -1525,6 +1528,229 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             ]);
 
             Assert.Equal(2, validator.ProviderCount);
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_MultiProviderMode_SkipsProvidersWhoseIssuerCannotMatch()
+        {
+            var dsiKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("DSIKEY12345678901234567890123456"));
+            var entraKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("ENTRAKEY123456789012345678901234"));
+
+            var dsiConfig = new OpenIdConnectConfiguration { Issuer = "https://oidc.signin.example.gov.uk" };
+            dsiConfig.SigningKeys.Add(dsiKey);
+            var entraConfig = new OpenIdConnectConfiguration { Issuer = "https://login.example.com/tenant/v2.0" };
+            entraConfig.SigningKeys.Add(entraKey);
+
+            var dsiOpts = MultiProviderOpts("https://oidc.signin.example.gov.uk", "dsi-client", "https://oidc.signin.example.gov.uk/.well-known");
+            var entraOpts = MultiProviderOpts("https://login.example.com/tenant/v2.0", "entra-client", "https://login.example.com/tenant/v2.0/.well-known");
+
+            var dsiManager = new StubConfigManager(dsiConfig);
+            var entraManager = new StubConfigManager(entraConfig);
+            var validator = CreateMultiProviderValidator(dsiOpts, entraOpts);
+            InjectProviders(validator, (dsiOpts, dsiManager), (entraOpts, entraManager));
+
+            var token = CreateSignedToken(entraKey, "https://login.example.com/tenant/v2.0", "entra-client", "entra-user");
+
+            var principal = await validator.ValidateIdTokenAsync(token);
+
+            Assert.Equal("entra-user", principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            Assert.Equal(0, dsiManager.GetConfigurationCalls);
+            Assert.Equal(1, entraManager.GetConfigurationCalls);
+
+            validator.Dispose();
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_MultiProviderMode_NoProviderForIssuer_ThrowsWithoutFetchingMetadata()
+        {
+            var config = new OpenIdConnectConfiguration();
+            config.SigningKeys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes("UNUSEDKEY12345678901234567890123")));
+
+            var opts = MultiProviderOpts("https://idp.example.com", "client", "https://idp.example.com/.well-known");
+            var manager = new StubConfigManager(config);
+            var validator = CreateMultiProviderValidator(opts);
+            InjectProviders(validator, (opts, manager));
+
+            var otherKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("OTHERKEY123456789012345678901234"));
+            var token = CreateSignedToken(otherKey, "https://unknown.example.com", "client", "nobody");
+
+            var ex = await Assert.ThrowsAsync<SecurityTokenInvalidIssuerException>(
+                () => validator.ValidateIdTokenAsync(token));
+
+            Assert.Equal("https://unknown.example.com", ex.InvalidIssuer);
+            Assert.IsAssignableFrom<SecurityTokenValidationException>(ex);
+            Assert.Equal(0, manager.GetConfigurationCalls);
+
+            validator.Dispose();
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_MultiProviderMode_ProviderWithIssuerValidationDisabled_IsStillTried()
+        {
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("NOISSKEY123456789012345678901234"));
+            var config = new OpenIdConnectConfiguration();
+            config.SigningKeys.Add(key);
+
+            var opts = MultiProviderOpts("https://idp.example.com", "client", "https://idp.example.com/.well-known");
+            opts.ValidateIssuer = false;
+
+            var manager = new StubConfigManager(config);
+            var validator = CreateMultiProviderValidator(opts);
+            InjectProviders(validator, (opts, manager));
+
+            var token = CreateSignedToken(key, "https://any-issuer.example.com", "client", "lenient-user");
+
+            var principal = await validator.ValidateIdTokenAsync(token);
+
+            Assert.Equal("lenient-user", principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            validator.Dispose();
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_MultiProviderMode_SkipsDuplicateProviderSettings()
+        {
+            var config = new OpenIdConnectConfiguration();
+            config.SigningKeys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes("REALKEY1234567890123456789012345")));
+
+            // Two tenants configured with the same IdP and client: identical outcome for any token.
+            var tenantA = MultiProviderOpts("https://idp.example.com", "shared-client", "https://idp.example.com/.well-known");
+            var tenantB = MultiProviderOpts("https://idp.example.com", "shared-client", "https://idp.example.com/.well-known");
+
+            var managerA = new StubConfigManager(config);
+            var managerB = new StubConfigManager(config);
+            var validator = CreateMultiProviderValidator(tenantA, tenantB);
+            InjectProviders(validator, (tenantA, managerA), (tenantB, managerB));
+
+            var wrongKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("WRONGKEY123456789012345678901234"));
+            var token = CreateSignedToken(wrongKey, "https://idp.example.com", "shared-client", "user");
+
+            var ex = await Assert.ThrowsAsync<SecurityTokenValidationException>(
+                () => validator.ValidateIdTokenAsync(token));
+
+            Assert.Contains("Tried 1 of 2 provider(s)", ex.Message);
+            Assert.Equal(1, managerA.GetConfigurationCalls);
+            Assert.Equal(0, managerB.GetConfigurationCalls);
+
+            validator.Dispose();
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_MultiProviderMode_SameIssuerDifferentAudience_TriesBoth()
+        {
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("SHAREDKEY12345678901234567890123"));
+            var config = new OpenIdConnectConfiguration();
+            config.SigningKeys.Add(key);
+
+            var tenantA = MultiProviderOpts("https://idp.example.com", "client-a", "https://idp.example.com/.well-known");
+            var tenantB = MultiProviderOpts("https://idp.example.com", "client-b", "https://idp.example.com/.well-known");
+
+            var managerA = new StubConfigManager(config);
+            var managerB = new StubConfigManager(config);
+            var validator = CreateMultiProviderValidator(tenantA, tenantB);
+            InjectProviders(validator, (tenantA, managerA), (tenantB, managerB));
+
+            var token = CreateSignedToken(key, "https://idp.example.com", "client-b", "tenant-b-user");
+
+            var principal = await validator.ValidateIdTokenAsync(token);
+
+            Assert.Equal("tenant-b-user", principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            Assert.Equal(1, managerA.GetConfigurationCalls);
+            Assert.Equal(1, managerB.GetConfigurationCalls);
+
+            validator.Dispose();
+        }
+
+        [Fact]
+        public void Constructor_MultiProviderMode_SharesConfigManagerPerDiscoveryEndpoint()
+        {
+            var validator = CreateMultiProviderValidator(
+                MultiProviderOpts("https://idp.example.com", "client-a", "https://idp.example.com/.well-known/openid-configuration"),
+                MultiProviderOpts("https://idp.example.com", "client-b", "https://IDP.example.com/.well-known/openid-configuration"),
+                MultiProviderOpts("https://other.example.com", "client-c", "https://other.example.com/.well-known/openid-configuration"));
+
+            var managers = GetConfigManagers(validator);
+
+            Assert.Equal(3, validator.ProviderCount);
+            Assert.Same(managers[0], managers[1]);
+            Assert.NotSame(managers[0], managers[2]);
+
+            validator.Dispose();
+        }
+
+        [Fact]
+        public void ReloadProviders_ReusesConfigManagerForUnchangedDiscoveryEndpoint()
+        {
+            const string keptEndpoint = "https://idp-a.example.com/.well-known/openid-configuration";
+            var validator = CreateMultiProviderValidator(
+                MultiProviderOpts("https://idp-a.example.com", "client-a", keptEndpoint),
+                MultiProviderOpts("https://idp-old.example.com", "client-old", "https://idp-old.example.com/.well-known/openid-configuration"));
+
+            var before = GetConfigManagers(validator);
+
+            validator.ReloadProviders(
+            [
+                MultiProviderOpts("https://idp-a.example.com", "client-a-renamed", keptEndpoint),
+                MultiProviderOpts("https://idp-new.example.com", "client-new", "https://idp-new.example.com/.well-known/openid-configuration")
+            ]);
+
+            var after = GetConfigManagers(validator);
+
+            Assert.Same(before[0], after[0]);
+            Assert.NotSame(before[1], after[1]);
+            Assert.Equal("https://idp-new.example.com/.well-known/openid-configuration", after[1].MetadataAddress);
+
+            validator.Dispose();
+        }
+
+        private static OpenIdConnectOptions MultiProviderOpts(string issuer, string clientId, string discoveryEndpoint)
+            => new()
+            {
+                Issuer = issuer,
+                ClientId = clientId,
+                DiscoveryEndpoint = discoveryEndpoint,
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true
+            };
+
+        private static ExternalIdentityValidator CreateMultiProviderValidator(params OpenIdConnectOptions[] providers)
+            => new(
+                Options.Create(new OpenIdConnectOptions()),
+                CreateHttpClientFactory(),
+                multiProviderOptions: Options.Create(new MultiProviderOpenIdConnectOptions
+                {
+                    Providers = providers.ToList()
+                }));
+
+        private static string CreateSignedToken(SecurityKey key, string issuer, string audience, string subject)
+        {
+            var handler = new JwtSecurityTokenHandler();
+            return handler.WriteToken(handler.CreateToken(new SecurityTokenDescriptor
+            {
+                Issuer = issuer,
+                Audience = audience,
+                Subject = new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, subject) }),
+                Expires = DateTime.UtcNow.AddMinutes(5),
+                SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256)
+            }));
+        }
+
+        private static List<ConfigurationManager<OpenIdConnectConfiguration>> GetConfigManagers(
+            ExternalIdentityValidator validator)
+        {
+            var providers = (System.Collections.IEnumerable)typeof(ExternalIdentityValidator)
+                .GetField("_providers", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .GetValue(validator)!;
+
+            var managers = new List<ConfigurationManager<OpenIdConnectConfiguration>>();
+            foreach (var provider in providers)
+            {
+                managers.Add((ConfigurationManager<OpenIdConnectConfiguration>)provider.GetType()
+                    .GetProperty("ConfigManager")!
+                    .GetValue(provider)!);
+            }
+
+            return managers;
         }
 
         [Fact]
