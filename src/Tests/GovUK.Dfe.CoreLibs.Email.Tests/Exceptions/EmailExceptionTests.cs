@@ -1,5 +1,3 @@
-using GovUK.Dfe.CoreLibs.Email.Exceptions;
-
 namespace GovUK.Dfe.CoreLibs.Email.Tests.Exceptions;
 
 public class EmailExceptionTests

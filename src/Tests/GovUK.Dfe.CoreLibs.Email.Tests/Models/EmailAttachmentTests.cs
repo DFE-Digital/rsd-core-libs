@@ -1,5 +1,3 @@
-using GovUK.Dfe.CoreLibs.Email.Models;
-
 namespace GovUK.Dfe.CoreLibs.Email.Tests.Models;
 
 public class EmailAttachmentTests
@@ -11,7 +9,7 @@ public class EmailAttachmentTests
         var attachment = new EmailAttachment
         {
             FileName = "test.pdf",
-            Content = new byte[] { 1, 2, 3, 4, 5 }
+            Content = [ 1, 2, 3, 4, 5 ]
         };
 
         // Assert
@@ -29,7 +27,7 @@ public class EmailAttachmentTests
         var attachment = new EmailAttachment
         {
             FileName = "image.png",
-            Content = new byte[] { 10, 20, 30 },
+            Content = [10, 20, 30 ],
             ContentType = "image/png",
             IsInline = true,
             ContentId = "img001"
@@ -37,7 +35,7 @@ public class EmailAttachmentTests
 
         // Assert
         attachment.FileName.Should().Be("image.png");
-        attachment.Content.Should().Equal(new byte[] { 10, 20, 30 });
+        attachment.Content.Should().Equal([10, 20, 30]);
         attachment.ContentType.Should().Be("image/png");
         attachment.IsInline.Should().BeTrue();
         attachment.ContentId.Should().Be("img001");
@@ -50,7 +48,7 @@ public class EmailAttachmentTests
         var attachment = new EmailAttachment
         {
             FileName = "test.txt",
-            Content = Array.Empty<byte>()
+            Content = []
         };
 
         // Assert
