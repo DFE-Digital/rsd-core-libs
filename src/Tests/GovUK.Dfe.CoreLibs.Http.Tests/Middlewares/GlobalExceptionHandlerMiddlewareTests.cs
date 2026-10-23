@@ -165,6 +165,92 @@ namespace GovUK.Dfe.CoreLibs.Http.Tests.Middlewares
 
         [Theory]
         [CustomAutoData(typeof(HttpContextCustomization))]
+        public async Task InvokeAsync_ClientErrorLogLevelSet_LogsClientErrorAsSingleLineWithoutException(DefaultHttpContext context)
+        {
+            // Arrange
+            _options.ClientErrorLogLevel = LogLevel.Warning;
+            var exception = new ArgumentException("Hostname not mapped"); // DefaultExceptionHandler => 400
+            context.Request.Method = "GET";
+            context.Request.Path = "/v1/tenant-config/resolve";
+            context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
+            _nextDelegate.Invoke(context).Throws(exception);
+
+            // Act
+            await _middleware.InvokeAsync(context);
+
+            // Assert
+            context.Response.StatusCode.Should().Be(400);
+            _logger.Received(1).Log(
+                LogLevel.Warning,
+                Arg.Any<EventId>(),
+                Arg.Is<object>(v => v.ToString()!.Contains("Request failed with 400")
+                                    && v.ToString()!.Contains("Hostname not mapped")
+                                    && v.ToString()!.Contains("/v1/tenant-config/resolve")),
+                null,
+                Arg.Any<Func<object, Exception?, string>>());
+            _logger.DidNotReceive().Log(
+                LogLevel.Error,
+                Arg.Any<EventId>(),
+                Arg.Any<object>(),
+                Arg.Any<Exception>(),
+                Arg.Any<Func<object, Exception, string>>());
+        }
+
+        [Theory]
+        [CustomAutoData(typeof(HttpContextCustomization))]
+        public async Task InvokeAsync_ClientErrorLogLevelSet_StillLogsServerErrorWithException(DefaultHttpContext context)
+        {
+            // Arrange
+            _options.ClientErrorLogLevel = LogLevel.Warning;
+            var exception = new Exception("Boom"); // DefaultExceptionHandler => 500
+            context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
+            _nextDelegate.Invoke(context).Throws(exception);
+
+            // Act
+            await _middleware.InvokeAsync(context);
+
+            // Assert
+            context.Response.StatusCode.Should().Be(500);
+            _logger.Received(1).Log(
+                LogLevel.Error,
+                Arg.Any<EventId>(),
+                Arg.Any<object>(),
+                exception,
+                Arg.Any<Func<object, Exception, string>>());
+            _logger.DidNotReceive().Log(
+                LogLevel.Warning,
+                Arg.Any<EventId>(),
+                Arg.Any<object>(),
+                Arg.Any<Exception?>(),
+                Arg.Any<Func<object, Exception?, string>>());
+        }
+
+        [Theory]
+        [CustomAutoData(typeof(HttpContextCustomization))]
+        public async Task InvokeAsync_ClientErrorLogLevelNotSet_LogsClientErrorAtErrorWithException(DefaultHttpContext context)
+        {
+            // Arrange
+            var exception = new ArgumentException("Bad input"); // DefaultExceptionHandler => 400
+            context.Response.Body = new MemoryStream();
+            context.RequestServices = new ServiceCollection().BuildServiceProvider();
+            _nextDelegate.Invoke(context).Throws(exception);
+
+            // Act
+            await _middleware.InvokeAsync(context);
+
+            // Assert
+            _logger.Received(1).Log(
+                LogLevel.Error,
+                Arg.Any<EventId>(),
+                Arg.Any<object>(),
+                exception,
+                Arg.Any<Func<object, Exception, string>>());
+        }
+
+        [Theory]
+        [CustomAutoData(typeof(HttpContextCustomization))]
         public async Task InvokeAsync_ShouldIncludeCorrelationId_WhenAvailable(DefaultHttpContext context)
         {
             // Arrange

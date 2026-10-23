@@ -1,5 +1,6 @@
 using GovUK.Dfe.CoreLibs.Http.Interfaces;
 using GovUK.Dfe.CoreLibs.Http.Models;
+using Microsoft.Extensions.Logging;
 
 namespace GovUK.Dfe.CoreLibs.Http.Configuration;
 
@@ -18,6 +19,15 @@ public class ExceptionHandlerOptions
     /// Whether to log exceptions automatically (default: true).
     /// </summary>
     public bool LogExceptions { get; set; } = true;
+
+    /// <summary>
+    /// Log level for exceptions mapped to a client error (4xx) response (default: null).
+    /// When set, these are logged as a single line at this level without the exception object,
+    /// so telemetry sinks record a trace rather than a full exception with stack trace.
+    /// When null, every handled exception is logged at Error with the exception attached.
+    /// Server errors (5xx) are always logged at Error with the exception attached.
+    /// </summary>
+    public LogLevel? ClientErrorLogLevel { get; set; } = null;
 
     /// <summary>
     /// Exception types that should be ignored (not handled by the middleware).

@@ -119,7 +119,7 @@ public class GlobalExceptionHandlerMiddleware
         // Log the exception
         if (_options.LogExceptions)
         {
-            LogException(exception, errorId, errorResponse);
+            LogException(context, exception, errorId, errorResponse);
         }
 
         // Set response
@@ -163,8 +163,26 @@ public class GlobalExceptionHandlerMiddleware
         };
     }
 
-    private void LogException(Exception exception, string errorId, ExceptionResponse errorResponse)
+    private void LogException(HttpContext context, Exception exception, string errorId, ExceptionResponse errorResponse)
     {
+        if (_options.ClientErrorLogLevel is { } clientErrorLevel
+            && errorResponse.StatusCode is >= 400 and < 500)
+        {
+            _logger.Log(
+                clientErrorLevel,
+                "Request failed with {StatusCode} {ExceptionType}: {Message}. {Method} {Path} ErrorId={ErrorId} CorrelationId={CorrelationId} TenantId={TenantId} UserEmail={UserEmail}",
+                errorResponse.StatusCode,
+                errorResponse.ExceptionType,
+                exception.Message,
+                context.Request.Method,
+                context.Request.Path.Value,
+                errorId,
+                errorResponse.CorrelationId,
+                errorResponse.TenantId,
+                errorResponse.UserEmail);
+            return;
+        }
+
         _logger.LogError(
             exception,
             "Unhandled exception. ErrorId={ErrorId} CorrelationId={CorrelationId} TenantId={TenantId} UserEmail={UserEmail}",

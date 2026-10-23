@@ -1635,7 +1635,7 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
         }
 
         [Fact]
-        public async Task ValidateIdTokenAsync_MultiProviderMode_SameIssuerDifferentAudience_TriesBoth()
+        public async Task ValidateIdTokenAsync_MultiProviderMode_SameIssuerDifferentAudience_OnlyTriesMatchingAudience()
         {
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("SHAREDKEY12345678901234567890123"));
             var config = new OpenIdConnectConfiguration();
@@ -1654,9 +1654,81 @@ namespace GovUK.Dfe.CoreLibs.Security.Tests.OpenIdConnectTests
             var principal = await validator.ValidateIdTokenAsync(token);
 
             Assert.Equal("tenant-b-user", principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-            Assert.Equal(1, managerA.GetConfigurationCalls);
+            Assert.Equal(0, managerA.GetConfigurationCalls);
             Assert.Equal(1, managerB.GetConfigurationCalls);
 
+            validator.Dispose();
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_MultiProviderMode_AudiencePreFilterMatchesApiPrefixedAudience()
+        {
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("APIAUDKEY12345678901234567890123"));
+            var config = new OpenIdConnectConfiguration();
+            config.SigningKeys.Add(key);
+
+            var opts = MultiProviderOpts("https://idp.example.com", "client-a", "https://idp.example.com/.well-known");
+            opts.ValidAudiences = ["api://client-a"];
+
+            var manager = new StubConfigManager(config);
+            var validator = CreateMultiProviderValidator(opts);
+            InjectProviders(validator, (opts, manager));
+
+            var token = CreateSignedToken(key, "https://idp.example.com", "api://client-a", "api-user");
+
+            var principal = await validator.ValidateIdTokenAsync(token);
+
+            Assert.Equal("api-user", principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            validator.Dispose();
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_MultiProviderMode_NoProviderForAudience_ThrowsWithoutFetchingMetadata()
+        {
+            var config = new OpenIdConnectConfiguration();
+            config.SigningKeys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes("UNUSEDKEY12345678901234567890123")));
+
+            var tenantA = MultiProviderOpts("https://idp.example.com", "client-a", "https://idp.example.com/.well-known");
+            var tenantB = MultiProviderOpts("https://idp.example.com", "client-b", "https://idp.example.com/.well-known");
+
+            var managerA = new StubConfigManager(config);
+            var managerB = new StubConfigManager(config);
+            var validator = CreateMultiProviderValidator(tenantA, tenantB);
+            InjectProviders(validator, (tenantA, managerA), (tenantB, managerB));
+
+            var otherKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("OTHERKEY123456789012345678901234"));
+            var token = CreateSignedToken(otherKey, "https://idp.example.com", "client-unknown", "nobody");
+
+            var ex = await Assert.ThrowsAsync<SecurityTokenInvalidAudienceException>(
+                () => validator.ValidateIdTokenAsync(token));
+
+            Assert.Equal("client-unknown", ex.InvalidAudience);
+            Assert.IsAssignableFrom<SecurityTokenValidationException>(ex);
+            Assert.Equal(0, managerA.GetConfigurationCalls);
+            Assert.Equal(0, managerB.GetConfigurationCalls);
+
+            validator.Dispose();
+        }
+
+        [Fact]
+        public async Task ValidateIdTokenAsync_MultiProviderMode_ProviderWithAudienceValidationDisabled_IsStillTried()
+        {
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("NOAUDKEY123456789012345678901234"));
+            var config = new OpenIdConnectConfiguration();
+            config.SigningKeys.Add(key);
+
+            var opts = MultiProviderOpts("https://idp.example.com", "client-a", "https://idp.example.com/.well-known");
+            opts.ValidateAudience = false;
+
+            var manager = new StubConfigManager(config);
+            var validator = CreateMultiProviderValidator(opts);
+            InjectProviders(validator, (opts, manager));
+
+            var token = CreateSignedToken(key, "https://idp.example.com", "some-other-audience", "lenient-aud-user");
+
+            var principal = await validator.ValidateIdTokenAsync(token);
+
+            Assert.Equal("lenient-aud-user", principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
             validator.Dispose();
         }
 

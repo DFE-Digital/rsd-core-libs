@@ -311,10 +311,11 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         /// Multi-provider mode: Try each provider until one fully validates.
         /// Token must match the provider's issuer AND audience.
         /// <para>
-        /// Providers whose issuers cannot match the token's (unvalidated) <c>iss</c> claim are
-        /// skipped, as are providers whose validation settings are identical to one already
-        /// tried. Validating against a provider that can never succeed costs a metadata/JWKS
-        /// fetch and makes Microsoft.IdentityModel log IDX10634/IDX10205 errors for every key.
+        /// Providers whose issuers or audiences cannot match the token's (unvalidated) <c>iss</c>
+        /// and <c>aud</c> claims are skipped, as are providers whose validation settings are
+        /// identical to one already tried. Validating against a provider that can never succeed
+        /// costs a metadata/JWKS fetch and makes Microsoft.IdentityModel log errors
+        /// (IDX10634/IDX10205/IDX10214) even though another provider then accepts the token.
         /// </para>
         /// </summary>
         private async Task<ClaimsPrincipal> ValidateWithMultiProviderModeAsync(
@@ -324,8 +325,9 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
             var handler = new JwtSecurityTokenHandler();
             var errors = new List<string>();
             var providers = SnapshotProviders();
-            var tokenIssuer = TryReadUnvalidatedIssuer(handler, idToken);
+            var (tokenIssuer, tokenAudiences) = TryReadUnvalidatedIssuerAndAudiences(handler, idToken);
             var attemptedValidationKeys = new HashSet<string>(StringComparer.Ordinal);
+            var issuerMatches = 0;
             var attempted = 0;
 
             foreach (var provider in providers)
@@ -337,7 +339,13 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                     continue;
                 }
 
+                issuerMatches++;
                 var validAudiences = GetValidAudiencesForProvider(provider.Options);
+
+                if (!CanProviderAcceptAudience(provider.Options, validAudiences, tokenAudiences))
+                {
+                    continue;
+                }
 
                 if (!attemptedValidationKeys.Add(
                         BuildValidationKey(provider.Options, validIssuers, validAudiences)))
@@ -383,12 +391,21 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 }
             }
 
-            if (attempted == 0)
+            if (issuerMatches == 0)
             {
                 var noMatchMessage = $"Token issuer '{tokenIssuer}' does not match any of the " +
                                      $"{providers.Count} configured OIDC provider(s).";
                 _logger?.LogWarning(noMatchMessage);
                 throw new SecurityTokenInvalidIssuerException(noMatchMessage) { InvalidIssuer = tokenIssuer };
+            }
+
+            if (attempted == 0)
+            {
+                var audienceList = string.Join(", ", tokenAudiences);
+                var noMatchMessage = $"Token audience '{audienceList}' does not match any of the " +
+                                     $"{issuerMatches} OIDC provider(s) configured for issuer '{tokenIssuer}'.";
+                _logger?.LogWarning(noMatchMessage);
+                throw new SecurityTokenInvalidAudienceException(noMatchMessage) { InvalidAudience = audienceList };
             }
 
             // None of the providers could validate the token
@@ -399,29 +416,56 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
         }
 
         /// <summary>
-        /// Reads the <c>iss</c> claim without validating the token. Returns <c>null</c> when the
-        /// token cannot be parsed, in which case every provider is tried as before.
+        /// Reads the <c>iss</c> and <c>aud</c> claims without validating the token. Returns a null
+        /// issuer and no audiences when the token cannot be parsed, in which case the pre-filters
+        /// let every provider through as before.
         /// </summary>
-        private static string? TryReadUnvalidatedIssuer(JwtSecurityTokenHandler handler, string idToken)
+        private static (string? Issuer, IReadOnlyList<string> Audiences) TryReadUnvalidatedIssuerAndAudiences(
+            JwtSecurityTokenHandler handler,
+            string idToken)
         {
             if (!handler.CanReadToken(idToken))
             {
-                return null;
+                return (null, Array.Empty<string>());
             }
 
             try
             {
-                var issuer = handler.ReadJwtToken(idToken).Issuer;
-                return string.IsNullOrEmpty(issuer) ? null : issuer;
+                var jwt = handler.ReadJwtToken(idToken);
+                var issuer = string.IsNullOrEmpty(jwt.Issuer) ? null : jwt.Issuer;
+                var audiences = jwt.Audiences.Where(a => !string.IsNullOrEmpty(a)).ToList();
+                return (issuer, audiences);
             }
             catch (ArgumentException)
             {
-                return null;
+                return (null, Array.Empty<string>());
             }
             catch (SecurityTokenException)
             {
-                return null;
+                return (null, Array.Empty<string>());
             }
+        }
+
+        /// <summary>
+        /// Cheap pre-filter on <c>aud</c>, as lenient as <see cref="CanProviderAcceptIssuer"/>.
+        /// Providers with no configured audiences are let through so strict validation decides.
+        /// </summary>
+        private static bool CanProviderAcceptAudience(
+            OpenIdConnectOptions opts,
+            IReadOnlyCollection<string> validAudiences,
+            IReadOnlyList<string> tokenAudiences)
+        {
+            if (!opts.ValidateAudience || tokenAudiences.Count == 0 || validAudiences.Count == 0)
+            {
+                return true;
+            }
+
+            return tokenAudiences.Any(tokenAudience =>
+            {
+                var normalisedTokenAudience = NormaliseIdentifier(tokenAudience);
+                return validAudiences.Any(a => string.Equals(
+                    NormaliseIdentifier(a), normalisedTokenAudience, StringComparison.OrdinalIgnoreCase));
+            });
         }
 
         /// <summary>
@@ -439,12 +483,12 @@ namespace GovUK.Dfe.CoreLibs.Security.OpenIdConnect
                 return true;
             }
 
-            var normalisedTokenIssuer = NormaliseIssuer(tokenIssuer);
+            var normalisedTokenIssuer = NormaliseIdentifier(tokenIssuer);
             return validIssuers.Any(i => string.Equals(
-                NormaliseIssuer(i), normalisedTokenIssuer, StringComparison.OrdinalIgnoreCase));
+                NormaliseIdentifier(i), normalisedTokenIssuer, StringComparison.OrdinalIgnoreCase));
         }
 
-        private static string NormaliseIssuer(string issuer) => issuer.Trim().TrimEnd('/');
+        private static string NormaliseIdentifier(string value) => value.Trim().TrimEnd('/');
 
         /// <summary>
         /// Two providers with the same key would produce the same validation outcome for any
