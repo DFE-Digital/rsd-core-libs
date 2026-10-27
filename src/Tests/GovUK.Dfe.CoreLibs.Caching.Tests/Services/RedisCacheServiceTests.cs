@@ -320,6 +320,58 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
                 Arg.Any<Func<object, Exception, string>>()!);
         }
 
+        [Fact]
+        public async Task RemoveByPatternAsync_ShouldDeleteInBatchesOf500()
+        {
+            var fullPattern = $"{_redisCacheSettings.KeyPrefix}Applications_*";
+            var keys = Enumerable.Range(0, 1201).Select(i => (RedisKey)$"key{i}").ToArray();
+            ArrangePatternScan(fullPattern, keys);
+
+            await _cacheService.RemoveByPatternAsync("Applications_*");
+
+            await _database.Received(2).KeyDeleteAsync(Arg.Is<RedisKey[]>(k => k.Length == 500), Arg.Any<CommandFlags>());
+            await _database.Received(1).KeyDeleteAsync(Arg.Is<RedisKey[]>(k => k.Length == 201), Arg.Any<CommandFlags>());
+            await _database.DidNotReceive().KeyDeleteAsync(Arg.Any<RedisKey>(), Arg.Any<CommandFlags>());
+        }
+
+        [Fact]
+        public async Task RemoveByPatternAsync_ShouldNotDelete_WhenNothingMatches()
+        {
+            var fullPattern = $"{_redisCacheSettings.KeyPrefix}Nothing_*";
+            ArrangePatternScan(fullPattern, []);
+
+            await _cacheService.RemoveByPatternAsync("Nothing_*");
+
+            await _database.DidNotReceive().KeyDeleteAsync(Arg.Any<RedisKey[]>(), Arg.Any<CommandFlags>());
+        }
+
+        private IServer ArrangePatternScan(string fullPattern, RedisKey[] keys)
+        {
+            var server = Substitute.For<IServer>();
+            var endpoints = new EndPoint[] { new DnsEndPoint("localhost", 6379) };
+
+            _connectionMultiplexer.GetEndPoints().Returns(args => endpoints);
+            _connectionMultiplexer.GetServer(endpoints[0]).Returns(server);
+            server.KeysAsync(
+                    _redisCacheSettings.Database,
+                    Arg.Is<RedisValue>(p => p == fullPattern),
+                    Arg.Any<int>(),
+                    Arg.Any<long>(),
+                    Arg.Any<int>(),
+                    Arg.Any<CommandFlags>())
+                .Returns(_ => ToAsyncEnumerable(keys));
+            return server;
+        }
+
+        private static async IAsyncEnumerable<RedisKey> ToAsyncEnumerable(IEnumerable<RedisKey> keys)
+        {
+            foreach (var key in keys)
+            {
+                await Task.Yield();
+                yield return key;
+            }
+        }
+
         [Theory]
         [CustomAutoData()]
         public async Task RemoveByPatternAsync_ShouldRemoveMatchingKeys_WhenCalled(string pattern)
@@ -327,21 +379,23 @@ namespace GovUK.Dfe.CoreLibs.Caching.Tests.Services
             // Arrange
             var fullPattern = $"{_redisCacheSettings.KeyPrefix}{pattern}";
             var keys = new RedisKey[] { "key1", "key2", "key3" };
-            var server = Substitute.For<IServer>();
-            var endpoints = new EndPoint[] { new DnsEndPoint("localhost", 6379) };
-
-            _connectionMultiplexer.GetEndPoints().Returns(args => endpoints);
-            _connectionMultiplexer.GetServer(endpoints[0]).Returns(server);
-            server.Keys(database: _redisCacheSettings.Database, pattern: fullPattern).Returns(keys);
+            var server = ArrangePatternScan(fullPattern, keys);
+            _database.KeyDeleteAsync(Arg.Any<RedisKey[]>(), Arg.Any<CommandFlags>()).Returns(3L);
 
             // Act
             await _cacheService.RemoveByPatternAsync(pattern);
 
             // Assert
-            foreach (var key in keys)
-            {
-                await _database.Received(1).KeyDeleteAsync(key);
-            }
+            await _database.Received(1).KeyDeleteAsync(
+                Arg.Is<RedisKey[]>(k => k.SequenceEqual(keys)),
+                Arg.Any<CommandFlags>());
+            server.Received(1).KeysAsync(
+                _redisCacheSettings.Database,
+                Arg.Is<RedisValue>(p => p == fullPattern),
+                1000,
+                Arg.Any<long>(),
+                Arg.Any<int>(),
+                Arg.Any<CommandFlags>());
             _logger.Received(1).Log(
                 LogLevel.Information,
                 Arg.Any<EventId>(),

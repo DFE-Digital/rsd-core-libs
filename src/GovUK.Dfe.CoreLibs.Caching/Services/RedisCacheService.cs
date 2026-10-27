@@ -24,6 +24,8 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
         private const int LockExpirySeconds = 30;
         private const int LockRetryDelayMilliseconds = 50;
         private const int MaxLockRetries = 100;
+        private const int PatternScanPageSize = 1000;
+        private const int PatternDeleteBatchSize = 500;
 
         public Type CacheType => typeof(IRedisCacheType);
 
@@ -56,24 +58,34 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
             return null;
         }
 
-        // Note: You already have RemoveByPatternAsync in your code, so just ensure it exists
-        // If not, here it is:
-
         /// <summary>
-        /// Removes all cache entries matching a pattern
+        /// Removes all cache entries matching a pattern.
+        /// SCAN walks the whole keyspace (sessions included), so keys are read in large pages and deleted in batches.
         /// </summary>
         public async Task RemoveByPatternAsync(string pattern)
         {
             var fullPattern = GetFullKey(pattern);
             var server = connectionMultiplexer.GetServer(connectionMultiplexer.GetEndPoints()[0]);
-            var keys = server.Keys(database: _cacheSettings.Database, pattern: fullPattern);
 
-            foreach (var key in keys)
+            var batch = new List<RedisKey>(PatternDeleteBatchSize);
+            long removed = 0;
+            await foreach (var key in server.KeysAsync(
+                               database: _cacheSettings.Database,
+                               pattern: fullPattern,
+                               pageSize: PatternScanPageSize))
             {
-                await _database.KeyDeleteAsync(key);
+                batch.Add(key);
+                if (batch.Count < PatternDeleteBatchSize)
+                    continue;
+
+                removed += await _database.KeyDeleteAsync(batch.ToArray());
+                batch.Clear();
             }
 
-            logger.LogInformation("Redis cache entries removed for pattern: {Pattern}", fullPattern);
+            if (batch.Count > 0)
+                removed += await _database.KeyDeleteAsync(batch.ToArray());
+
+            logger.LogInformation("Redis cache entries removed for pattern: {Pattern} ({Count} keys)", fullPattern, removed);
         }
 
         public async Task<T> GetOrAddAsync<T>(string cacheKey, Func<Task<T>> fetchFunction, string methodName, CancellationToken cancellationToken = default)
