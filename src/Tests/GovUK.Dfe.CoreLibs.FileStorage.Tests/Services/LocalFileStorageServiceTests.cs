@@ -189,6 +189,18 @@ public class LocalFileStorageServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UploadAsync_WithSiblingDirectorySharingBasePrefix_ShouldThrowFileStorageException()
+    {
+        // Arrange
+        var content = TestHelpers.CreateTestStream("test");
+        var siblingPath = $"../{Path.GetFileName(_testBaseDirectory)}2/test.txt";
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<FileStorageException>(() => _service.UploadAsync(siblingPath, content));
+        Assert.Contains("outside the allowed base directory", exception.Message);
+    }
+
+    [Fact]
     public async Task UploadAsync_WithLargeFile_ShouldThrowFileStorageException()
     {
         // Arrange

@@ -379,8 +379,12 @@ public class LocalFileStorageService : IFileStorageService
         // Normalize the path to prevent directory traversal attacks
         var normalizedPath = Path.GetFullPath(Path.Combine(baseDirectory, path));
 
-        // Ensure the path is within the base directory
-        if (!normalizedPath.StartsWith(baseDirectory, StringComparison.OrdinalIgnoreCase))
+        // Ensure the path is within the base directory. The trailing separator stops a sibling
+        // such as "/uploads2" from matching a base of "/uploads".
+        var trimmedBase = Path.TrimEndingDirectorySeparator(baseDirectory);
+        var baseWithSeparator = trimmedBase + Path.DirectorySeparatorChar;
+        if (!normalizedPath.StartsWith(baseWithSeparator, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(normalizedPath, trimmedBase, StringComparison.OrdinalIgnoreCase))
         {
             throw new FileStorageException($"Path '{path}' is outside the allowed base directory.");
         }
