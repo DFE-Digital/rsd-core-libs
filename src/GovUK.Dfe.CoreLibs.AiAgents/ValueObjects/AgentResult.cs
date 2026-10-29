@@ -1,0 +1,21 @@
+namespace GovUK.Dfe.CoreLibs.AiAgents.ValueObjects;
+
+/// <summary>One run's answer and token usage.</summary>
+/// <param name="TotalTokens">Input plus output tokens.</param>
+public sealed record AgentResult(string AgentName, string? Output, long TotalTokens)
+{
+    /// <summary>The input (prompt) tokens used, when Foundry reported them.</summary>
+    public long InputTokens { get; init; }
+
+    /// <summary>The output (completion) tokens used, when Foundry reported them.</summary>
+    public long OutputTokens { get; init; }
+
+    /// <summary>This run's token usage.</summary>
+    public TokenUsage Usage => new(InputTokens, OutputTokens, TotalTokens);
+
+    /// <summary>The agent version that ran; null for an ephemeral agent.</summary>
+    public string? AgentVersion { get; init; }
+
+    /// <summary>The model that answered, as Foundry reported it (e.g. "gpt-4o-2024-08-06").</summary>
+    public string? Model { get; init; }
+}
