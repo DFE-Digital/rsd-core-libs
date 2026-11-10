@@ -136,7 +136,7 @@ public class HomeController : Controller
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| StorageProvider | NotificationStorageProvider | Session | Storage backend to use |
+| StorageProvider | NotificationStorageProvider | Session | Informational only: nothing reads it. The backend is chosen by the `AddNotificationServicesWith*` method you call. `WithInMemory` keeps notifications in one process, so never use it when more than one replica serves users |
 | MaxNotificationsPerUser | int | 50 | Maximum notifications per user |
 | AutoCleanupIntervalMinutes | int | 60 | Auto-cleanup interval (0 = disabled) |
 | MaxNotificationAgeHours | int | 24 | Maximum age before cleanup (0 = disabled) |

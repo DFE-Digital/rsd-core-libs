@@ -54,6 +54,15 @@ dotnet add package GovUK.Dfe.CoreLibs.Caching
 
 In this case, the query handler checks if the principals are cached by generating a unique cache key. If the data is not cached, it retrieves the data from the repository, caches it, and returns it.
 
+### Memory cache is per process
+
+`ICacheService<IMemoryCacheType>` (registered by `AddServiceCaching` and `AddHybridCaching`) lives in the memory of one process. `AddHybridCaching` registers it **alongside** the Redis service; it is not a layer in front of Redis, and nothing keeps the two in step. With more than one replica:
+
+- each replica has its own copy, and `Remove` only clears the copy on the replica that runs it;
+- after the underlying data changes, other replicas keep serving the old value until it expires.
+
+Use `ICacheService<IRedisCacheType>` for anything that must look the same on every replica, or keep memory durations short. If you need memory speed with shared data, put a short memory cache in front of Redis yourself and broadcast removals to every replica over Redis pub/sub with `IConnectionMultiplexer.GetSubscriber()` (flexforms-web's `TwoLevelCache` does this; its `TenantConfigurationInvalidator` does the same for a memory-only cache). Redis values are stored as camelCase JSON, so check that cached types round-trip.
+
 ### Cache Duration Based on Method Name
 
 The caching service dynamically determines the cache duration based on the method name. This is particularly useful when you want to apply different caching durations to different query handlers.
