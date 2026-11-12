@@ -186,7 +186,7 @@ public class RedisNotificationStorage : INotificationStorage
 
         try
         {
-            return JsonSerializer.Deserialize<List<Notification>>(json!) ?? new List<Notification>();
+            return JsonSerializer.Deserialize<List<Notification>>((string)json!) ?? new List<Notification>();
         }
         catch
         {

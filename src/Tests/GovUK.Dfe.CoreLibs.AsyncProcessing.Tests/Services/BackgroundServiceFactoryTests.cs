@@ -170,13 +170,15 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
             // Arrange
             var cts = new CancellationTokenSource();
             var runTask = _factoryNoGlobalToken.StartAsync(cts.Token);
+            await runTask;
 
             // Act
             cts.Cancel();
-            await runTask;
+            await _factoryNoGlobalToken.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(5));
 
             // Assert
             Assert.True(runTask.IsCompletedSuccessfully);
+            Assert.True(_factoryNoGlobalToken.ExecuteTask.IsCompletedSuccessfully);
         }
 
         [Fact]
@@ -185,13 +187,15 @@ namespace GovUK.Dfe.CoreLibs.AsyncProcessing.Tests.Services
             // Arrange
             var cts = new CancellationTokenSource();
             var runTask = _factoryWithGlobalToken.StartAsync(cts.Token);
+            await runTask;
 
             // Act
             cts.Cancel();
-            await runTask;
+            await _factoryWithGlobalToken.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(5));
 
             // Assert
             Assert.True(runTask.IsCompletedSuccessfully);
+            Assert.True(_factoryWithGlobalToken.ExecuteTask.IsCompletedSuccessfully);
         }
 
         // New test 1: If a task is long-running and UseGlobalStoppingToken = true,

@@ -1,6 +1,6 @@
 # DfE.CoreLibs — Agent entry point
 
-Shared **.NET 8** NuGet libraries for DfE Digital (heavily used by FlexForms). Each package is **independently GitVersioned** and published to nuget.org.
+Shared **.NET 10** NuGet libraries for DfE Digital (heavily used by FlexForms). Each package is **independently GitVersioned** and published to nuget.org.
 
 There is **no root README**. Per-package `readme.md` files (some empty) live under `src/GovUK.Dfe.CoreLibs.*/`.
 

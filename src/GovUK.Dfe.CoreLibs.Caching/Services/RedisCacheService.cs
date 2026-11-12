@@ -99,7 +99,7 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
                 if (cachedValue.HasValue)
                 {
                     logger.LogInformation("Redis cache hit for key: {CacheKey}", fullKey);
-                    var deserializedValue = JsonSerializer.Deserialize<T>(cachedValue!, _jsonSerializerOptions);
+                    var deserializedValue = JsonSerializer.Deserialize<T>((string)cachedValue!, _jsonSerializerOptions);
                     return deserializedValue!;
                 }
 
@@ -118,7 +118,7 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
                         if (cachedValue.HasValue)
                         {
                             logger.LogInformation("Redis cache hit after lock acquisition for key: {CacheKey}", fullKey);
-                            var deserializedValue = JsonSerializer.Deserialize<T>(cachedValue!, _jsonSerializerOptions);
+                            var deserializedValue = JsonSerializer.Deserialize<T>((string)cachedValue!, _jsonSerializerOptions);
                             return deserializedValue!;
                         }
 
@@ -154,7 +154,7 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
                         if (cachedValue.HasValue)
                         {
                             logger.LogInformation("Redis cache hit after waiting for key: {CacheKey}", fullKey);
-                            var deserializedValue = JsonSerializer.Deserialize<T>(cachedValue!, _jsonSerializerOptions);
+                            var deserializedValue = JsonSerializer.Deserialize<T>((string)cachedValue!, _jsonSerializerOptions);
                             return deserializedValue!;
                         }
                     }
@@ -187,7 +187,7 @@ namespace GovUK.Dfe.CoreLibs.Caching.Services
                 if (cachedValue.HasValue)
                 {
                     logger.LogInformation("Redis cache hit for key: {CacheKey}", fullKey);
-                    var deserializedValue = JsonSerializer.Deserialize<T>(cachedValue!, _jsonSerializerOptions);
+                    var deserializedValue = JsonSerializer.Deserialize<T>((string)cachedValue!, _jsonSerializerOptions);
                     return deserializedValue;
                 }
 
