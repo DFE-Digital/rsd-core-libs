@@ -7,7 +7,7 @@ A generic, database-backed application settings management library for DfE appli
 - Store and retrieve application settings from a database
 - Integrates with Microsoft.Extensions.Configuration and Microsoft.Extensions.Options
 - Supports caching for improved performance. The cache is in process memory (`IMemoryCache`, `CacheExpirationMinutes`, default 30), and `SetSettingAsync` only clears the copy on the replica that made the change: other replicas serve the old value until it expires. Lower the expiry or set `EnableCaching` to false when running more than one replica
-- Designed for use with .NET 8 and Entity Framework Core
+- Designed for use with .NET 10 and Entity Framework Core
 
 ## Installation
 

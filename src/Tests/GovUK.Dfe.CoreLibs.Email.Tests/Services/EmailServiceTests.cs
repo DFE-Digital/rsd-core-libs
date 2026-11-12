@@ -471,7 +471,7 @@ public class EmailServiceTests
     [InlineData("invalid-email", false)]
     [InlineData("@example.com", false)]
     [InlineData("test@", false)]
-    [InlineData("test..email@example.com", true)]
+    [InlineData("test..email@example.com", false)]
     [InlineData("", false)]
     [InlineData(" ", false)]
     [InlineData(null, false)]

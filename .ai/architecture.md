@@ -6,4 +6,4 @@ Not a deployed service. DI extension methods per package (`AddHybridCaching`, `A
 
 **Messaging.Contracts** owns `TopicNames` and events (`ScanRequestedEvent`, Prism events). Changing topic strings is a production incident.
 
-Target framework: **net8.0** while FlexForms hosts are **net10.0** — that is supported; don’t “upgrade CoreLibs to net10” as a drive-by unless all consumers agree.
+Target framework: **net10.0** (all packages and test projects). Consumers must be on .NET 10 to take package versions published after the upgrade.
