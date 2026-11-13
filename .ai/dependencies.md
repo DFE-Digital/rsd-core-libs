@@ -16,3 +16,9 @@ FlexForms consumption (typical; pins drift):
 | Testing | tests | tests | — |
 
 ClamAV API uses AsyncProcessing + Security. File-scanner uses Messaging.* + Caching + ClamAV.Api.Client.
+
+## Contracts 2.x
+
+Contracts 2.0.0 onwards targets **net10.0 only**. A consumer that still multi-targets net8.0 (historically `GovUK.Dfe.FlexForms.Api.Client`) must drop net8.0 before moving to 2.x.
+
+Test Authentication authenticator app DTOs (`VerifyTestAuthAuthenticatorCodeRequest`, `ConfirmTestAuthAuthenticatorSetupRequest`, `BeginTestAuthAuthenticatorSetupResponse`, `TestAuthAuthenticatorStatusResponse`) were added after 2.0.0. Login verification reuses `VerifyTestAuthPasswordResponse`. Consumers that must bump to the release containing them: flexforms-api (Domain + Api.Client, then republish the client), then flexforms-web.
