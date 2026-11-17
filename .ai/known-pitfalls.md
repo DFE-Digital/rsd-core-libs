@@ -7,6 +7,6 @@
 5. FlexForms registers custom `IEventPublisher` **after** MassTransit.
 6. Empty package readmes (Contracts, Http, Messaging).
 7. FileStorage shipping test dependencies.
-8. Authorization policies treating scopes like roles (Security readme).
+8. Authorization policies must distinguish scopes from roles (see the Security readme).
 9. Application Insights 3.x vs Serilog is a **consumer** issue (FlexForms pins 2.x).
-10. `OpenIdConnect` SignedOutCallbackPath historically not assigned in an extension — verify before relying on it for DfE Sign-In logout.
+10. When relying on DfE Sign-In logout through `AddCustomOpenIdConnect`, confirm `SignedOutCallbackPath` is configured.
