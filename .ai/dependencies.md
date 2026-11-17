@@ -4,16 +4,17 @@ Internal: Security → Caching; Notifications → Contracts (older pin possible)
 
 FlexForms consumption (typical; pins drift):
 
-| Package | api | web | prism |
-|---------|-----|-----|-------|
-| Contracts | yes | yes | yes |
-| Security | yes | yes | no |
-| Caching | yes | yes | no |
-| Http | yes | yes | no |
-| Email, FileStorage, Notifications, AsyncProcessing, Utilities | api | — | — |
-| Messaging.Contracts | yes | yes | yes |
-| Messaging.MassTransit | yes | yes | no |
-| Testing | tests | tests | — |
+| Package | api | web | prism | latest (nuget.org) |
+|---------|-----|-----|-------|--------------------|
+| Contracts | yes | yes | yes | 2.0.4 |
+| Security | yes | yes | no | 2.0.2 |
+| Caching | yes | yes | no | 2.0.0 |
+| Http | yes | yes | no | 2.0.0 |
+| Email, FileStorage, Notifications | api | — | — | 1.0.0 |
+| AsyncProcessing, Utilities | api | — | — | 2.0.0 |
+| Messaging.Contracts | yes | yes | yes | 1.0.0 |
+| Messaging.MassTransit | yes | yes | no | 1.0.0 |
+| Testing | tests | tests | — | 2.0.0 |
 
 ClamAV API uses AsyncProcessing + Security. File-scanner uses Messaging.* + Caching + ClamAV.Api.Client.
 
