@@ -154,8 +154,8 @@ TenantConfig DB rows `(TenantId, Category, Target)`, Target `Shared` | `Api` | `
 
 | Consumer | CoreLibs and client pins |
 |----------|--------------------------|
-| flexforms-api | Contracts 2.0.4, Security 2.0.2, Caching / Http / AsyncProcessing / Utilities / Testing 2.0.0, Email / FileStorage / Notifications / Messaging.Contracts / Messaging.MassTransit 1.0.0. Publishes Api.Client (net10.0) |
-| flexforms-web | Api.Client 0.0.59, Contracts 2.0.4 (pinned directly), Security 2.0.2, Caching 2.0.0, Http 2.0.0, Messaging.Contracts 1.0.0, Messaging.MassTransit 1.0.0, Testing 2.0.0 |
+| flexforms-api | Contracts 2.0.6, Security 2.0.2, Caching / Http / AsyncProcessing / Utilities / Testing 2.0.0, Email / FileStorage / Notifications / Messaging.Contracts / Messaging.MassTransit 1.0.0. Publishes Api.Client (net10.0) |
+| flexforms-web | Api.Client 0.0.60, Contracts 2.0.6 (pinned directly), Security 2.0.2, Caching 2.0.0, Http 2.0.0, Messaging.Contracts 1.0.0, Messaging.MassTransit 1.0.0, Testing 2.0.0 |
 | flexforms-prism | Api.Client 0.0.50, Contracts 1.0.112, Messaging.Contracts 0.1.6 (lags API; see Prism `.ai/dependencies.md`) |
 | rsd-file-scanner-function | ClamAV.Api.Client 1.0.0, Caching 2.0.0, Messaging.Contracts 1.0.0, Messaging.MassTransit 1.0.0 |
 | rsd-clamav-api | AsyncProcessing 2.0.0, Security 2.0.0. Publishes ClamAV.Api.Client |
