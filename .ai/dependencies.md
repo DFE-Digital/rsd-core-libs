@@ -2,7 +2,7 @@
 
 Internal: Security → Caching; Notifications → Contracts (older pin possible). Tests → Testing project.
 
-FlexForms consumption (typical; pins drift):
+FlexForms consumption (pins drift; exact versions per consumer on 2026-11-17 are in [`ecosystem.md`](ecosystem.md) section 8. Since the contributor-invite merge every FlexForms consumer except Prism is on the .NET 10 majors (Contracts 2.x, Security 2.x, Caching 2.x, Messaging 1.x)):
 
 | Package | api | web | prism |
 |---------|-----|-----|-------|
@@ -25,4 +25,4 @@ Test Authentication authenticator app DTOs (`VerifyTestAuthAuthenticatorCodeRequ
 
 `AddContributorRequest.Permissions` (`ContributorInvitePermissions`) was added after 2.0.2. When set, the API grants direct Application / ApplicationFiles access from those flags (Application Read always). When null, legacy template `contributorRoleId` behaviour applies. Consumers that must bump: flexforms-api (Domain + Api.Client), then flexforms-web.
 
-`UserAuthorizationDto.InviteScopedApplicationKeys` carries contributor-invite scope markers through GetMyPermissions / claim reconstruction (Web and Entra app-only providers). Without it, DTO-backed claim rebuild drops `ContributorInvite:{id}:Scope` while keeping role `ApplicationFiles:Any:Read`. Consumers that must bump: flexforms-api (Domain + Api.Client), then flexforms-web.
+`UserAuthorizationDto.InviteScopedApplicationKeys` carries contributor-invite scope markers through GetMyPermissions / claim reconstruction (Web and Entra app-only providers). Any client that rebuilds claims from this DTO must re-emit each key as a `ContributorInvite:{id}:Scope` permission claim. Consumers that must bump: flexforms-api (Domain + Api.Client), then flexforms-web.

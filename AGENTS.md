@@ -20,7 +20,8 @@ There is **no root README**. Per-package `readme.md` files (some empty) live und
 | File | Use |
 |------|-----|
 | [`.ai/README.md`](.ai/README.md) | Package index |
-| [`.ai/architecture.md`](.ai/architecture.md) | How packages relate |
+| [`.ai/ecosystem.md`](.ai/ecosystem.md) | Whole-platform map (same file in all six repos): who consumes which package, topics, contracts, cross-repo playbooks |
+| [`.ai/architecture.md`](.ai/architecture.md) | How packages relate, package → DI entry points → consumers |
 | [`.ai/dependencies.md`](.ai/dependencies.md) | FlexForms consumption matrix |
 | [`.ai/development-workflows.md`](.ai/development-workflows.md) | Pack, test, GitVersion |
 | [`.ai/known-pitfalls.md`](.ai/known-pitfalls.md) | Footguns |
